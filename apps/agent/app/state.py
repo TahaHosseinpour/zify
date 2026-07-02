@@ -1,4 +1,4 @@
-from typing import Annotated, Optional, TypedDict, Union
+from typing import Annotated, Optional, TypedDict
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
@@ -40,24 +40,32 @@ def merge_retrieved(existing: list, new) -> list:
     return (existing or []) + list(new)
 
 
-class SalesAgentState(TypedDict):
-    # زیرساخت مکالمه
+class SalesAgentState(TypedDict, total=False):
+    # Conversation infrastructure
     messages: Annotated[list[BaseMessage], add_messages]
     shop_id: str
     mode: str  # "explore" | "product"
     product_id: Optional[str]
 
-    # retrieval — reset every turn, never persisted across turns
+    # Long-term conversation memory: when `messages` grows too long, older
+    # turns are collapsed into this running summary.
+    summary: Optional[str]
+
+    # Retrieval — reset every turn, never persisted across turns
     retrieved_context: Annotated[
         list[RetrievedItem], merge_retrieved
     ]
+    # The products most recently shown to the customer, so later ordinal
+    # references ("the second one") can resolve to a concrete product.
+    # No reducer = plain replace; it survives across turns until re-set.
+    shown_products: list[RetrievedItem]
     explore_filters: dict
     intent: Optional[str]
 
-    # تشخیص خریدار
+    # Buyer profiling
     stage: Optional[str]  # "browsing" | "considering" | "ready_to_buy"
     value_driver: Optional[str]  # "low_price" | "high_quality" |
     # "best_price_in_quality" | "best_quality_in_price"
 
-    # رفتار فروش
+    # Sales behavior
     objection: Optional[str]  # "price" | "uncertainty" | "delay"
