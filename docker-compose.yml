@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: zify-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: zify
+      POSTGRES_PASSWORD: zify_secret
+      POSTGRES_DB: zify_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - zify_pg_data:/var/lib/postgresql/data
+
+volumes:
+  zify_pg_data:

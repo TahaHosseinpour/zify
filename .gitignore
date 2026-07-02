@@ -1,0 +1,44 @@
+# ── Secrets ───────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.pem
+
+# ── Node ──────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ── Next.js ───────────────────────────────────────────────
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# ── Python / agent ────────────────────────────────────────
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# ── LangGraph dev state ───────────────────────────────────
+.langgraph_api/
+*.pckl
+
+# ── Logs / OS / editors ───────────────────────────────────
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# ── Misc ──────────────────────────────────────────────────
+coverage/
+.turbo/

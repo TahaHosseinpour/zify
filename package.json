@@ -1,0 +1,17 @@
+{
+  "name": "zify",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev:admin": "bun run --cwd apps/admin dev",
+    "dev:agent": "cd apps/agent && RELOAD=true python -m uv run python main.py",
+    "start:agent": "cd apps/agent && python -m uv run python main.py",
+    "dev:bot": "bun run --cwd apps/telegram-bot dev",
+    "db:generate": "bun run --cwd packages/db db:generate",
+    "db:migrate": "bun run --cwd packages/db db:migrate",
+    "db:studio": "bun run --cwd packages/db db:studio"
+  },
+  "dependencies": {
+    "@hugeicons/react": "^1.1.9"
+  }
+}

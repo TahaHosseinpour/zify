@@ -1,0 +1,197 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+generator python_client {
+  provider                    = "prisma-client-py"
+  interface                   = "asyncio"
+  recursive_type_depth        = 5
+  enable_experimental_decimal = true
+  output                      = "../../../apps/agent/prisma_client"
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+model User {
+  id                  String    @id @default(cuid())
+  mobile              String    @unique
+  otp                 String?
+  otpExpiry           DateTime?
+  fullName            String?
+  isVerified          Boolean   @default(false)
+  onboardingCompleted Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  shops Shop[]
+
+  @@map("users")
+}
+
+model Shop {
+  id                String   @id @default(cuid())
+  slug              String   @unique
+  name              String
+  logoUrl           String?
+  description       String?
+  categories        String[]
+  supportInfo       Json?
+  personaCharacter  String?
+  personaTone       String?
+  systemPromptExtra String?
+  ownerId           String
+  createdAt         DateTime @default(now())
+
+  owner          User            @relation(fields: [ownerId], references: [id])
+  products       Product[]
+  faqItems       FaqItem[]
+  shopInfoChunks ShopInfoChunk[]
+  channels       Channel[]
+  endUsers       EndUser[]
+  conversations  Conversation[]
+  events         Event[]
+  orders         Order[]
+
+  @@map("shops")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  shopId      String
+  name        String
+  price       Decimal  @db.Decimal(10, 2)
+  imageUrl    String?
+  productUrl  String?
+  description String?
+  category    String?
+  brand       String?
+  stock       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  // vector column added via raw SQL migration
+  // embedding Unsupported("vector(1536)")?
+
+  shop          Shop           @relation(fields: [shopId], references: [id])
+  conversations Conversation[]
+  orders        Order[]
+
+  @@map("products")
+}
+
+model FaqItem {
+  id       String @id @default(cuid())
+  shopId   String
+  question String
+  answer   String
+
+  // embedding vector(1536) added via raw SQL migration
+
+  shop Shop @relation(fields: [shopId], references: [id])
+
+  @@map("faq_items")
+}
+
+model ShopInfoChunk {
+  id      String @id @default(cuid())
+  shopId  String
+  content String
+
+  // embedding vector(1536) added via raw SQL migration
+
+  shop Shop @relation(fields: [shopId], references: [id])
+
+  @@map("shop_info_chunks")
+}
+
+model Channel {
+  id        String   @id @default(cuid())
+  shopId    String
+  type      String   @default("telegram")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  shop Shop @relation(fields: [shopId], references: [id])
+
+  @@map("channels")
+}
+
+model EndUser {
+  id             String   @id @default(cuid())
+  shopId         String
+  telegramUserId String
+  firstName      String?
+  username       String?
+  createdAt      DateTime @default(now())
+
+  shop          Shop           @relation(fields: [shopId], references: [id])
+  conversations Conversation[]
+  events        Event[]
+  orders        Order[]
+
+  @@unique([shopId, telegramUserId])
+  @@map("end_users")
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  shopId    String
+  endUserId String
+  mode      String   @default("explore")
+  productId String?
+  startedAt DateTime @default(now())
+
+  shop     Shop      @relation(fields: [shopId], references: [id])
+  endUser  EndUser   @relation(fields: [endUserId], references: [id])
+  product  Product?  @relation(fields: [productId], references: [id])
+  messages Message[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String
+  content        String
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+
+  @@map("messages")
+}
+
+model Event {
+  id        String   @id @default(cuid())
+  shopId    String
+  endUserId String?
+  type      String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  shop    Shop     @relation(fields: [shopId], references: [id])
+  endUser EndUser? @relation(fields: [endUserId], references: [id])
+
+  @@map("events")
+}
+
+model Order {
+  id        String   @id @default(cuid())
+  shopId    String
+  endUserId String?
+  productId String?
+  amount    Decimal  @db.Decimal(10, 2)
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+
+  shop    Shop     @relation(fields: [shopId], references: [id])
+  endUser EndUser? @relation(fields: [endUserId], references: [id])
+  product Product? @relation(fields: [productId], references: [id])
+
+  @@map("orders")
+}
