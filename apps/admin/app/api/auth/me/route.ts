@@ -8,8 +8,12 @@ export async function GET() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { id: true, mobile: true, fullName: true, isVerified: true, onboardingCompleted: true },
+    select: { id: true, mobile: true, fullName: true, isVerified: true, onboardingCompleted: true, password: true },
   })
 
-  return NextResponse.json(user)
+  if (!user) return NextResponse.json(null, { status: 401 })
+
+  // Expose only whether a password exists, never the hash itself.
+  const { password, ...rest } = user
+  return NextResponse.json({ ...rest, hasPassword: Boolean(password) })
 }

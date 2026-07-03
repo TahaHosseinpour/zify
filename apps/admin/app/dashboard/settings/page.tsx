@@ -17,6 +17,38 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false)
   const [resetting, setResetting] = useState(false)
 
+  const [hasPassword, setHasPassword] = useState(false)
+  const [pwForm, setPwForm] = useState({ password: "", confirm: "" })
+  const [savingPassword, setSavingPassword] = useState(false)
+
+  async function handleSetPassword(e: React.FormEvent) {
+    e.preventDefault()
+    if (pwForm.password.length < 6) {
+      toast.error("رمز عبور باید حداقل ۶ کاراکتر باشد")
+      return
+    }
+    if (pwForm.password !== pwForm.confirm) {
+      toast.error("رمز عبور و تکرار آن یکسان نیستند")
+      return
+    }
+    setSavingPassword(true)
+    try {
+      const res = await fetch("/api/auth/set-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pwForm.password }),
+      })
+      if (!res.ok) throw new Error()
+      toast.success("رمز عبور ذخیره شد")
+      setHasPassword(true)
+      setPwForm({ password: "", confirm: "" })
+    } catch {
+      toast.error("خطا در ذخیره رمز عبور")
+    } finally {
+      setSavingPassword(false)
+    }
+  }
+
   async function handleResetAgent() {
     if (!confirm("همه محصولات، سوالات متداول و اطلاعات فروشگاه دوباره ایندکس می‌شوند و حافظه گفتگوهای دستیار پاک می‌شود. ادامه می‌دهید؟")) return
     setResetting(true)
@@ -46,6 +78,11 @@ export default function SettingsPage() {
         }
       })
       .finally(() => setLoading(false))
+
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((me) => setHasPassword(Boolean(me?.hasPassword)))
+      .catch(() => {})
   }, [])
 
   async function handleSave(e: React.FormEvent) {
@@ -121,6 +158,42 @@ export default function SettingsPage() {
         <CardContent>
           <Button type="button" variant="outline" onClick={handleResetAgent} disabled={resetting}>
             {resetting ? "در حال ریست..." : "ریست حافظه دستیار"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Separator />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{hasPassword ? "تغییر رمز عبور" : "تعیین رمز عبور"}</CardTitle>
+          <CardDescription>برای ورود با شماره موبایل و رمز عبور.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label>رمز عبور جدید</Label>
+            <Input
+              type="password"
+              dir="ltr"
+              className="text-left"
+              placeholder="حداقل ۶ کاراکتر"
+              value={pwForm.password}
+              onChange={(e) => setPwForm((p) => ({ ...p, password: e.target.value }))}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>تکرار رمز عبور</Label>
+            <Input
+              type="password"
+              dir="ltr"
+              className="text-left"
+              placeholder="رمز عبور را دوباره وارد کنید"
+              value={pwForm.confirm}
+              onChange={(e) => setPwForm((p) => ({ ...p, confirm: e.target.value }))}
+            />
+          </div>
+          <Button type="button" variant="outline" onClick={handleSetPassword} disabled={savingPassword}>
+            {savingPassword ? "در حال ذخیره..." : hasPassword ? "تغییر رمز عبور" : "تعیین رمز عبور"}
           </Button>
         </CardContent>
       </Card>

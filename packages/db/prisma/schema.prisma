@@ -22,6 +22,9 @@ model User {
   mobile               String    @unique
   otp                  String?
   otpExpiry            DateTime?
+  // Optional scrypt password hash ("salt:hash"); set from settings so the user
+  // can log in with mobile+password instead of OTP. Null = OTP-only account.
+  password             String?
   fullName             String?
   isVerified           Boolean   @default(false)
   onboardingCompleted  Boolean   @default(false)
