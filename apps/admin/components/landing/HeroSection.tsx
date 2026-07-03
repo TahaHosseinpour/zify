@@ -86,11 +86,6 @@ export default function HeroSection() {
         }}
       />
 
-      <div
-        className="pointer-events-none absolute bottom-0 inset-x-0 h-40 z-10"
-        style={{ background: "linear-gradient(to top, var(--background) 0%, transparent 100%)" }}
-      />
-
       <div className="relative z-20 flex flex-col items-center justify-center flex-1 px-4 text-center pt-[88px] sm:pt-0 pb-10 sm:pb-0">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
