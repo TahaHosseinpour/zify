@@ -20,13 +20,23 @@ from .prompts import (
     build_product_prompt,
     build_system_prompt,
 )
-from .state import RESET_CONTEXT, RetrievedItem, SalesAgentState, SetContext
+from .state import RESET_CONTEXT, RetrievedItem, SalesAgentState
 
 # ── LLM / Embeddings ──────────────────────────────────────────────────────────
 
 llm = ChatOpenAI(
     model=os.environ.get("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
-    temperature=0.7,
+    temperature=0.3,
+    api_key=os.environ.get("OPENAI_API_KEY"),
+    base_url=os.environ.get("OPENAI_BASE_URL"),
+)
+
+# Classification must be (near-)deterministic: the same message should always
+# take the same route through the graph. A separate low-temperature instance is
+# used for intent analysis, distinct from the creative conversational `llm`.
+intent_llm = ChatOpenAI(
+    model=os.environ.get("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
+    temperature=0,
     api_key=os.environ.get("OPENAI_API_KEY"),
     base_url=os.environ.get("OPENAI_BASE_URL"),
 )
@@ -70,23 +80,32 @@ def _product_content(row: dict) -> str:
 
 
 async def vector_search(
-    shop_id: str, table: str, query_text: str, k: int = 5
+    shop_id: str,
+    table: str,
+    query_text: str,
+    k: int = 5,
+    exclude_ids: Optional[list[str]] = None,
 ) -> list[RetrievedItem]:
     vec = await embeddings.aembed_query(query_text)
     vec_str = _vector_literal(vec)
 
     if table == "products":
+        # Optionally drop products the customer has already rejected so a
+        # repeated query surfaces new options instead of the same list.
+        exclude_clause = ""
+        params: list = [vec_str, shop_id, k]
+        if exclude_ids:
+            exclude_clause = " AND NOT (id = ANY($4))"
+            params.append(exclude_ids)
         rows = await db.query_raw(
-            """SELECT id, name, price, description, category, brand, stock,
+            f"""SELECT id, name, price, description, category, brand, stock,
                       "productUrl", "imageUrl",
                       embedding <=> $1::vector AS score
                FROM products
-               WHERE "shopId" = $2 AND "isActive" = true AND embedding IS NOT NULL
+               WHERE "shopId" = $2 AND "isActive" = true AND embedding IS NOT NULL{exclude_clause}
                ORDER BY score ASC
                LIMIT $3""",
-            vec_str,
-            shop_id,
-            k,
+            *params,
         )
         return [
             RetrievedItem(
@@ -145,7 +164,9 @@ async def vector_search(
     ]
 
 
-async def sql_filter_products(shop_id: str, filters: dict) -> list[RetrievedItem]:
+async def sql_filter_products(
+    shop_id: str, filters: dict, exclude_ids: Optional[list[str]] = None
+) -> list[RetrievedItem]:
     where: dict = {"shopId": shop_id, "isActive": True}
     if filters.get("category"):
         where["category"] = {"contains": filters["category"], "mode": "insensitive"}
@@ -158,6 +179,8 @@ async def sql_filter_products(shop_id: str, filters: dict) -> list[RetrievedItem
         if filters.get("maxPrice") is not None:
             price_filter["lte"] = filters["maxPrice"]
         where["price"] = price_filter
+    if exclude_ids:
+        where["id"] = {"notIn": exclude_ids}
 
     products = await db.product.find_many(where=where, take=8)
 
@@ -207,9 +230,13 @@ class IntentResult(BaseModel):
     new_topic: bool = False
     # Ordinal reference to an already-shown product ("the second one") — 1-based
     selected_index: Optional[int] = None
+    # Customer rejected the current suggestions and wants different options
+    rejected_current: bool = False
+    # Customer accepted/dropped their previous objection ("ok", "fair enough")
+    objection_resolved: bool = False
 
 
-structured_llm = llm.with_structured_output(IntentResult)
+structured_llm = intent_llm.with_structured_output(IntentResult)
 
 # ── Nodes ─────────────────────────────────────────────────────────────────────
 
@@ -249,6 +276,17 @@ async def maybe_summarize(state: SalesAgentState) -> dict:
 INTENT_HISTORY_WINDOW = 6
 
 
+def derive_mode(intent: Optional[str], prev_mode: str) -> str:
+    """Derive the graph mode from the intent so the two can't contradict.
+
+    A new product search or a comparison is always broad exploration, never a
+    single pinned product; anything else keeps the previous mode.
+    """
+    if intent in ("search_product", "compare"):
+        return "explore"
+    return prev_mode
+
+
 async def analyze_intent(state: SalesAgentState) -> dict:
     # Give the classifier a short window of recent turns, not just the last
     # message, so filters/intent are read in context ("cheaper than that one").
@@ -259,7 +297,9 @@ async def analyze_intent(state: SalesAgentState) -> dict:
     )
 
     prev_mode = state.get("mode", "explore")
-    new_mode = result.mode or prev_mode
+    # Single source of truth: derive mode from intent rather than trusting a
+    # separate model field that may disagree with it.
+    new_mode = derive_mode(result.intent, prev_mode)
 
     # Merge new filters onto the existing ones so earlier constraints (budget,
     # brand, ...) survive; wipe them only when the topic genuinely changed.
@@ -272,38 +312,68 @@ async def analyze_intent(state: SalesAgentState) -> dict:
         new_filters if result.new_topic else {**(state.get("explore_filters") or {}), **new_filters}
     )
 
+    # objection is sticky across turns, but must clear once the customer drops it.
+    if result.objection_resolved:
+        new_objection = None
+    else:
+        new_objection = result.objection or state.get("objection")
+
     updates: dict = {
         "intent": result.intent,
-        "mode": new_mode,
-        # stage / value_driver / objection describe the customer over the whole
+        # stage / value_driver describe the customer over the whole
         # conversation, so keep the previous value when this turn says nothing.
         "stage": result.stage or state.get("stage", "browsing"),
         "value_driver": result.value_driver or state.get("value_driver"),
-        "objection": result.objection or state.get("objection"),
+        "objection": new_objection,
         "explore_filters": merged_filters,
-        # Wipe retrieval from the previous turn so context never freezes.
-        "retrieved_context": RESET_CONTEXT,
+        # Wipe both retrieval buffers from the previous turn so nothing freezes:
+        # retrieved_raw is reset via the None sentinel, retrieved_context via [].
+        "retrieved_raw": RESET_CONTEXT,
+        "retrieved_context": [],
     }
 
-    # Forget the pinned product when the customer leaves product mode.
-    if new_mode == "explore" and prev_mode == "product":
-        updates["product_id"] = None
-
     # Resolve an ordinal reference ("the second one") to a concrete product id.
+    # Always resolve against shown_products, which is the last explore list the
+    # customer actually browsed (product mode never overwrites it). Pinning a
+    # product also switches to product mode so routing hits sql_query_product.
     if result.selected_index is not None:
         shown = [p for p in (state.get("shown_products") or []) if p.get("type") == "product"]
         idx = result.selected_index - 1
         if 0 <= idx < len(shown):
             updates["product_id"] = shown[idx]["id"]
+            new_mode = "product"
+
+    updates["mode"] = new_mode
+
+    # Forget the pinned product when the customer leaves product mode.
+    if new_mode == "explore" and prev_mode == "product":
+        updates["product_id"] = None
+
+    # Reject-and-retry: on a new topic clear the exclusion list; when the
+    # customer rejects the current options, exclude them so the next search
+    # returns something different.
+    excluded = list(state.get("excluded_product_ids") or [])
+    if result.new_topic:
+        excluded = []
+    elif result.rejected_current:
+        rejected_ids = [p["id"] for p in (state.get("shown_products") or [])]
+        excluded = list(dict.fromkeys(excluded + rejected_ids))
+    updates["excluded_product_ids"] = excluded
 
     return updates
 
 
 def router_after_intent(state: SalesAgentState) -> str:
-    if state.get("intent") == "buy_intent":
+    intent = state.get("intent")
+    if intent == "buy_intent":
         return "handle_purchase"
-    if state.get("intent") in ("ask_question", "needs_clarification"):
+    if intent in ("ask_question", "needs_clarification"):
         return "ask_question"
+    # Objections and comparisons are about products already on the table — answer
+    # from what we've shown instead of running a fresh (and misleading) search
+    # whose query would be the objection/comparison text itself.
+    if intent in ("objection", "compare") and state.get("shown_products"):
+        return "answer_from_memory"
     if state.get("mode") == "product":
         return "fan_out_product"
     return "fan_out_explore"
@@ -336,32 +406,48 @@ def route_fan_out_product(state: SalesAgentState) -> list[Send]:
 
 
 async def vector_search_explore(state: dict) -> dict:
-    items = await vector_search(state["shop_id"], "products", state.get("_query", ""), 5)
-    return {"retrieved_context": items}
+    items = await vector_search(
+        state["shop_id"], "products", state.get("_query", ""), 5,
+        exclude_ids=state.get("excluded_product_ids"),
+    )
+    return {"retrieved_raw": items}
+
+
+MEANINGFUL_FILTER_KEYS = ("category", "brand", "minPrice", "maxPrice")
 
 
 async def sql_filter_explore(state: SalesAgentState) -> dict:
-    items = await sql_filter_products(state["shop_id"], state.get("explore_filters") or {})
-    return {"retrieved_context": items}
+    filters = state.get("explore_filters") or {}
+    # Without a real filter this would just return arbitrary products (by DB
+    # order) and derail answers to non-shopping questions — so return nothing.
+    if not any(filters.get(k) is not None and filters.get(k) != "" for k in MEANINGFUL_FILTER_KEYS):
+        return {"retrieved_raw": []}
+    items = await sql_filter_products(
+        state["shop_id"], filters, exclude_ids=state.get("excluded_product_ids")
+    )
+    return {"retrieved_raw": items}
 
 
 async def vector_search_product(state: dict) -> dict:
-    items = await vector_search(state["shop_id"], "products", state.get("_query", ""), 5)
-    return {"retrieved_context": items}
+    items = await vector_search(
+        state["shop_id"], "products", state.get("_query", ""), 5,
+        exclude_ids=state.get("excluded_product_ids"),
+    )
+    return {"retrieved_raw": items}
 
 
 async def sql_query_product(state: SalesAgentState) -> dict:
     product_id = state.get("product_id")
     if not product_id:
-        return {"retrieved_context": []}
+        return {"retrieved_raw": []}
     # Scope by shopId so one shop can never pull another shop's product.
     product = await db.product.find_first(
         where={"id": product_id, "shopId": state["shop_id"]}
     )
     if not product:
-        return {"retrieved_context": []}
+        return {"retrieved_raw": []}
     return {
-        "retrieved_context": [
+        "retrieved_raw": [
             RetrievedItem(
                 id=product.id,
                 type="product",
@@ -382,13 +468,17 @@ async def sql_query_product(state: SalesAgentState) -> dict:
 
 async def vector_faq(state: dict) -> dict:
     items = await vector_search(state["shop_id"], "faq_items", state.get("_query", ""), 3)
-    return {"retrieved_context": items}
+    return {"retrieved_raw": items}
 
 
 def fuse_and_rank_context(items: list[RetrievedItem], state: SalesAgentState) -> list[RetrievedItem]:
     deduped = list({item["id"]: item for item in items}.values())
+    pinned_id = state.get("product_id")
 
     def sort_key(item: RetrievedItem) -> float:
+        # The product the customer is actively discussing must rank first.
+        if pinned_id and item.get("id") == pinned_id:
+            return -1.0
         score = item.get("score", 0.5)
         value_driver = state.get("value_driver")
         if value_driver in ("low_price", "best_price_in_quality"):
@@ -404,15 +494,18 @@ def _shown_products(items: list[RetrievedItem]) -> list[RetrievedItem]:
 
 
 async def fuse_results_explore(state: SalesAgentState) -> dict:
-    ranked = fuse_and_rank_context(state.get("retrieved_context", []), state)
+    ranked = fuse_and_rank_context(state.get("retrieved_raw", []), state)
     top = ranked[:8]
-    return {"retrieved_context": SetContext(top), "shown_products": _shown_products(top)}
+    # Only the explore path updates shown_products — it is the list the customer
+    # numbers ("the second one"). Product mode must NOT overwrite it, or later
+    # ordinal references would resolve against a single pinned product.
+    return {"retrieved_context": top, "shown_products": _shown_products(top)}
 
 
 async def fuse_context_product(state: SalesAgentState) -> dict:
-    ranked = fuse_and_rank_context(state.get("retrieved_context", []), state)
+    ranked = fuse_and_rank_context(state.get("retrieved_raw", []), state)
     top = ranked[:6]
-    return {"retrieved_context": SetContext(top), "shown_products": _shown_products(top)}
+    return {"retrieved_context": top}
 
 
 def build_llm_messages(
@@ -470,6 +563,25 @@ async def product_agent(state: SalesAgentState) -> dict:
     )
 
     return {"messages": [reply]}
+
+
+async def answer_from_memory(state: SalesAgentState) -> dict:
+    """Handle objections / comparisons using already-shown products, no search."""
+    shop = await db.shop.find_unique(where={"id": state["shop_id"]})
+    system_prompt = build_system_prompt(shop) if shop else ""
+
+    shown = state.get("shown_products", [])
+    context_prompt = build_explore_prompt(
+        shown, state.get("stage"), state.get("value_driver"), state.get("objection")
+    )
+
+    reply = await llm.ainvoke(
+        build_llm_messages(system_prompt, state["messages"], context_prompt, state.get("summary"))
+    )
+
+    # Re-surface the same products in the response (images / buy buttons) since
+    # analyze_intent cleared retrieved_context at the start of the turn.
+    return {"messages": [reply], "retrieved_context": list(shown)}
 
 
 async def ask_question(state: SalesAgentState) -> dict:
@@ -565,6 +677,7 @@ def build_graph(checkpointer: Optional[AsyncPostgresSaver] = None):
         .add_node("fuse_context_product", fuse_context_product)
         .add_node("suggest_products", suggest_products)
         .add_node("product_agent", product_agent)
+        .add_node("answer_from_memory", answer_from_memory)
         .add_node("ask_question", ask_question)
         .add_node("handle_purchase", handle_purchase)
         # edges
@@ -573,7 +686,7 @@ def build_graph(checkpointer: Optional[AsyncPostgresSaver] = None):
         .add_conditional_edges(
             "analyze_intent",
             router_after_intent,
-            ["fan_out_explore", "fan_out_product", "ask_question", "handle_purchase"],
+            ["fan_out_explore", "fan_out_product", "ask_question", "handle_purchase", "answer_from_memory"],
         )
         # explore fan-out
         .add_conditional_edges(
@@ -600,6 +713,7 @@ def build_graph(checkpointer: Optional[AsyncPostgresSaver] = None):
         .add_edge("fuse_context_product", "product_agent")
         .add_edge("product_agent", END)
         # terminal nodes
+        .add_edge("answer_from_memory", END)
         .add_edge("ask_question", END)
         .add_edge("handle_purchase", END)
         .compile(checkpointer=checkpointer)

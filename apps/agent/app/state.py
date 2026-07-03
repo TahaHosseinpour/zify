@@ -12,31 +12,21 @@ class RetrievedItem(TypedDict, total=False):
     metadata: dict
 
 
-class SetContext:
-    """Reducer signal: replace the accumulated retrieved_context wholesale."""
-
-    def __init__(self, items: list["RetrievedItem"]) -> None:
-        self.items = items
-
-
-# Sentinel used by nodes to wipe retrieved_context at the start of a turn.
+# Sentinel a node returns to wipe retrieved_raw at the start of a turn.
 RESET_CONTEXT = None
 
 
-def merge_retrieved(existing: list, new) -> list:
-    """Reducer for retrieved_context.
+def accumulate_retrieved(existing: list, new) -> list:
+    """Reducer for retrieved_raw.
 
-    - `None`  → reset to an empty list (start of a new turn).
-    - SetContext(items) → replace the whole list (after fuse/rank).
+    - `None` → reset to an empty list (start of a new turn).
     - a list → append (parallel fan-out branches accumulate).
 
-    This stops retrieved items from piling up across conversation turns and
-    being frozen into the checkpoint forever.
+    Only plain lists / None ever flow through here, so it stays msgpack-
+    serializable for the Postgres checkpointer.
     """
     if new is None:
         return []
-    if isinstance(new, SetContext):
-        return list(new.items)
     return (existing or []) + list(new)
 
 
@@ -51,14 +41,19 @@ class SalesAgentState(TypedDict, total=False):
     # turns are collapsed into this running summary.
     summary: Optional[str]
 
-    # Retrieval — reset every turn, never persisted across turns
-    retrieved_context: Annotated[
-        list[RetrievedItem], merge_retrieved
-    ]
+    # Raw retrieval accumulated from the parallel fan-out branches; reset each
+    # turn via the None sentinel.
+    retrieved_raw: Annotated[list[RetrievedItem], accumulate_retrieved]
+    # Final ranked context the generation nodes consume. No reducer = plain
+    # replace; the fuse nodes overwrite it wholesale.
+    retrieved_context: list[RetrievedItem]
     # The products most recently shown to the customer, so later ordinal
     # references ("the second one") can resolve to a concrete product.
     # No reducer = plain replace; it survives across turns until re-set.
     shown_products: list[RetrievedItem]
+    # Products the customer rejected; excluded from subsequent searches until a
+    # new topic clears the list.
+    excluded_product_ids: list[str]
     explore_filters: dict
     intent: Optional[str]
 
