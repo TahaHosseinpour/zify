@@ -90,6 +90,7 @@ def build_explore_prompt(
     stage: Optional[str],
     value_driver: Optional[str] = None,
     objection: Optional[str] = None,
+    filters_relaxed: bool = False,
 ) -> str:
     products = [c for c in context if c["type"] == "product"]
     faqs = [c for c in context if c["type"] == "faq"]
@@ -100,6 +101,16 @@ def build_explore_prompt(
         prompt += "\n## محصولات پیدا شده:\n"
         for i, p in enumerate(products):
             prompt += f"{i + 1}. {p['content']}\n"
+
+        # The SQL filter step found nothing matching the stated constraints, so
+        # these are the nearest alternatives — say so instead of implying they
+        # satisfy the request.
+        if filters_relaxed:
+            prompt += (
+                "\n⚠️ هیچ محصولی دقیقاً با محدودیت‌های مشتری (دسته/برند/بودجه) موجود نیست. "
+                "محصولات بالا نزدیک‌ترین گزینه‌های موجود هستند. اول این را کوتاه و صادقانه بگو، "
+                "بعد این گزینه‌ها را پیشنهاد بده.\n"
+            )
 
     if faqs:
         prompt += "\n## سوالات متداول مرتبط:\n"
@@ -146,8 +157,9 @@ def build_product_prompt(
     stage: Optional[str],
     value_driver: Optional[str] = None,
     objection: Optional[str] = None,
+    filters_relaxed: bool = False,
 ) -> str:
-    return build_explore_prompt(context, stage, value_driver, objection)
+    return build_explore_prompt(context, stage, value_driver, objection, filters_relaxed)
 
 
 def build_intent_analysis_prompt() -> str:
