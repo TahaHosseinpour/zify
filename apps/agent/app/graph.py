@@ -385,6 +385,12 @@ class IntentResult(BaseModel):
     cleared_filters: list[str] = Field(default_factory=list)
     # "price_asc" for cheapest-first, "price_desc" for most-expensive-first.
     sort: Optional[str] = None
+    # A comparative aimed at what was just shown ("ارزون‌تر", "گرون‌ترش رو
+    # دارید؟"). Unlike `sort`, which only orders whatever the filters allow,
+    # this has to become a hard bound derived from the shown prices — otherwise
+    # "cheaper" returned a *different* product that cost more.
+    # "cheaper" | "pricier".
+    relative_price: Optional[str] = None
 
 
 structured_llm = intent_llm.with_structured_output(IntentResult)
@@ -454,6 +460,46 @@ async def maybe_summarize(state: SalesAgentState) -> dict:
 INTENT_HISTORY_WINDOW = 6
 
 
+# products.price is numeric(10,2), so one step of its scale turns an
+# inclusive bound into a strictly exclusive one.
+PRICE_EPSILON = 0.01
+
+
+def _relative_price_bound(
+    relative: Optional[str], shown: Optional[list[RetrievedItem]]
+) -> Optional[tuple[str, float]]:
+    """Turn "cheaper"/"pricier" into a price bound taken from the shown list.
+
+    Cheaper is measured against the *lowest* price on the table (and pricier
+    against the highest): anything else would return a product the customer can
+    already see and has implicitly passed over.
+    """
+    if relative not in ("cheaper", "pricier"):
+        return None
+
+    prices = []
+    for item in shown or []:
+        if item.get("type") != "product":
+            continue
+        price = (item.get("metadata") or {}).get("price")
+        if price is None:
+            continue
+        try:
+            prices.append(float(price))
+        except (TypeError, ValueError):
+            continue
+    if not prices:
+        return None
+
+    # _product_where compares with <= / >=, so the bound is nudged by one step
+    # of the column's own scale (numeric(10,2)) to make it strictly exclusive.
+    # Landing *on* the boundary is not "cheaper" — it is the same price as
+    # something the customer just turned down.
+    if relative == "cheaper":
+        return "maxPrice", min(prices) - PRICE_EPSILON
+    return "minPrice", max(prices) + PRICE_EPSILON
+
+
 def derive_mode(intent: Optional[str], prev_mode: str) -> str:
     """Derive the graph mode from the intent so the two can't contradict.
 
@@ -520,6 +566,19 @@ async def analyze_intent(state: SalesAgentState) -> dict:
             for c in categories
         ):
             merged_filters.pop("category", None)
+
+    # "cheaper" / "pricier" is only meaningful against what the customer is
+    # looking at, so turn it into a hard bound taken from those prices. Without
+    # this the request was honoured only by luck: `rejected_current` excluded the
+    # shown ids, so the next search returned *different* products — which could
+    # perfectly well cost more than the ones the customer just called expensive.
+    bound = _relative_price_bound(result.relative_price, state.get("shown_products"))
+    if bound:
+        key, value = bound
+        merged_filters[key] = value
+        # A cheaper-than bound replaces any floor left over from earlier turns
+        # (and vice versa), or the two can cross and match nothing.
+        merged_filters.pop("minPrice" if key == "maxPrice" else "maxPrice", None)
 
     # objection is sticky across turns, but must clear once the customer drops it.
     if result.objection_resolved:
@@ -593,11 +652,13 @@ def router_after_intent(state: SalesAgentState) -> str:
         return "handle_purchase"
     if intent in ("ask_question", "needs_clarification"):
         return "ask_question"
-    # Objections and comparisons are about products already on the table — answer
-    # from what we've shown instead of running a fresh (and misleading) search
-    # whose query would be the objection/comparison text itself.
+    # Objections and comparisons are about products already on the table, so
+    # there is nothing to retrieve: a fresh search would embed the objection
+    # text itself ("قیمتش بالاست"), return different products, and overwrite the
+    # numbered list the customer is referring to. Skip straight to the join,
+    # which re-surfaces what was shown; suggest_products then answers from it.
     if intent in ("objection", "compare") and state.get("shown_products"):
-        return "answer_from_memory"
+        return "fuse_results_explore"
     if state.get("mode") == "product":
         return "fan_out_product"
     return "fan_out_explore"
@@ -1006,8 +1067,16 @@ def _rank_and_trim(state: SalesAgentState, limit: int) -> list[RetrievedItem]:
 
 async def fuse_results_explore(state: SalesAgentState) -> dict:
     """Barrier for the explore fan-out: the SQL→vector chain plus the FAQ and
-    shop-info branches. Runs only once all of them have finished."""
+    shop-info branches. Runs only once all of them have finished.
+
+    Objections and comparisons reach this node directly, with no fan-out behind
+    them (see router_after_intent), so nothing is staged and the products the
+    customer is talking about have to be put back on the table here.
+    """
     top = _rank_and_trim(state, EXPLORE_CONTEXT_LIMIT)
+
+    if not state.get("retrieved_raw") and state.get("intent") in ("objection", "compare"):
+        top = list(state.get("shown_products") or [])
 
     # The customer asked for products and nothing we hold is close enough. Say
     # so rather than presenting the nearest rows as if they were the answer.
@@ -1103,25 +1172,6 @@ async def product_agent(state: SalesAgentState) -> dict:
     )
 
     return {"messages": [reply]}
-
-
-async def answer_from_memory(state: SalesAgentState) -> dict:
-    """Handle objections / comparisons using already-shown products, no search."""
-    shop = await db.shop.find_unique(where={"id": state["shop_id"]})
-    system_prompt = build_system_prompt(shop) if shop else ""
-
-    shown = state.get("shown_products", [])
-    context_prompt = build_explore_prompt(
-        shown, state.get("stage"), state.get("value_driver"), state.get("objection")
-    )
-
-    reply = await llm.ainvoke(
-        build_llm_messages(system_prompt, state["messages"], context_prompt, state.get("summary"))
-    )
-
-    # Re-surface the same products in the response (images / buy buttons) since
-    # analyze_intent cleared retrieved_context at the start of the turn.
-    return {"messages": [reply], "retrieved_context": list(shown)}
 
 
 async def ask_question(state: SalesAgentState) -> dict:
@@ -1270,7 +1320,6 @@ def build_graph(checkpointer: Optional[AsyncPostgresSaver] = None):
         .add_node("fuse_context_product", fuse_context_product, defer=True)
         .add_node("suggest_products", suggest_products)
         .add_node("product_agent", product_agent)
-        .add_node("answer_from_memory", answer_from_memory)
         .add_node("ask_question", ask_question)
         .add_node("handle_purchase", handle_purchase)
         .add_node("smalltalk_reply", smalltalk_reply)
@@ -1285,7 +1334,7 @@ def build_graph(checkpointer: Optional[AsyncPostgresSaver] = None):
                 "fan_out_product",
                 "ask_question",
                 "handle_purchase",
-                "answer_from_memory",
+                "fuse_results_explore",
                 "smalltalk_reply",
             ],
         )
@@ -1319,7 +1368,6 @@ def build_graph(checkpointer: Optional[AsyncPostgresSaver] = None):
         .add_edge("fuse_context_product", "product_agent")
         .add_edge("product_agent", END)
         # terminal nodes
-        .add_edge("answer_from_memory", END)
         .add_edge("ask_question", END)
         .add_edge("handle_purchase", END)
         .add_edge("smalltalk_reply", END)

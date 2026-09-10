@@ -67,7 +67,6 @@ export const NODE_LABELS: Record<string, string> = {
   fuse_context_product: "ادغام کانتکست محصول",
   suggest_products: "پیشنهاد محصول",
   product_agent: "پاسخ محصول",
-  answer_from_memory: "پاسخ از حافظه",
   ask_question: "پرسیدن سوال",
   handle_purchase: "هدایت به خرید",
   smalltalk_reply: "پاسخ کوتاه (بدون جستجو)",
