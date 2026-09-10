@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
+from collections import Counter
 import os
+import time
 import traceback
 
 from fastapi import FastAPI, Request
@@ -10,6 +12,7 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from .db import db
 from .graph import build_graph
 from .state import RetrievedItem
+from .tracing import chat_config, flush as flush_tracing
 
 
 @asynccontextmanager
@@ -21,6 +24,7 @@ async def lifespan(app: FastAPI):
         app.state.graph = build_graph(checkpointer)
         yield
 
+    flush_tracing()
     await db.disconnect()
 
 
@@ -59,6 +63,96 @@ async def reset_memory(request: Request):
     return {"ok": True, "deletedRows": deleted}
 
 
+async def run_graph(
+    graph, input_state: dict, config: dict
+) -> tuple[dict, list[str], dict]:
+    """Run the graph, returning the final state, the nodes it ran, and their updates.
+
+    Equivalent to `ainvoke` (which is itself a "values" stream), but the
+    interleaved "updates" stream also tells us which branch of the graph the
+    turn took — the single most useful thing when debugging routing — and lets
+    us keep per-turn scratch fields (`candidate_ids`) that a later node clears
+    before they ever reach the final state.
+    """
+    path: list[str] = []
+    node_updates: dict = {}
+    final: dict = {}
+
+    async for stream_mode, chunk in graph.astream(
+        input_state, config, stream_mode=["updates", "values"]
+    ):
+        if stream_mode == "updates":
+            for node, update in chunk.items():
+                if node.startswith("__"):
+                    continue
+                path.append(node)
+                if isinstance(update, dict):
+                    node_updates[node] = update
+        else:
+            final = chunk
+
+    return final, path, node_updates
+
+
+def build_debug(
+    result: dict, path: list[str], node_updates: dict, latency_ms: int
+) -> dict:
+    """State-only snapshot of a turn: features and counts, never the text.
+
+    Used by the admin playground to explain *why* the agent answered the way it
+    did. Retrieved documents are reported as counts and ids so the payload
+    stays small and free of catalog content.
+    """
+    context: list[RetrievedItem] = result.get("retrieved_context") or []
+    raw: list[RetrievedItem] = result.get("retrieved_raw") or []
+    shown: list[RetrievedItem] = result.get("shown_products") or []
+    summary = result.get("summary")
+
+    # The SQL pre-filter's own output: how many products cleared the customer's
+    # hard constraints. A later node in the same path clears candidate_ids
+    # (the step-2 node of either path), so it is gone from the
+    # final state — read it off the filter node's own update instead.
+    # Either path can be the one that ran the filter step — explore goes through
+    # sql_filter_explore, product mode through sql_query_product.
+    filter_update = (
+        node_updates.get("sql_filter_explore")
+        or node_updates.get("sql_query_product")
+        or {}
+    )
+
+    return {
+        "path": path,
+        "filterStatus": result.get("filter_status"),
+        "filterEffective": result.get("filter_effective") or {},
+        "filtersDropped": result.get("filters_dropped") or [],
+        "outOfCatalog": bool(result.get("out_of_catalog")),
+        "sort": result.get("sort"),
+        "candidateCount": len(filter_update.get("candidate_ids") or []),
+        "intent": result.get("intent"),
+        "mode": result.get("mode"),
+        "stage": result.get("stage"),
+        "valueDriver": result.get("value_driver"),
+        "objection": result.get("objection"),
+        "productId": result.get("product_id"),
+        "exploreFilters": result.get("explore_filters") or {},
+        "excludedProductIds": result.get("excluded_product_ids") or [],
+        "shownProducts": [
+            {"id": p["id"], "name": (p.get("metadata") or {}).get("name")}
+            for p in shown
+        ],
+        "retrieved": {
+            "rawCount": len(raw),
+            "contextCount": len(context),
+            "byType": dict(Counter(i.get("type") for i in context)),
+            "scores": [round(float(i.get("score") or 0), 3) for i in context],
+        },
+        "messageCount": len(result.get("messages") or []),
+        "hasSummary": bool(summary),
+        "summaryChars": len(summary) if summary else 0,
+        "latencyMs": latency_ms,
+    }
+
+
 @app.post("/chat")
 async def chat(request: Request):
     try:
@@ -68,6 +162,7 @@ async def chat(request: Request):
         message = body.get("message")
         mode = body.get("mode") or "explore"
         product_id = body.get("productId")
+        want_debug = bool(body.get("debug"))
 
         if not shop_id or not thread_id or not message:
             return JSONResponse(
@@ -75,15 +170,18 @@ async def chat(request: Request):
             )
 
         graph = request.app.state.graph
-        result = await graph.ainvoke(
+        started = time.perf_counter()
+        result, path, node_updates = await run_graph(
+            graph,
             {
                 "messages": [HumanMessage(content=message)],
                 "shop_id": shop_id,
                 "mode": mode,
                 "product_id": product_id,
             },
-            {"configurable": {"thread_id": thread_id}},
+            chat_config(thread_id, shop_id, mode, product_id),
         )
+        latency_ms = int((time.perf_counter() - started) * 1000)
 
         messages = result.get("messages") or []
         last = messages[-1] if messages else None
@@ -115,7 +213,7 @@ async def chat(request: Request):
             None,
         )
 
-        return {
+        response = {
             "reply": reply,
             "mode": result.get("mode"),
             "stage": result.get("stage"),
@@ -126,6 +224,11 @@ async def chat(request: Request):
             "products": products,
             "purchaseUrl": purchase_url,
         }
+
+        if want_debug:
+            response["debug"] = build_debug(result, path, node_updates, latency_ms)
+
+        return response
     except Exception as err:  # noqa: BLE001
         print(f"[agent] error: {err}")
         traceback.print_exc()

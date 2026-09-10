@@ -9,7 +9,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id } = await params
   const body = await req.json()
-  const { name, price, description, productUrl, imageUrl, isActive } = body
+  const { name, price, description, productUrl, imageUrl, isActive, category, brand } = body
 
   const product = await prisma.product.update({
     where: { id },
@@ -20,10 +20,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ...(productUrl !== undefined && { productUrl }),
       ...(imageUrl !== undefined && { imageUrl }),
       ...(isActive !== undefined && { isActive }),
+      ...(category !== undefined && { category: category || null }),
+      ...(brand !== undefined && { brand: brand || null }),
     },
   })
 
-  const embedText = [product.name, product.description]
+  const embedText = [product.name, product.description, product.category, product.brand]
     .filter(Boolean)
     .join(" ")
   embedProduct(product.id, embedText).catch(() => {})

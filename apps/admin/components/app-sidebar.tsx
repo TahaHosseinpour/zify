@@ -12,6 +12,7 @@ import {
   LinkSquare01Icon,
   UserMultiple02Icon,
   MessageMultiple01Icon,
+  TestTube01Icon,
   Settings01Icon,
   Logout01Icon,
 } from "@hugeicons/core-free-icons"
@@ -35,6 +36,7 @@ const navItems = [
   { href: "/dashboard/channels", label: "کانال‌ها", icon: LinkSquare01Icon },
   { href: "/dashboard/users", label: "کاربران", icon: UserMultiple02Icon },
   { href: "/dashboard/chats", label: "گفت‌وگوها", icon: MessageMultiple01Icon },
+  { href: "/dashboard/playground", label: "آزمایش گفت‌وگو", icon: TestTube01Icon },
   { href: "/dashboard/settings", label: "تنظیمات", icon: Settings01Icon },
 ]
 

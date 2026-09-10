@@ -29,9 +29,19 @@ interface Product {
   isActive: boolean
   productUrl: string | null
   description: string | null
+  category: string | null
+  brand: string | null
 }
 
-const emptyForm = { name: "", price: "", imageUrl: "", productUrl: "", description: "" }
+const emptyForm = {
+  name: "",
+  price: "",
+  imageUrl: "",
+  productUrl: "",
+  description: "",
+  category: "",
+  brand: "",
+}
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -43,6 +53,13 @@ export default function ProductsPage() {
   const [bulkOpen, setBulkOpen] = useState(false)
   const [importing, setImporting] = useState(false)
   const bulkFileRef = useRef<HTMLInputElement>(null)
+
+  // Offered as autocomplete so the same category keeps the same spelling. The
+  // agent matches this column exactly, so "کفش ورزشی" and "کفش‌ورزشی" would be
+  // two different categories and each would only find half the catalog.
+  const categorySuggestions = Array.from(
+    new Set(products.map((p) => p.category).filter((c): c is string => Boolean(c)))
+  ).sort()
 
   async function load() {
     setLoading(true)
@@ -67,6 +84,8 @@ export default function ProductsPage() {
       imageUrl: p.imageUrl ?? "",
       productUrl: p.productUrl ?? "",
       description: p.description ?? "",
+      category: p.category ?? "",
+      brand: p.brand ?? "",
     })
     setEditId(p.id)
     setDialogOpen(true)
@@ -102,8 +121,8 @@ export default function ProductsPage() {
 
   function downloadSample() {
     const rows = [
-      ["نام", "قیمت", "توضیحات", "لینک تصویر", "لینک محصول"],
-      ["کفش ورزشی نایک", "1200000", "کفش ورزشی مناسب پیاده‌روی و دویدن", "https://example.com/image.jpg", "https://example.com/product"],
+      ["نام", "قیمت", "دسته", "برند", "توضیحات", "لینک تصویر", "لینک محصول"],
+      ["کفش ورزشی نایک", "1200000", "کفش ورزشی", "Nike", "کفش ورزشی مناسب پیاده‌روی و دویدن", "https://example.com/image.jpg", "https://example.com/product"],
     ]
     const csv = rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n")
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" })
@@ -129,6 +148,8 @@ export default function ProductsPage() {
             description: row.description || row["توضیحات"] || "",
             productUrl: row.url || row["لینک محصول"] || row["لینک"] || "",
             imageUrl: row.image || row["لینک تصویر"] || row["تصویر"] || "",
+            category: row.category || row["دسته"] || row["دسته‌بندی"] || "",
+            brand: row.brand || row["برند"] || "",
           }),
         })
         if (res.ok) ok++
@@ -264,6 +285,26 @@ export default function ProductsPage() {
               <Input dir="ltr" value={form.productUrl} onChange={(e) => setForm(f => ({ ...f, productUrl: e.target.value }))} placeholder="https://..." />
             </div>
             <div className="flex flex-col gap-1.5">
+              <Label>دسته‌بندی</Label>
+              <Input
+                list="category-suggestions"
+                value={form.category}
+                onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))}
+                placeholder="مثال: کفش ورزشی"
+              />
+              <datalist id="category-suggestions">
+                {categorySuggestions.map((c) => <option key={c} value={c} />)}
+              </datalist>
+              <p className="text-xs text-muted-foreground">
+                دستیار برای فیلتر کردن دقیق محصولات از این استفاده می‌کند. دسته‌های یکسان را
+                با همین املا تکرار کنید.
+              </p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>برند</Label>
+              <Input value={form.brand} onChange={(e) => setForm(f => ({ ...f, brand: e.target.value }))} placeholder="مثال: Nike" />
+            </div>
+            <div className="flex flex-col gap-1.5">
               <Label>توضیحات</Label>
               <Textarea value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} rows={3} />
             </div>
@@ -304,7 +345,7 @@ export default function ProductsPage() {
                 className="text-sm file:me-3 file:h-8 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:text-sm file:font-medium file:text-secondary-foreground disabled:opacity-50"
               />
               <p className="text-xs text-muted-foreground">
-                {importing ? "در حال وارد کردن محصولات..." : "فایل .csv یا .xlsx با ستون‌های نام، قیمت، توضیحات، لینک تصویر و لینک محصول"}
+                {importing ? "در حال وارد کردن محصولات..." : "فایل .csv یا .xlsx با ستون‌های نام، قیمت، دسته، برند، توضیحات، لینک تصویر و لینک محصول"}
               </p>
             </div>
           </div>

@@ -20,39 +20,23 @@ class ShopPersona(Protocol):
     systemPromptExtra: Optional[str]
 
 
-def _support_info_text(support_info: Any) -> str:
-    """supportInfo is stored as JSON, usually `{ "text": "..." }`."""
-    if not support_info:
-        return ""
-    if isinstance(support_info, dict):
-        text = support_info.get("text")
-        if text:
-            return str(text)
-        return "\n".join(f"{k}: {v}" for k, v in support_info.items() if v)
-    return str(support_info)
-
-
 def _business_info_block(shop: ShopPersona) -> str:
-    """Static business facts injected straight into the system prompt.
+    """The catalog vocabulary, and only that.
 
-    These are small and stable, so they belong in the (cacheable) system
-    prompt rather than being re-queried from the vector store every turn.
+    `description` and `supportInfo` used to be pasted in here as well, but the
+    admin panel also embeds those exact fields into `shop_info_chunks`, which
+    the graph now retrieves on its own branch. Keeping both meant the same
+    paragraphs were sent twice on every single turn. Retrieval wins: the text
+    then reaches the model only on the turns where it is actually relevant.
+
+    Categories stay because they are not in those chunks, they are one short
+    line, and the model needs them on every turn to talk about what the shop
+    even sells.
     """
-    parts: list[str] = []
-    if getattr(shop, "description", None):
-        parts.append(f"درباره فروشگاه:\n{shop.description}")
-
     categories = getattr(shop, "categories", None) or []
-    if categories:
-        parts.append("دسته‌بندی محصولات: " + "، ".join(categories))
-
-    support = _support_info_text(getattr(shop, "supportInfo", None))
-    if support:
-        parts.append(f"اطلاعات پشتیبانی و خدمات:\n{support}")
-
-    if not parts:
+    if not categories:
         return ""
-    return "\n\n## اطلاعات کسب‌وکار:\n" + "\n\n".join(parts)
+    return "\n\n## دسته‌بندی محصولات:\n" + "، ".join(categories)
 
 
 def build_system_prompt(shop: ShopPersona) -> str:
@@ -81,8 +65,22 @@ def build_system_prompt(shop: ShopPersona) -> str:
 قوانین:
 - هرگز اطلاعات دروغ ندهی
 - فقط از اطلاعات فروشگاه استفاده کن
-- برای سوال درباره فروشگاه (ارسال، پشتیبانی، گارانتی و ...) از «اطلاعات کسب‌وکار» زیر استفاده کن
+- برای سوال درباره فروشگاه از «اطلاعات کسب‌وکار» و «سوالات متداول» استفاده کن
+- ⚠️ اگر پاسخ یک سوال در اطلاعات کسب‌وکار یا سوالات متداول نیامده باشد، صریح بگو
+  «این اطلاعات را ندارم» و مشتری را به پشتیبانی فروشگاه ارجاع بده. درباره گارانتی،
+  ضمانت، مدت و شرایط ارسال، مرجوعی، خدمات پس از فروش یا اصالت کالا **هیچ‌چیز از خودت نساز**
+  و از عبارت‌هایی مثل «معمولاً» یا «به‌طور کلی» برای پر کردن جای خالی استفاده نکن
+- ⚠️ فقط محصولاتی را نام ببر که در همین پیام به تو داده شده‌اند؛ نام یا قیمت محصولی
+  را از حافظه یا از بخش‌های قبلی گفتگو تکرار نکن
 - پاسخ‌ها کوتاه، واضح و فروش‌محور باشند{business_info}{extra}"""
+
+
+DROPPED_FILTER_LABELS = {
+    "category": "دسته‌بندی",
+    "brand": "برند",
+    "minPrice": "حداقل قیمت",
+    "maxPrice": "بودجه",
+}
 
 
 def build_explore_prompt(
@@ -90,32 +88,65 @@ def build_explore_prompt(
     stage: Optional[str],
     value_driver: Optional[str] = None,
     objection: Optional[str] = None,
-    filters_relaxed: bool = False,
+    filters_dropped: Optional[list[str]] = None,
+    out_of_catalog: bool = False,
 ) -> str:
     products = [c for c in context if c["type"] == "product"]
     faqs = [c for c in context if c["type"] == "faq"]
+    shop_info = [c for c in context if c["type"] == "shop_info"]
+    dropped = filters_dropped or []
 
     prompt = ""
+
+    # Stated before the list, so the model reads "we don't have this" before it
+    # reads six products it might otherwise present as the answer. This block
+    # is deliberately outside `if products:` — the honest case where nothing
+    # was found needs instructions too, and previously got none.
+    if out_of_catalog:
+        prompt += (
+            "\n⚠️ فروشگاه چیزی که مشتری خواسته را ندارد.\n"
+            "اول صریح و کوتاه بگو که این محصول را نداریم. از عذرخواهی طولانی پرهیز کن.\n"
+        )
+        if products:
+            prompt += (
+                "محصولات زیر پاسخ درخواست مشتری نیستند، فقط گزینه‌های دیگری از "
+                "فروشگاه هستند. آن‌ها را به‌عنوان «چیز دیگری که داریم» معرفی کن، "
+                "نه به‌عنوان چیزی که مشتری خواسته.\n"
+            )
+        else:
+            prompt += "هیچ محصول جایگزینی هم برای پیشنهاد نداری. چیزی از خودت نساز.\n"
+    elif dropped:
+        # Name the predicates that were actually given up. The old text always
+        # said "دسته/برند/بودجه" regardless, so the model would invent a budget
+        # constraint that was never in effect and tell the customer about it.
+        names = "، ".join(DROPPED_FILTER_LABELS.get(k, k) for k in dropped)
+        prompt += (
+            f"\n⚠️ محصولی که دقیقاً با این محدودیت مشتری بخواند موجود نبود: {names}.\n"
+            "محصولات زیر با بقیه شرط‌ها می‌خوانند ولی این یکی را برآورده نمی‌کنند. "
+            "اول کوتاه و صادقانه همین را بگو، بعد گزینه‌ها را پیشنهاد بده.\n"
+            "⚠️ فقط درباره همین محدودیت حرف بزن و محدودیت دیگری از خودت اضافه نکن.\n"
+        )
 
     if products:
         prompt += "\n## محصولات پیدا شده:\n"
         for i, p in enumerate(products):
             prompt += f"{i + 1}. {p['content']}\n"
-
-        # The SQL filter step found nothing matching the stated constraints, so
-        # these are the nearest alternatives — say so instead of implying they
-        # satisfy the request.
-        if filters_relaxed:
-            prompt += (
-                "\n⚠️ هیچ محصولی دقیقاً با محدودیت‌های مشتری (دسته/برند/بودجه) موجود نیست. "
-                "محصولات بالا نزدیک‌ترین گزینه‌های موجود هستند. اول این را کوتاه و صادقانه بگو، "
-                "بعد این گزینه‌ها را پیشنهاد بده.\n"
-            )
+        prompt += (
+            "\n⚠️ فقط همین محصولات بالا را نام ببر. هیچ محصول، قیمت یا لینک دیگری "
+            "که در این فهرست نیست ننویس — حتی اگر در بخش‌های قبلی گفتگو آمده باشد.\n"
+        )
 
     if faqs:
         prompt += "\n## سوالات متداول مرتبط:\n"
         for f in faqs:
             prompt += f"{f['content']}\n"
+
+    # Retrieved on its own branch rather than pasted into every system prompt —
+    # see _business_info_block for why.
+    if shop_info:
+        prompt += "\n## اطلاعات کسب‌وکار:\n"
+        for info in shop_info:
+            prompt += f"{info['content']}\n"
 
     prompt += "\n## وضعیت مشتری:\n"
     stage_map = {
@@ -157,13 +188,40 @@ def build_product_prompt(
     stage: Optional[str],
     value_driver: Optional[str] = None,
     objection: Optional[str] = None,
-    filters_relaxed: bool = False,
+    filters_dropped: Optional[list[str]] = None,
+    out_of_catalog: bool = False,
 ) -> str:
-    return build_explore_prompt(context, stage, value_driver, objection, filters_relaxed)
+    return build_explore_prompt(
+        context, stage, value_driver, objection, filters_dropped, out_of_catalog
+    )
 
 
-def build_intent_analysis_prompt() -> str:
-    return """با توجه به کل مکالمه، آخرین پیام مشتری را تحلیل کن و دقیقاً یکی از این مقادیر را برای intent انتخاب کن:
+def build_intent_analysis_prompt(categories: Optional[list[str]] = None) -> str:
+    # The shop's real category list is injected so `category` is a choice from a
+    # closed vocabulary instead of free text the model invents. A guessed value
+    # can only ever match zero rows, which silently relaxes the whole filter.
+    available = categories or []
+    if available:
+        vocabulary = (
+            "\n## دسته‌بندی‌های موجود در این فروشگاه:\n"
+            + "، ".join(available)
+            + "\n\n⚠️ برای `category` **فقط** یکی از همین مقادیر بالا را عیناً بنویس، یا null بگذار.\n"
+            "⚠️ اگر چیزی که مشتری می‌خواهد در این فهرست نیست، `category` را null بگذار و "
+            "`out_of_catalog` را true کن. هرگز دسته‌ای بیرون از این فهرست نساز.\n"
+        )
+    else:
+        vocabulary = (
+            "\n⚠️ این فروشگاه هنوز دسته‌بندی ثبت‌شده‌ای ندارد. `category` را همیشه null بگذار.\n"
+        )
+
+    return (
+        vocabulary
+        + """
+با توجه به کل مکالمه، آخرین پیام مشتری را تحلیل کن و دقیقاً یکی از این مقادیر را برای intent انتخاب کن:
+
+- smalltalk: احوال‌پرسی، تشکر، تعارف یا واکنش کوتاه بدون درخواست جدید.
+  مثال: «سلام»، «خوبی؟»، «ممنون»، «جالبه»، «چه جالب»، «باشه» (وقتی درخواستی همراهش نیست).
+  ⚠️ این‌ها نباید جستجوی محصول راه بیندازند.
 
 - needs_clarification / ask_question: **فقط** وقتی درخواست مشتری ناقص یا مبهم است و بدون یک سوال روشن‌کننده از طرف تو نمی‌شود کمکش کرد.
   مثال: «یک کفش می‌خوام» (نوع، سایز یا کاربرد مشخص نیست) → باید بپرسی چه نوع کفشی، برای چه کاری.
@@ -188,6 +246,18 @@ def build_intent_analysis_prompt() -> str:
 - selected_index: اگر مشتری به یکی از محصولاتی که قبلاً نشان داده‌ای با شماره یا ترتیب اشاره کرد (مثلاً «دومی»، «گزینه اول»، «همون سومی»)، شماره‌ی آن را به‌صورت عددی (۱ برای اولی) بده؛ در غیر این صورت null.
 - rejected_current: اگر مشتری گزینه‌های فعلی را نپسندید و گزینه‌های دیگری خواست (مثلاً «این‌ها رو نمی‌خوام»، «یه چیز دیگه نشون بده»، «بقیه‌ش چیه؟»)، true؛ در غیر این صورت false.
 - objection_resolved: اگر مشتری اعتراض قبلی خود را پذیرفت یا کنار گذاشت (مثلاً «باشه»، «قبول دارم»، «مشکلی نیست»، «حق با توئه»)، true؛ در غیر این صورت false.
+- out_of_catalog: اگر مشتری محصولی خواسته که در فهرست دسته‌بندی‌های بالا نیست، true؛ در غیر این صورت false.
+- cleared_filters: فهرست نام فیلترهایی که مشتری پس گرفته یا تصحیح کرده است (مثلاً ["maxPrice"]).
+  مثال: قبلاً بودجه‌ای فرض شده بود و مشتری می‌گوید «نه، ارزون‌ترین‌هاتون رو می‌خوام» → ["maxPrice"].
+  مثال: مشتری می‌گوید «برند مهم نیست» → ["brand"].
+- sort: **فقط** وقتی مشتری صفت عالی («ـترین») یا معادلش را به کار برده باشد، price_asc یا price_desc؛ در غیر این صورت null.
+  مثال: «ارزان‌ترین گوشی‌تون چیه؟» → price_asc. «کمترین قیمت» → price_asc. «گران‌ترین مدل» → price_desc.
+  ⚠️ صفت ساده «ارزان»/«ارزون»/«اقتصادی» صفت عالی نیست → sort را null بگذار و فقط value_driver را مقدار بده.
+
+⚠️ **قانون قیمت**: `maxPrice`/`minPrice` را **فقط** وقتی بده که مشتری یک **عدد مشخص** گفته باشد.
+کلماتی مثل «ارزان»، «ارزون»، «اقتصادی»، «مقرون‌به‌صرفه»، «گران» هیچ عددی ندارند — برای آن‌ها
+`value_driver` (و در صورت لزوم `sort`) را مقدار بده و قیمت را **null** بگذار.
+هرگز از روی حدس عددی مثل ۱۰٬۰۰۰٬۰۰۰ نساز؛ این کار کل جستجو را خراب می‌کند و تا آخر گفتگو باقی می‌ماند.
 
 ⚠️ مقادیر stage/value_driver/objection فقط وقتی مقداردهی کن که از پیام فعلی مشخص باشند؛ اگر پیام فعلی چیزی درباره‌شان نمی‌گوید، آن‌ها را null بگذار تا مقدار قبلی حفظ شود.
 
@@ -195,3 +265,4 @@ def build_intent_analysis_prompt() -> str:
 
 ⚠️ اگر پیام هم‌زمان چند سیگنال دارد (مثلاً هم اعتراض و هم درخواست جستجوی جدید مثل «قیمتش بالاست، ارزون‌ترش رو دارید؟»)، اولویت با درخواست صریح و اقدام‌محور است: اگر مشتری به‌روشنی گزینه یا محصول جدیدی خواسته → search_product؛ اگر فقط نگرانی مطرح کرده بدون درخواست جدید → objection.
 فقط JSON خروجی بده."""
+    )

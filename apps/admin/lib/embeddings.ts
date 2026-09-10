@@ -56,12 +56,14 @@ export async function reembedAllForShop(shopId: string) {
   ])
 
   for (const p of products) {
-    const text = [p.name, p.description].filter(Boolean).join(" ")
+    const text = [p.name, p.description, p.category, p.brand].filter(Boolean).join(" ")
     if (text) await embedProduct(p.id, text)
   }
 
   for (const f of faqs) {
-    await embedFaq(f.id, f.question)
+    // Embed the answer too: a customer's wording usually matches what the
+    // answer says, not the way the question was phrased.
+    await embedFaq(f.id, [f.question, f.answer].filter(Boolean).join(" "))
   }
 
   await rebuildShopInfoChunks(shopId)

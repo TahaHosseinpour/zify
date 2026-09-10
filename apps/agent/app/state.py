@@ -46,7 +46,9 @@ class SalesAgentState(TypedDict, total=False):
     retrieved_raw: Annotated[list[RetrievedItem], accumulate_retrieved]
     # Output of the SQL filter step: the product ids that satisfy the
     # customer's hard constraints, which the vector step then ranks within.
-    # Per-turn scratch — the fuse nodes clear it so it isn't checkpointed.
+    # Per-turn scratch — whichever node ranks the turn's context
+    # (vector_search_explore / vector_search_product) clears it once it has been
+    # read, so it isn't checkpointed.
     candidate_ids: list[str]
     # How to read candidate_ids: "none" (no constraints), "ids" (scope to
     # them), "inline" (too many to list — re-apply filters in SQL), or
@@ -57,8 +59,22 @@ class SalesAgentState(TypedDict, total=False):
     # classifier's guessed category/brand may have been dropped to keep the
     # customer's price range enforceable.
     filter_effective: dict
+    # The predicates relaxation actually threw away this turn. `filter_status`
+    # alone cannot express this: dropping `category` but keeping a price still
+    # reports FILTER_IDS, which is indistinguishable from a clean match. The
+    # prompt needs the difference to stay honest about what it searched for.
+    filters_dropped: list[str]
+    # The customer asked for something this shop does not carry — either the
+    # classifier found no matching category in the shop's vocabulary, or every
+    # retrieved product was too far from the query to be a real answer.
+    out_of_catalog: Optional[bool]
+    # Explicit ordering the customer asked for ("cheapest", "most expensive").
+    # Vector similarity cannot express a superlative, so these are resolved by
+    # SQL ORDER BY instead. "price_asc" | "price_desc".
+    sort: Optional[str]
     # Final ranked context the generation nodes consume. No reducer = plain
-    # replace; the fuse nodes overwrite it wholesale.
+    # replace; the ranking node of each path (vector_search_explore /
+    # vector_search_product) overwrites it wholesale.
     retrieved_context: list[RetrievedItem]
     # The products most recently shown to the customer, so later ordinal
     # references ("the second one") can resolve to a concrete product.

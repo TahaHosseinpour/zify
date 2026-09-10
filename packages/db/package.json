@@ -9,7 +9,8 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:push": "prisma db push",
-    "db:seed": "bun prisma/seed.ts"
+    "db:seed": "bun prisma/seed.ts",
+    "db:backfill-categories": "bun prisma/backfill-categories.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.15.0"

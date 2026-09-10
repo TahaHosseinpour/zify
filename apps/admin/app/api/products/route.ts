@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
   if (!shop) return NextResponse.json({ error: "فروشگاه یافت نشد" }, { status: 404 })
 
   const body = await req.json()
-  const { name, price, description, productUrl, imageUrl } = body
+  const { name, price, description, productUrl, imageUrl, category, brand } = body
 
   if (!name || price === undefined) {
     return NextResponse.json({ error: "نام و قیمت الزامی است" }, { status: 400 })
@@ -48,10 +48,14 @@ export async function POST(req: NextRequest) {
       description,
       productUrl,
       imageUrl,
+      category: category || null,
+      brand: brand || null,
     },
   })
 
-  const embedText = [name, description].filter(Boolean).join(" ")
+  // category/brand are part of the embedded text so the vector step ranks on
+  // the same signal the SQL step filters on.
+  const embedText = [name, description, category, brand].filter(Boolean).join(" ")
   embedProduct(product.id, embedText).catch(() => {})
 
   return NextResponse.json(product)
