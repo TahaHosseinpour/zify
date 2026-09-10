@@ -648,17 +648,17 @@ def router_after_intent(state: SalesAgentState) -> str:
     # "سلام" and burned an embedding call plus two SQL queries per turn.
     if intent == "smalltalk":
         return "smalltalk_reply"
-    if intent == "buy_intent":
-        return "handle_purchase"
     if intent in ("ask_question", "needs_clarification"):
         return "ask_question"
-    # Objections and comparisons are about products already on the table, so
-    # there is nothing to retrieve: a fresh search would embed the objection
-    # text itself ("قیمتش بالاست"), return different products, and overwrite the
-    # numbered list the customer is referring to. Skip straight to the join,
-    # which re-surfaces what was shown; suggest_products then answers from it.
+    # Buying, objecting and comparing are the same turn: the customer is engaged
+    # with the products already on the table and wants nothing new retrieved.
+    # Searching here would embed the objection text itself ("قیمتش بالاست"),
+    # return different products, and overwrite the numbered list the customer is
+    # referring to. handle_purchase picks the closing move for each.
+    if intent == "buy_intent":
+        return "handle_purchase"
     if intent in ("objection", "compare") and state.get("shown_products"):
-        return "fuse_results_explore"
+        return "handle_purchase"
     if state.get("mode") == "product":
         return "fan_out_product"
     return "fan_out_explore"
@@ -942,43 +942,52 @@ async def vector_search_explore(state: SalesAgentState) -> dict:
     return {"retrieved_raw": items, "candidate_ids": []}
 
 
+def _item_from_product(product) -> RetrievedItem:
+    """A catalog row fetched by id, rendered exactly as the vector path renders
+    it — dropping any of these made the same product read differently depending
+    on how it had been found."""
+    return RetrievedItem(
+        id=product.id,
+        type="product",
+        content=_product_content(
+            {
+                "name": product.name,
+                "price": product.price,
+                "description": product.description,
+                "category": product.category,
+                "brand": product.brand,
+            }
+        ),
+        metadata={
+            "name": product.name,
+            "productUrl": product.productUrl,
+            "imageUrl": product.imageUrl,
+            "price": product.price,
+            "stock": product.stock,
+        },
+    )
+
+
+async def _pinned_product(state: SalesAgentState) -> Optional[RetrievedItem]:
+    """The product the customer pinned, if any. Scoped by shopId so one shop can
+    never pull another shop's product."""
+    product_id = state.get("product_id")
+    if not product_id:
+        return None
+    product = await db.product.find_first(
+        where={"id": product_id, "shopId": state["shop_id"]}
+    )
+    return _item_from_product(product) if product else None
+
+
 async def sql_query_product(state: SalesAgentState) -> dict:
     """Product, step 1: load the pinned product, then narrow the catalog the
     same way explore does so related suggestions stay inside the constraints."""
     items: list[RetrievedItem] = []
 
-    product_id = state.get("product_id")
-    if product_id:
-        # Scope by shopId so one shop can never pull another shop's product.
-        product = await db.product.find_first(
-            where={"id": product_id, "shopId": state["shop_id"]}
-        )
-        if product:
-            items.append(
-                RetrievedItem(
-                    id=product.id,
-                    type="product",
-                    content=_product_content(
-                        {
-                            "name": product.name,
-                            "price": product.price,
-                            "description": product.description,
-                            # Same rendering as the vector path; dropping these
-                            # made the pinned product read differently from the
-                            # identical row when it arrived via search.
-                            "category": product.category,
-                            "brand": product.brand,
-                        }
-                    ),
-                    metadata={
-                        "name": product.name,
-                        "productUrl": product.productUrl,
-                        "imageUrl": product.imageUrl,
-                        "price": product.price,
-                        "stock": product.stock,
-                    },
-                )
-            )
+    pinned = await _pinned_product(state)
+    if pinned:
+        items.append(pinned)
 
     return {"retrieved_raw": items, **(await _filter_step(state))}
 
@@ -1067,16 +1076,8 @@ def _rank_and_trim(state: SalesAgentState, limit: int) -> list[RetrievedItem]:
 
 async def fuse_results_explore(state: SalesAgentState) -> dict:
     """Barrier for the explore fan-out: the SQL→vector chain plus the FAQ and
-    shop-info branches. Runs only once all of them have finished.
-
-    Objections and comparisons reach this node directly, with no fan-out behind
-    them (see router_after_intent), so nothing is staged and the products the
-    customer is talking about have to be put back on the table here.
-    """
+    shop-info branches. Runs only once all of them have finished."""
     top = _rank_and_trim(state, EXPLORE_CONTEXT_LIMIT)
-
-    if not state.get("retrieved_raw") and state.get("intent") in ("objection", "compare"):
-        top = list(state.get("shown_products") or [])
 
     # The customer asked for products and nothing we hold is close enough. Say
     # so rather than presenting the nearest rows as if they were the answer.
@@ -1239,45 +1240,86 @@ async def smalltalk_reply(state: SalesAgentState) -> dict:
     return {"messages": [reply], "retrieved_context": []}
 
 
+# The closing move for each way a customer can be engaged with what is already
+# on the table. Buying, objecting and comparing are one turn shape — no
+# retrieval, same product list, one LLM call — and differ only in what the
+# agent should do next, so they share a node and pick an instruction here.
+CLOSING_MOVES = {
+    "buy": (
+        "مشتری آماده خرید است. لینک خرید را بده و او را تشویق کن."
+    ),
+    "compare": (
+        "مشتری می‌خواهد بین همین گزینه‌ها انتخاب کند. تفاوت‌های واقعی آن‌ها را فقط بر اساس "
+        "همین اطلاعات کوتاه و روشن بگو و با توجه به نیازی که تا حالا گفته یکی را پیشنهاد کن. "
+        "لینک خرید را فقط وقتی بده که خودش خواسته باشد."
+    ),
+    "price": (
+        "مشتری قیمت را بالا می‌داند. اول ارزش همین محصول را با دلیل مشخص توضیح بده. "
+        "محصول دیگری پیشنهاد نده مگر خودش بخواهد، و برای فروش فشار نیاور."
+    ),
+    "uncertainty": (
+        "مشتری مطمئن نیست این گزینه مناسبش است. فقط بر اساس همین اطلاعات به تردیدش پاسخ بده. "
+        "اگر چیزی لازم است که در اطلاعات بالا نیست، از خودت نساز و کوتاه بپرس."
+    ),
+    "delay": (
+        "مشتری می‌خواهد فکر کند. به او فرصت بده، هیچ فشاری برای خرید نیاور و محصول جدیدی "
+        "پیشنهاد نده. کوتاه بگو برای هر سوالی در خدمتی."
+    ),
+}
+
+
+def _closing_move(state: SalesAgentState) -> str:
+    if state.get("intent") == "compare":
+        return "compare"
+    if state.get("intent") == "objection":
+        return state.get("objection") or "uncertainty"
+    return "buy"
+
+
+def _product_listing(items: list[RetrievedItem]) -> str:
+    """Number the products and attach a buy link where there is one.
+
+    Products without a `productUrl` are listed too. They used to be filtered
+    out, which meant a customer objecting to the price of a product that has no
+    link watched it vanish from the conversation.
+    """
+    lines = []
+    for i, p in enumerate(items, 1):
+        url = (p.get("metadata") or {}).get("productUrl")
+        line = f"{i}. {p['content']}"
+        if url:
+            line += f"\n   🛒 لینک خرید: {url}"
+        lines.append(line)
+    return "\n\n".join(lines)
+
+
 async def handle_purchase(state: SalesAgentState) -> dict:
+    """Close from the products already on the table.
+
+    Buying, objecting and comparing all mean the same thing structurally: the
+    customer is engaged with what was shown, wants nothing new retrieved, and
+    needs one more thing before deciding. Only the closing move differs.
+    """
     shop = await db.shop.find_unique(where={"id": state["shop_id"]})
     system_prompt = build_system_prompt(shop) if shop else ""
 
-    # 1) An explicitly selected product (ordinal reference or product mode).
-    if state.get("product_id"):
-        product = await db.product.find_first(
-            where={"id": state["product_id"], "shopId": state["shop_id"]}
-        )
-        if product and product.productUrl:
-            reply = await llm.ainvoke(
-                build_llm_messages(
-                    system_prompt or "تو دستیار فروش هستی. مشتری آماده خرید است. لینک خرید را ارائه بده و او را تشویق کن.",
-                    state["messages"],
-                    f"مشتری آماده خرید است. لینک خرید را ارائه بده:\n🛒 {product.productUrl}",
-                    state.get("summary"),
-                )
-            )
-            return {"messages": [reply]}
+    # A pinned product is what the turn is about; otherwise it is the whole list
+    # the customer is looking at. The list is already capped upstream by
+    # EXPLORE_CONTEXT_LIMIT, so it is not truncated again here — cutting it to
+    # three made a comparison silently ignore half the options on screen.
+    pinned = await _pinned_product(state)
+    items = [pinned] if pinned else list(state.get("shown_products") or [])
 
-    # 2) Otherwise fall back to the products we most recently showed the customer.
-    products = [
-        p
-        for p in state.get("shown_products", [])
-        if p.get("metadata", {}).get("productUrl")
-    ]
-
-    if products:
-        links_text = "\n\n".join(
-            f"{p['content']}\n🛒 لینک خرید: {p.get('metadata', {}).get('productUrl')}" for p in products[:3]
-        )
+    if items:
         context_prompt = (
-            "مشتری آماده خرید است. فقط از میان همین محصولات و لینک‌های زیر استفاده کن:\n"
-            + links_text
-            + "\n\n⚠️ هیچ محصول یا لینک دیگری ننویس — حتی محصولی که قبلاً در گفتگو نام برده شده "
+            f"{CLOSING_MOVES[_closing_move(state)]}\n\n"
+            "محصولاتی که مشتری درباره‌شان صحبت می‌کند:\n"
+            f"{_product_listing(items)}\n\n"
+            "⚠️ هیچ محصول یا لینک دیگری ننویس — حتی محصولی که قبلاً در گفتگو نام برده شده "
             "ولی اینجا نیست. اگر مطمئن نیستی مشتری کدام‌یک را می‌خواهد، کوتاه بپرس."
         )
     else:
-        # 3) Nothing to link to yet — ask which product instead of guessing.
+        # Nothing on the table yet — ask instead of guessing.
         context_prompt = (
             "مشتری قصد خرید دارد اما هنوز محصول مشخصی انتخاب نشده است. "
             "کوتاه بپرس کدام محصول را می‌خواهد یا یک محصول مرتبط پیشنهاد بده."
@@ -1287,7 +1329,12 @@ async def handle_purchase(state: SalesAgentState) -> dict:
         build_llm_messages(system_prompt, state["messages"], context_prompt, state.get("summary"))
     )
 
-    return {"messages": [reply]}
+    # Without this the API returned no products and no purchaseUrl on the single
+    # most commercially important turn: analyze_intent clears retrieved_context
+    # at the start of every turn, and this node never put anything back, so the
+    # Telegram bot's "🛒 خرید محصول" button and product cards never rendered.
+    # shown_products is deliberately left alone — only the explore path sets it.
+    return {"messages": [reply], "retrieved_context": items}
 
 
 # ── Graph ─────────────────────────────────────────────────────────────────────
@@ -1334,7 +1381,6 @@ def build_graph(checkpointer: Optional[AsyncPostgresSaver] = None):
                 "fan_out_product",
                 "ask_question",
                 "handle_purchase",
-                "fuse_results_explore",
                 "smalltalk_reply",
             ],
         )
