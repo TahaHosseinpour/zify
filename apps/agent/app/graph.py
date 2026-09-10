@@ -608,6 +608,8 @@ async def analyze_intent(state: SalesAgentState) -> dict:
         # leak into the next question.
         "out_of_catalog": result.out_of_catalog,
         "sort": result.sort,
+        # Search turns show buy buttons; only handle_purchase turns it off.
+        "buy_actions": True,
     }
 
     # Resolve an ordinal reference ("the second one") to a concrete product id.
@@ -1276,6 +1278,12 @@ def _closing_move(state: SalesAgentState) -> str:
     return "buy"
 
 
+# Only the "buy" move wants the client to render buy buttons. Telling the model
+# to give the customer space to think and then attaching five purchase buttons
+# under the reply is the same pressure the instruction just forbade.
+BUY_ACTION_MOVES = {"buy"}
+
+
 def _product_listing(items: list[RetrievedItem]) -> str:
     """Number the products and attach a buy link where there is one.
 
@@ -1309,10 +1317,11 @@ async def handle_purchase(state: SalesAgentState) -> dict:
     # three made a comparison silently ignore half the options on screen.
     pinned = await _pinned_product(state)
     items = [pinned] if pinned else list(state.get("shown_products") or [])
+    move = _closing_move(state)
 
     if items:
         context_prompt = (
-            f"{CLOSING_MOVES[_closing_move(state)]}\n\n"
+            f"{CLOSING_MOVES[move]}\n\n"
             "محصولاتی که مشتری درباره‌شان صحبت می‌کند:\n"
             f"{_product_listing(items)}\n\n"
             "⚠️ هیچ محصول یا لینک دیگری ننویس — حتی محصولی که قبلاً در گفتگو نام برده شده "
@@ -1329,12 +1338,16 @@ async def handle_purchase(state: SalesAgentState) -> dict:
         build_llm_messages(system_prompt, state["messages"], context_prompt, state.get("summary"))
     )
 
-    # Without this the API returned no products and no purchaseUrl on the single
-    # most commercially important turn: analyze_intent clears retrieved_context
-    # at the start of every turn, and this node never put anything back, so the
+    # Without retrieved_context the API returned no products and no purchaseUrl
+    # on the single most commercially important turn: analyze_intent clears it at
+    # the start of every turn, and this node never put anything back, so the
     # Telegram bot's "🛒 خرید محصول" button and product cards never rendered.
     # shown_products is deliberately left alone — only the explore path sets it.
-    return {"messages": [reply], "retrieved_context": items}
+    return {
+        "messages": [reply],
+        "retrieved_context": items,
+        "buy_actions": move in BUY_ACTION_MOVES,
+    }
 
 
 # ── Graph ─────────────────────────────────────────────────────────────────────

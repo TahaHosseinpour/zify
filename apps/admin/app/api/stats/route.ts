@@ -36,19 +36,19 @@ export async function GET() {
     return NextResponse.json({
       totalUsers: 0,
       totalMessages: 0,
-      totalClicks: 0,
+      totalLinkViews: 0,
       totalOrders: 0,
       totalRevenue: 0,
       timeSaved: 0,
       dailyMessages: [],
       dailyUsers: [],
-      dailyClicks: [],
+      dailyLinkViews: [],
     })
   }
 
   const since30 = dateRange(30)
 
-  const [totalUsers, totalOrders, orders, recentMessages, recentUsers, recentClicks, allClicks] =
+  const [totalUsers, totalOrders, orders, recentMessages, recentUsers, recentLinkViews, allLinkViews] =
     await Promise.all([
       prisma.endUser.count({ where: { shopId: shop.id } }),
       prisma.order.count({ where: { shopId: shop.id } }),
@@ -61,11 +61,15 @@ export async function GET() {
         where: { shopId: shop.id, createdAt: { gte: since30 } },
         select: { createdAt: true },
       }),
+      // "link_shown" is a buy link being rendered. It used to be recorded as
+      // "click", which counted every button the bot merely displayed as a
+      // customer action. Telegram url-buttons fire no callback, so a genuine
+      // click can only be measured once links go through a redirect.
       prisma.event.findMany({
-        where: { shopId: shop.id, type: "click", createdAt: { gte: since30 } },
+        where: { shopId: shop.id, type: "link_shown", createdAt: { gte: since30 } },
         select: { createdAt: true },
       }),
-      prisma.event.count({ where: { shopId: shop.id, type: "click" } }),
+      prisma.event.count({ where: { shopId: shop.id, type: "link_shown" } }),
     ])
 
   const totalRevenue = orders.reduce((sum: number, o: { amount: unknown }) => sum + Number(o.amount), 0)
@@ -74,12 +78,12 @@ export async function GET() {
   return NextResponse.json({
     totalUsers,
     totalMessages,
-    totalClicks: allClicks,
+    totalLinkViews: allLinkViews,
     totalOrders,
     totalRevenue,
     timeSaved: Math.round(totalMessages * 2),
     dailyMessages: groupByDate(recentMessages),
     dailyUsers: groupByDate(recentUsers),
-    dailyClicks: groupByDate(recentClicks),
+    dailyLinkViews: groupByDate(recentLinkViews),
   })
 }

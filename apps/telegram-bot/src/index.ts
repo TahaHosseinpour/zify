@@ -44,6 +44,10 @@ async function callAgent(req: ChatRequest): Promise<ChatResponse> {
   return res.json() as Promise<ChatResponse>
 }
 
+// Matches the agent's own context budget, so a six-product answer is not
+// silently cut to four cards.
+const PRODUCT_CARD_LIMIT = 8
+
 async function recordEvent(shopId: string, endUserId: string, type: string, metadata?: Record<string, unknown>) {
   await prisma.event.create({ data: { shopId, endUserId, type, metadata: metadata as Prisma.InputJsonValue | undefined } })
 }
@@ -153,32 +157,50 @@ bot.on("message:text", async (ctx) => {
     })
     await recordEvent(endUser.shopId, endUser.id, "message")
 
+    // The agent decides whether this turn should push a purchase. A turn that
+    // just told the customer to take their time must not sprout buy buttons.
+    const showBuyActions = agentResponse.showBuyActions !== false
+
     // Send the assistant reply text (with a buy button if a purchase URL exists)
-    if (agentResponse.purchaseUrl) {
+    if (showBuyActions && agentResponse.purchaseUrl) {
       const keyboard = new InlineKeyboard().url("🛒 خرید محصول", agentResponse.purchaseUrl)
       await ctx.reply(agentResponse.reply, { reply_markup: keyboard })
-      await recordEvent(endUser.shopId, endUser.id, "click", { url: agentResponse.purchaseUrl })
+      // Rendering a link is not a click: Telegram url-buttons fire no callback,
+      // so this records the impression. Recording it as "click" inflated the
+      // dashboard's "کلیک‌های محصول" with every button that was merely shown.
+      await recordEvent(endUser.shopId, endUser.id, "link_shown", {
+        url: agentResponse.purchaseUrl,
+      })
     } else {
       await ctx.reply(agentResponse.reply)
     }
 
-    // Send product cards with images for the suggested products
+    // Send a card per suggested product. Products without an image still get a
+    // text card — skipping them silently dropped them from the conversation,
+    // which broke comparisons of a list the agent had already described.
     const products = agentResponse.products ?? []
-    for (const p of products.slice(0, 4)) {
-      if (!p.imageUrl) continue
+    for (const p of products.slice(0, PRODUCT_CARD_LIMIT)) {
       const priceText = p.price != null ? `\n💰 ${p.price.toLocaleString("fa-IR")} تومان` : ""
       const caption = `${p.name ?? ""}${priceText}`.trim()
-      const keyboard = p.productUrl
-        ? new InlineKeyboard().url("🛒 مشاهده و خرید", p.productUrl)
-        : undefined
+      const keyboard =
+        showBuyActions && p.productUrl
+          ? new InlineKeyboard().url("🛒 مشاهده و خرید", p.productUrl)
+          : undefined
+
+      if (!p.imageUrl) {
+        if (caption) await ctx.reply(caption, { reply_markup: keyboard })
+        continue
+      }
       try {
         await ctx.replyWithPhoto(p.imageUrl, {
           caption: caption || undefined,
           reply_markup: keyboard,
         })
       } catch (err) {
-        // Telegram couldn't fetch/parse the image URL — skip this card silently
+        // Telegram couldn't fetch/parse the image URL — fall back to text so the
+        // product still appears.
         console.warn("[bot] failed to send product photo:", p.imageUrl, err)
+        if (caption) await ctx.reply(caption, { reply_markup: keyboard })
       }
     }
 
@@ -186,6 +208,19 @@ bot.on("message:text", async (ctx) => {
     if (agentResponse.suggestedProductIds && agentResponse.suggestedProductIds.length > 0) {
       await recordEvent(endUser.shopId, endUser.id, "search", {
         productIds: agentResponse.suggestedProductIds,
+      })
+    }
+
+    // Carry the agent's own mode/product forward. These are sent back on the
+    // next turn and overwrite the graph's state, so re-sending the mode stored
+    // at /start undid every pin the agent made: the customer said "the second
+    // one", the agent switched to product mode, and the next message reset it.
+    const nextMode = agentResponse.mode ?? conversation.mode
+    const nextProductId = agentResponse.productId ?? null
+    if (nextMode !== conversation.mode || nextProductId !== conversation.productId) {
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { mode: nextMode, productId: nextProductId },
       })
     }
   } catch (err) {

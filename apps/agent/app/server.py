@@ -3,6 +3,7 @@ from collections import Counter
 import os
 import time
 import traceback
+from typing import Optional
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -61,6 +62,21 @@ async def reset_memory(request: Request):
             print(f"[agent] reset-memory: skipped {table}: {err}")
 
     return {"ok": True, "deletedRows": deleted}
+
+
+def single_purchase_url(products: list[dict], pinned_id: Optional[str]) -> Optional[str]:
+    """The one link a top-level buy button can point at, or None.
+
+    Taking the first product that happened to have a URL meant a six-product
+    answer got a "🛒 خرید محصول" button silently pointing at whichever one
+    ranked first. A single link is only unambiguous when the customer pinned a
+    product, or when there is only one on the table.
+    """
+    if pinned_id:
+        return next((p["productUrl"] for p in products if p["id"] == pinned_id), None)
+    if len(products) == 1:
+        return products[0]["productUrl"]
+    return None
 
 
 async def run_graph(
@@ -208,14 +224,17 @@ async def chat(request: Request):
             for i in product_items
         ]
 
-        purchase_url = next(
-            (p["productUrl"] for p in products if p["productUrl"]),
-            None,
-        )
+        pinned_id = result.get("product_id")
+        purchase_url = single_purchase_url(products, pinned_id)
+
+        # Clients render buy buttons from this rather than guessing: a turn that
+        # tells the customer to take their time must not sprout purchase buttons.
+        buy_actions = result.get("buy_actions")
 
         response = {
             "reply": reply,
             "mode": result.get("mode"),
+            "productId": pinned_id,
             "stage": result.get("stage"),
             "intent": result.get("intent"),
             "valueDriver": result.get("value_driver"),
@@ -223,6 +242,7 @@ async def chat(request: Request):
             "suggestedProductIds": product_ids,
             "products": products,
             "purchaseUrl": purchase_url,
+            "showBuyActions": True if buy_actions is None else bool(buy_actions),
         }
 
         if want_debug:

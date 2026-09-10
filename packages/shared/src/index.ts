@@ -30,7 +30,10 @@ export type Objection =
   | "trust_issue"
   | "none";
 
-export type EventType = "message" | "search" | "click" | "view";
+// "link_shown" is a buy link being rendered. Telegram url-buttons fire no
+// callback, so a real "click" can only be recorded once links are served
+// through a redirect; until then the two must not be conflated.
+export type EventType = "message" | "search" | "click" | "link_shown" | "view";
 
 export type ConversationMode = "explore" | "product";
 
@@ -61,6 +64,10 @@ export interface ChatResponse {
   suggestedProductIds?: string[];
   products?: SuggestedProduct[];
   purchaseUrl?: string;
+  /** The pinned product, if the turn is about one. Clients send it back. */
+  productId?: string | null;
+  /** False on turns told not to push (an objection, or "let me think"). */
+  showBuyActions?: boolean;
 }
 
 export interface ExploreFilters {

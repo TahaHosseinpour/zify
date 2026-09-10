@@ -15,12 +15,12 @@ import {
 interface Stats {
   totalUsers: number
   totalMessages: number
-  totalClicks: number
+  totalLinkViews: number
   totalOrders: number
   totalRevenue: number
   dailyMessages: { date: string; count: number }[]
   dailyUsers: { date: string; count: number }[]
-  dailyClicks: { date: string; count: number }[]
+  dailyLinkViews: { date: string; count: number }[]
   timeSaved: number
 }
 
@@ -44,7 +44,7 @@ export default function DashboardPage() {
     ? [
         { label: "کاربران کل", value: stats.totalUsers, icon: UserMultiple02Icon },
         { label: "پیام‌های کل", value: stats.totalMessages, icon: MessageMultiple01Icon },
-        { label: "کلیک‌های محصول", value: stats.totalClicks, icon: CursorMagicSelection03Icon },
+        { label: "نمایش لینک خرید", value: stats.totalLinkViews, icon: CursorMagicSelection03Icon },
         { label: "سفارشات", value: stats.totalOrders, icon: ShoppingBag01Icon },
         { label: "زمان صرفه‌جویی (دقیقه)", value: stats.timeSaved, icon: Clock01Icon },
       ]

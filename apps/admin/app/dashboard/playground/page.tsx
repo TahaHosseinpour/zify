@@ -19,8 +19,15 @@ interface Turn {
   input: string
   reply: string
   debug: DebugState | null
-  products: { id: string; name: string | null; price: number | null }[]
+  products: {
+    id: string
+    name: string | null
+    price: number | null
+    imageUrl: string | null
+    productUrl: string | null
+  }[]
   purchaseUrl: string | null
+  showBuyActions: boolean
 }
 
 const newSessionId = () => Math.random().toString(36).slice(2, 10)
@@ -30,6 +37,12 @@ export default function PlaygroundPage() {
   const [turns, setTurns] = useState<Turn[]>([])
   const [draft, setDraft] = useState("")
   const [sending, setSending] = useState(false)
+  // The agent's mode/product are part of its state, and /chat overwrites them
+  // with whatever the caller sends. Re-sending "explore"/null every turn wiped
+  // every pin the agent made, so product mode could never be reproduced here —
+  // the Telegram bot keeps the same pair on the conversation row.
+  const [mode, setMode] = useState<"explore" | "product">("explore")
+  const [productId, setProductId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   // Generated on the client so a reload always starts a clean thread; the
@@ -51,10 +64,13 @@ export default function PlaygroundPage() {
       const res = await fetch("/api/playground/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, sessionId }),
+        body: JSON.stringify({ message, sessionId, mode, productId }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error ?? "خطا")
+
+      setMode(data.mode === "product" ? "product" : "explore")
+      setProductId(data.productId ?? null)
 
       setTurns((prev) => [
         ...prev,
@@ -64,6 +80,7 @@ export default function PlaygroundPage() {
           debug: data.debug ?? null,
           products: data.products ?? [],
           purchaseUrl: data.purchaseUrl ?? null,
+          showBuyActions: data.showBuyActions !== false,
         },
       ])
     } catch (err) {
@@ -78,6 +95,8 @@ export default function PlaygroundPage() {
     setSessionId(newSessionId())
     setTurns([])
     setDraft("")
+    setMode("explore")
+    setProductId(null)
     toast.success("گفت‌وگوی جدید شروع شد")
   }
 
@@ -124,21 +143,57 @@ export default function PlaygroundPage() {
               </div>
             </div>
 
+            {/* Mirrors what the Telegram bot renders — the top-level buy button,
+                then one card per product — so a test here predicts production. */}
+            {turn.showBuyActions && turn.purchaseUrl && (
+              <div className="flex justify-end">
+                <a
+                  href={turn.purchaseUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-lg bg-primary px-3 py-1.5 text-[11px] font-medium text-primary-foreground"
+                >
+                  🛒 خرید محصول
+                </a>
+              </div>
+            )}
+
             {turn.products.length > 0 && (
               <div className="flex flex-wrap justify-end gap-1.5">
                 {turn.products.map((p) => (
-                  <span
+                  <div
                     key={p.id}
-                    className="rounded-lg border bg-background px-2 py-1 text-[11px]"
+                    className="flex w-40 flex-col gap-1 rounded-lg border bg-background p-1.5 text-[11px]"
                   >
-                    {p.name ?? "—"}
+                    {p.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={p.imageUrl}
+                        alt={p.name ?? ""}
+                        className="h-20 w-full rounded object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-20 w-full items-center justify-center rounded bg-muted text-[10px] text-muted-foreground">
+                        بدون تصویر
+                      </div>
+                    )}
+                    <span className="truncate">{p.name ?? "—"}</span>
                     {p.price != null && (
                       <span className="text-muted-foreground">
-                        {" · "}
                         {p.price.toLocaleString("fa-IR")} تومان
                       </span>
                     )}
-                  </span>
+                    {turn.showBuyActions && p.productUrl && (
+                      <a
+                        href={p.productUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded bg-muted px-1.5 py-1 text-center text-[10px]"
+                      >
+                        🛒 مشاهده و خرید
+                      </a>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
