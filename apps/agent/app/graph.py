@@ -104,6 +104,14 @@ CANDIDATE_POOL_LIMIT = 500
 
 MEANINGFUL_FILTER_KEYS = ("category", "brand", "minPrice", "maxPrice")
 
+# The subset that establishes *topical* relevance. `category` and `brand` come
+# from the shop's own vocabulary and are matched exactly, so a row satisfying
+# one is on-topic by construction. A price range says nothing about topic:
+# "under 2M" is satisfied just as well by a power bank as by a running shoe.
+# Used both to steer the embedding (_search_text) and to decide whether the
+# distance floor may run at all (_rank_and_trim).
+SEMANTIC_FILTER_KEYS = ("category", "brand")
+
 
 def has_meaningful_filters(filters: Optional[dict]) -> bool:
     """True when the customer stated a constraint worth filtering on.
@@ -566,6 +574,8 @@ async def analyze_intent(state: SalesAgentState) -> dict:
         merged_filters.pop(key, None)
     # Guard the same failure from the other side: never keep a category the
     # shop does not stock, it can only match zero rows and force a relaxation.
+    # (The mirror-image guard — a wrong `out_of_catalog` guess overturned by a
+    # real SQL match — lives in fuse_results_explore.)
     if merged_filters.get("category") and categories:
         if not any(
             str(merged_filters["category"]).strip().lower() == c.strip().lower()
@@ -698,16 +708,19 @@ PRODUCT_CONTEXT_LIMIT = 6
 
 
 # Order in which predicates are dropped when nothing matches — most negotiable
-# first. `category` and `brand` are free text the classifier inferred from the
-# message, so they routinely miss a column that is sparse, NULL, or worded
-# differently ("لپ تاپ گیمینگ" vs a NULL category) — and the embedding already
-# carries that meaning, which is precisely what step 2 is for. A stated budget
-# is the opposite: it is exact, the customer means it literally, and breaking it
-# is the worst failure this agent can have. So price is never dropped.
+# first. A stated budget is a preference, not an identity: a customer who asked
+# for football boots under 8M would rather see the same boots for more than see
+# an unrelated product that merely happens to fit the price — which is exactly
+# what dropping category first produced (a yoga mat "answering" a shoe search,
+# because it was cheap enough). So price gives way before anything else, and
+# `filters_dropped` tells the prompt precisely that, so the reply says "not at
+# this budget, but here's what we have" instead of "we don't have this at all".
 #
-# The invariant this buys us: either the customer's price range is honoured, or
-# `filter_status` is RELAXED and the prompt says so outright.
-FILTER_RELAXATION_ORDER = ("category", "brand")
+# `category`/`brand` are the shop's own vocabulary the classifier guessed at,
+# so they can still miss on a wording/NULL mismatch ("لپ تاپ گیمینگ" vs a NULL
+# category) — but that is the last resort, tried only once dropping price
+# alone still finds nothing.
+FILTER_RELAXATION_ORDER = ("maxPrice", "minPrice", "category", "brand")
 
 
 def _active_filters(filters: dict) -> dict:
@@ -851,11 +864,24 @@ def _search_text(state: SalesAgentState) -> str:
     merged across turns, so relying on it first meant a turn that produced no
     new filters silently re-embedded an *older* query — the same vector, the
     same rows, and the model then repeated its previous answer verbatim.
+
+    The resolved category/brand follow. A needs-shaped message ("برای
+    برادرزاده‌ام دختر ۱۶ ساله") shares almost no vocabulary with the rows it
+    should match, so on its own it ranks an already-correct candidate set
+    close to arbitrarily. These come from `explore_filters`, i.e. what the
+    customer asked for — unlike the floor's gate, which reads `filter_effective`
+    because it asks a different question (what SQL *proved*, not what was
+    *wanted*). When the category matched nothing, steering the embedding toward
+    it is exactly right: the unscoped search should then surface the nearest
+    alternatives to what was asked for.
     """
     text = last_message_text(state)
-    stored = (state.get("explore_filters") or {}).get("query")
-    if stored and stored not in text:
-        text = f"{text} {stored}"
+    filters = state.get("explore_filters") or {}
+
+    extras = [filters.get("query"), *(filters.get(k) for k in SEMANTIC_FILTER_KEYS)]
+    for extra in extras:
+        if extra and str(extra) not in text:
+            text = f"{text} {extra}"
     return text
 
 
@@ -1044,10 +1070,25 @@ def fuse_and_rank_context(
 
 
 # Cosine distance above which a product is not a real answer to the query, just
-# the nearest row in a small catalog. Calibrated on real traces: genuine
-# matches land at 0.50–0.65, while unrelated ones ("سلام" or a category the
-# shop does not stock) cluster at 0.74–0.82.
+# the nearest row in a small catalog. Calibrated on product-shaped queries
+# ("لپتاپ برای دانشگاه" against "لپ تاپ HP ..."), where genuine matches land at
+# 0.50–0.65 and unrelated rows cluster at 0.74–0.82.
+#
+# A needs-shaped query does not obey that calibration. "برای برادرزاده‌ام دختر
+# ۱۶ ساله" describes the *recipient*; the rows describe *garments*, so a
+# perfectly correct match still sits at 0.75+. That is why the floor below is
+# conditional — see _drop_irrelevant.
 RELEVANCE_MAX_DISTANCE = 0.70
+
+def _semantic_filter_applied(state: SalesAgentState) -> bool:
+    """True when the SQL step already proved the candidates are on-topic.
+
+    Reads `filter_effective` — what actually survived progressive relaxation —
+    not the classifier's original guess. A category that was dropped because it
+    matched nothing proves nothing.
+    """
+    effective = state.get("filter_effective") or {}
+    return any(effective.get(key) for key in SEMANTIC_FILTER_KEYS)
 
 
 def _drop_irrelevant(
@@ -1059,6 +1100,10 @@ def _drop_irrelevant(
     prompt presents them under "محصولات پیدا شده" — which is how a power bank
     became the answer to a request for running shoes. FAQs and the pinned
     product are exempt: they are fetched deliberately, not by similarity.
+
+    Only ever called when no semantic predicate survived (see _rank_and_trim):
+    embedding distance is evidence of last resort, not a veto over an exact
+    category match.
     """
     return [
         i
@@ -1076,8 +1121,17 @@ def _shown_products(items: list[RetrievedItem]) -> list[RetrievedItem]:
 def _rank_and_trim(state: SalesAgentState, limit: int) -> list[RetrievedItem]:
     """Join point: every branch has landed in `retrieved_raw` by now, so rank
     them together, drop the too-distant products, and cut to the prompt budget.
+
+    The distance floor applies only when the SQL step established nothing about
+    topic. When a category/brand predicate survived, these rows *are* the
+    answer and the vector step's only job was to order them — applying the
+    floor there let a weak signal (how close the customer's phrasing embeds to
+    the product text) overrule a strong one (an exact category match), and the
+    agent told a customer it had nothing while stocking four matching items.
     """
     ranked = fuse_and_rank_context(state.get("retrieved_raw") or [], state)
+    if _semantic_filter_applied(state):
+        return ranked[:limit]
     relevant = _drop_irrelevant(ranked, state.get("product_id"))
     return relevant[:limit]
 
@@ -1096,11 +1150,27 @@ async def fuse_results_explore(state: SalesAgentState) -> dict:
     product_request = state.get("intent") in ("search_product", "compare")
     no_product_answer = not any(i["type"] == "product" for i in top)
 
+    # The classifier's `out_of_catalog` guess is just that — a guess made
+    # before any retrieval ran. Guard the same failure as the `category`
+    # guard in analyze_intent, from the other side: a category/brand
+    # predicate that survived to `filter_status == FILTER_IDS` means SQL
+    # matched real rows in that exact shop vocabulary, and if any of them
+    # made it through ranking, the request is proven in-catalog. That proof
+    # must overturn the guess, not just fail to reinforce it — without this
+    # the flag was monotonic (only ever OR'd in), so a wrong "we don't stock
+    # this" from turn N survived even after turn N+1 retrieved the real
+    # products, and the prompt told the model to disown its own results.
+    proven_in_catalog = _semantic_filter_applied(state) and not no_product_answer
+    out_of_catalog = (
+        False
+        if proven_in_catalog
+        else bool(state.get("out_of_catalog")) or (product_request and no_product_answer)
+    )
+
     updates: dict = {
         "retrieved_context": top,
         "candidate_ids": [],
-        "out_of_catalog": bool(state.get("out_of_catalog"))
-        or (product_request and no_product_answer),
+        "out_of_catalog": out_of_catalog,
     }
     # Only the explore path updates shown_products — it is the list the customer
     # numbers ("the second one"). Product mode must NOT overwrite it, or later
@@ -1115,7 +1185,15 @@ async def fuse_results_explore(state: SalesAgentState) -> dict:
 
 async def fuse_context_product(state: SalesAgentState) -> dict:
     """Barrier for the product fan-out. shown_products and out_of_catalog stay
-    untouched: only the explore path may set them."""
+    untouched: only the explore path may set them.
+
+    Not an oversight: fuse_results_explore can *revoke* a wrong out_of_catalog
+    guess because a category/brand match there is proof the request matches
+    real rows in the shop's own vocabulary. This path has no equivalent proof
+    to offer — the pinned product was already fetched by id, not by category —
+    so there is nothing here that could correct the classifier's guess either
+    way, and leaving it alone is the correct (not merely convenient) choice.
+    """
     return {
         "retrieved_context": _rank_and_trim(state, PRODUCT_CONTEXT_LIMIT),
         "candidate_ids": [],

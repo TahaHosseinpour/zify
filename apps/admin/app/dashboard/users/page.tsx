@@ -31,8 +31,7 @@ export default function UsersPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">کاربران</h1>
+      <div className="flex items-center justify-end">
         <span className="text-sm text-muted-foreground">
           {users.length.toLocaleString("fa-IR")} کاربر
         </span>

@@ -60,8 +60,7 @@ export default function ChannelsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">کانال‌ها</h1>
+      <div className="flex items-center justify-end">
         <Button size="sm" onClick={handleCreate} disabled={creating}>
           <HugeiconsIcon icon={Add01Icon} data-icon="inline-start" />
           {creating ? "در حال ساخت..." : "کانال جدید"}

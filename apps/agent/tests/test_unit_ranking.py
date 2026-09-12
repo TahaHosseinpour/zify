@@ -62,6 +62,85 @@ class TestDropIrrelevant:
         assert G._drop_irrelevant([just_over], pinned_id=None) == []
 
 
+class TestFuseResultsExploreOutOfCatalogRevocation:
+    """`fuse_results_explore` must be able to *revoke* a wrong out_of_catalog
+    guess, not just reinforce it — see the guard comment in graph.py right
+    above where `proven_in_catalog` is computed."""
+
+    async def test_a_real_category_match_clears_a_wrong_guess(self):
+        # analyze_intent guessed out_of_catalog=True; SQL then proved 4 real
+        # rows exist under that exact (shop-vocabulary) category.
+        products = [item(f"p{i}", score=0.75 + i * 0.01) for i in range(4)]
+        state = {
+            "intent": "search_product",
+            "out_of_catalog": True,
+            "filter_effective": {"category": "ست ورزشی زنانه"},
+            "retrieved_raw": products,
+        }
+        result = await G.fuse_results_explore(state)
+        assert result["out_of_catalog"] is False
+        assert len([i for i in result["retrieved_context"] if i["type"] == "product"]) == 4
+
+    async def test_a_real_brand_match_also_clears_a_wrong_guess(self):
+        state = {
+            "intent": "compare",
+            "out_of_catalog": True,
+            "filter_effective": {"brand": "Nike"},
+            "retrieved_raw": [item("p1", score=0.8)],
+        }
+        result = await G.fuse_results_explore(state)
+        assert result["out_of_catalog"] is False
+
+    async def test_a_category_match_that_still_retrieved_nothing_keeps_the_guess(self):
+        # filter_effective has a category, but ranking dropped every product
+        # (e.g. all too far by embedding distance would be impossible here
+        # since the semantic gate skips the floor — but the raw set can still
+        # be empty outright, e.g. every candidate was excluded).
+        state = {
+            "intent": "search_product",
+            "out_of_catalog": True,
+            "filter_effective": {"category": "ست ورزشی زنانه"},
+            "retrieved_raw": [],
+        }
+        result = await G.fuse_results_explore(state)
+        assert result["out_of_catalog"] is True
+
+    async def test_a_price_only_filter_never_revokes_the_guess(self):
+        # maxPrice alone proves nothing about topic (a power bank satisfies
+        # "under 2M" just as well as a running shoe), so it must not count as
+        # proof the request is in-catalog.
+        state = {
+            "intent": "search_product",
+            "out_of_catalog": True,
+            "filter_effective": {"maxPrice": 2000000},
+            "retrieved_raw": [item("powerbank", score=0.82)],
+        }
+        result = await G.fuse_results_explore(state)
+        assert result["out_of_catalog"] is True
+
+    async def test_no_prior_guess_and_a_real_match_stays_false(self):
+        state = {
+            "intent": "search_product",
+            "out_of_catalog": False,
+            "filter_effective": {"category": "ست ورزشی زنانه"},
+            "retrieved_raw": [item("p1", score=0.75)],
+        }
+        result = await G.fuse_results_explore(state)
+        assert result["out_of_catalog"] is False
+
+    async def test_genuinely_empty_result_for_a_search_still_sets_it(self):
+        # No semantic filter survived at all (e.g. FILTER_RELAXED) and nothing
+        # came back — the existing "we truly have nothing" path must still work.
+        state = {
+            "intent": "search_product",
+            "out_of_catalog": False,
+            "filter_effective": {},
+            "retrieved_raw": [],
+        }
+        result = await G.fuse_results_explore(state)
+        assert result["out_of_catalog"] is True
+
+
 class TestRouterAfterIntent:
     def test_smalltalk_skips_retrieval_entirely(self):
         assert G.router_after_intent({"intent": "smalltalk"}) == "smalltalk_reply"

@@ -70,8 +70,7 @@ export default function FaqPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">سوالات متداول</h1>
+      <div className="flex items-center justify-end">
         <Button size="sm" onClick={openNew}>
           <HugeiconsIcon icon={Add01Icon} data-icon="inline-start" />
           سوال جدید

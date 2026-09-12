@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@zify/db"
 import { setSession } from "@/lib/auth"
 import { verifyPassword } from "@/lib/password"
+import { toEnglishDigits } from "@/lib/utils"
 
 export async function POST(req: NextRequest) {
-  const { mobile, password } = await req.json()
+  const body = await req.json()
+  const mobile = typeof body.mobile === "string" ? toEnglishDigits(body.mobile) : body.mobile
+  const { password } = body
 
   if (!mobile || !password) {
     return NextResponse.json({ error: "شماره موبایل و رمز عبور را وارد کنید" }, { status: 400 })

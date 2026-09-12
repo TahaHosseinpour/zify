@@ -490,28 +490,37 @@ class TestFilterStepOverflow:
 
 
 class TestFilterStepProgressiveRelaxation:
-    """_filter_step must always honour price and only ever relax
-    category/brand — dropping a stated budget is the one failure this agent
-    must never produce."""
+    """_filter_step must always honour category/brand once real and only ever
+    relax price first — showing the right product at a higher price beats
+    showing an unrelated one that merely fits the budget."""
 
-    async def test_impossible_category_relaxes_but_keeps_the_price_bound(self, shop_id):
+    async def test_impossible_price_relaxes_first_but_keeps_the_category(self, shop_id):
+        rows = await G.db.query_raw(
+            'SELECT DISTINCT category FROM products '
+            'WHERE "shopId" = $1 AND category IS NOT NULL LIMIT 1',
+            shop_id,
+        )
+        if not rows:
+            pytest.skip("no categorized products for this shop")
+        real_category = str(rows[0]["category"])
+
         state = {
             "shop_id": shop_id,
             "explore_filters": {
-                "category": "دسته‌ای که وجود ندارد",
-                "maxPrice": 3_000_000,
+                "category": real_category,
+                "maxPrice": 1,  # nothing in this category costs 1 toman
             },
             "excluded_product_ids": [],
         }
         result = await G._filter_step(state)
         assert result["filter_status"] in (G.FILTER_IDS, G.FILTER_RELAXED)
         if result["filter_status"] == G.FILTER_IDS:
-            assert "category" in result["filters_dropped"]
-            assert result["filter_effective"].get("maxPrice") == 3_000_000
+            assert result["filters_dropped"] == ["maxPrice"]
+            assert result["filter_effective"].get("category") == real_category
             rows = await G.db.query_raw(
-                "SELECT price FROM products WHERE id = ANY($1)", result["candidate_ids"]
+                "SELECT category FROM products WHERE id = ANY($1)", result["candidate_ids"]
             )
-            assert all(float(r["price"]) <= 3_000_000 for r in rows)
+            assert all(r["category"].lower() == real_category.lower() for r in rows)
 
     async def test_impossible_price_alone_is_reported_as_relaxed_never_silently_dropped(self, shop_id):
         state = {

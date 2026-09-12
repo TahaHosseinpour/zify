@@ -4,18 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
-import {
-  ChartLineData02Icon,
-  ShoppingBag01Icon,
-  MessageQuestionIcon,
-  Store01Icon,
-  LinkSquare01Icon,
-  UserMultiple02Icon,
-  MessageMultiple01Icon,
-  TestTube01Icon,
-  Settings01Icon,
-  Logout01Icon,
-} from "@hugeicons/core-free-icons"
+import { Logout01Icon, UserCircleIcon } from "@hugeicons/core-free-icons"
 import {
   Sidebar,
   SidebarContent,
@@ -27,18 +16,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-
-const navItems = [
-  { href: "/dashboard", label: "آمار", icon: ChartLineData02Icon, exact: true },
-  { href: "/dashboard/products", label: "محصولات", icon: ShoppingBag01Icon },
-  { href: "/dashboard/faq", label: "سوالات متداول", icon: MessageQuestionIcon },
-  { href: "/dashboard/business", label: "اطلاعات کسب‌وکار", icon: Store01Icon },
-  { href: "/dashboard/channels", label: "کانال‌ها", icon: LinkSquare01Icon },
-  { href: "/dashboard/users", label: "کاربران", icon: UserMultiple02Icon },
-  { href: "/dashboard/chats", label: "گفت‌وگوها", icon: MessageMultiple01Icon },
-  { href: "/dashboard/playground", label: "آزمایش گفت‌وگو", icon: TestTube01Icon },
-  { href: "/dashboard/settings", label: "تنظیمات", icon: Settings01Icon },
-]
+import { navGroups, isNavItemActive } from "@/lib/nav"
+import { toPersianDigits } from "@/lib/utils"
 
 interface AppSidebarProps {
   side?: "left" | "right"
@@ -55,52 +34,81 @@ export function AppSidebar({ side = "right", shopName, userMobile }: AppSidebarP
   }
 
   return (
-    <Sidebar side={side} collapsible="icon" dir="rtl">
-      <SidebarHeader className="border-b p-4">
-        <div className="flex items-center gap-2">
-          <Image src="/logo.png" alt="Zify" width={24} height={24} className="shrink-0 rounded-full" />
-          <div className="flex flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
-            <span className="font-bold text-primary text-base">Zify</span>
-            {shopName && (
-              <span className="text-xs text-muted-foreground truncate">{shopName}</span>
-            )}
-          </div>
-        </div>
+    <Sidebar side={side} collapsible="icon" dir="rtl" className="panel-theme panel-sidebar">
+      <SidebarHeader className="h-14 justify-center border-b border-sidebar-border px-3 py-0">
+        <Link href="/dashboard" className="flex items-center gap-2.5">
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-sidebar-primary/12 ring-1 ring-sidebar-border group-data-[collapsible=icon]:size-8">
+            <Image src="/logo.png" alt="زیفای" width={22} height={22} className="rounded-full" />
+          </span>
+          <span className="flex min-w-0 flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
+            <span className="text-sm font-bold text-sidebar-foreground">زیفای</span>
+            <span className="truncate text-xs text-sidebar-foreground/55">
+              {shopName ?? "پنل مدیریت"}
+            </span>
+          </span>
+        </Link>
       </SidebarHeader>
 
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>منو</SidebarGroupLabel>
-          <SidebarMenu>
-            {navItems.map((item) => {
-              const isActive = item.exact
-                ? pathname === item.href
-                : pathname.startsWith(item.href)
-              return (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive}
-                    tooltip={item.label}
-                  >
-                    <Link href={item.href} className="flex items-center gap-2">
-                      <HugeiconsIcon icon={item.icon} strokeWidth={2} className="size-4 shrink-0" />
-                      <span>{item.label}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )
-            })}
-          </SidebarMenu>
-        </SidebarGroup>
+      <SidebarContent className="px-1 py-2">
+        {navGroups.map((group, index) => (
+          <SidebarGroup key={group.label ?? index} className="py-1">
+            {group.label && (
+              <SidebarGroupLabel className="px-3 text-[11px] font-medium tracking-wide text-sidebar-foreground/50">
+                {group.label}
+              </SidebarGroupLabel>
+            )}
+            <SidebarMenu className="gap-1">
+              {group.items.map((item) => {
+                const isActive = isNavItemActive(item, pathname)
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive}
+                      tooltip={item.label}
+                      className="h-10 gap-3 rounded-lg px-3 text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-primary/14 data-[active=true]:font-semibold data-[active=true]:text-sidebar-primary"
+                    >
+                      <Link href={item.href}>
+                        <HugeiconsIcon
+                          icon={item.icon}
+                          strokeWidth={2}
+                          className="size-[18px] shrink-0"
+                        />
+                        <span>{item.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                    {isActive && (
+                      <span className="pointer-events-none absolute inset-y-2 right-0 w-[3px] rounded-full bg-sidebar-primary" />
+                    )}
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
-      <SidebarFooter className="border-t p-2">
+      <SidebarFooter className="border-t border-sidebar-border p-2">
+        <div className="flex items-center gap-2.5 px-2 py-1 group-data-[collapsible=icon]:hidden">
+          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-sidebar-primary/14 text-sidebar-primary">
+            <HugeiconsIcon icon={UserCircleIcon} strokeWidth={2} className="size-4" />
+          </span>
+          <span className="flex min-w-0 flex-col">
+            <span className="text-[11px] text-sidebar-foreground/50">حساب شما</span>
+            <span className="truncate text-xs font-medium text-sidebar-foreground/90">
+              {userMobile ? toPersianDigits(userMobile) : "—"}
+            </span>
+          </span>
+        </div>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={handleLogout} tooltip="خروج">
-              <HugeiconsIcon icon={Logout01Icon} strokeWidth={2} className="size-4" />
-              <span>{userMobile}</span>
+            <SidebarMenuButton
+              onClick={handleLogout}
+              tooltip="خروج از حساب"
+              className="h-9 gap-3 rounded-lg px-3 text-sidebar-foreground/65 hover:bg-destructive/10 hover:text-destructive"
+            >
+              <HugeiconsIcon icon={Logout01Icon} strokeWidth={2} className="size-[18px]" />
+              <span>خروج از حساب</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

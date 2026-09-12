@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@zify/db"
 import { setSession } from "@/lib/auth"
+import { toEnglishDigits } from "@/lib/utils"
 
 export async function POST(req: NextRequest) {
-  const { mobile, otp } = await req.json()
+  const body = await req.json()
+  const mobile = typeof body.mobile === "string" ? toEnglishDigits(body.mobile) : body.mobile
+  const otp = typeof body.otp === "string" ? toEnglishDigits(body.otp) : body.otp
 
   const user = await prisma.user.findUnique({ where: { mobile } })
   if (!user || !user.otp || !user.otpExpiry) {

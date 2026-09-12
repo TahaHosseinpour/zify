@@ -24,6 +24,16 @@ interface Stats {
   timeSaved: number
 }
 
+const axisTick = { fontSize: 10, fill: "var(--muted-foreground)" }
+
+const tooltipStyle = {
+  background: "var(--popover)",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius-md)",
+  color: "var(--popover-foreground)",
+  fontSize: "12px",
+}
+
 const cardVariants = {
   hidden: { opacity: 0, y: 20 },
   visible: (i: number) => ({ opacity: 1, y: 0, transition: { delay: i * 0.08 } }),
@@ -52,8 +62,6 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-bold">آمار</h1>
-
       {/* KPI cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         {loading
@@ -98,15 +106,19 @@ export default function DashboardPage() {
                   <AreaChart data={stats.dailyMessages}>
                     <defs>
                       <linearGradient id="msgGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                        <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip />
-                    <Area type="monotone" dataKey="count" stroke="hsl(var(--primary))" fill="url(#msgGrad)" strokeWidth={2} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="date" tick={axisTick} tickLine={false} axisLine={false} />
+                    <YAxis tick={axisTick} tickLine={false} axisLine={false} width={32} />
+                    <Tooltip
+                      cursor={{ fill: "var(--accent)", fillOpacity: 0.4 }}
+                      contentStyle={tooltipStyle}
+                      labelStyle={{ color: "var(--muted-foreground)" }}
+                    />
+                    <Area type="monotone" dataKey="count" stroke="var(--primary)" fill="url(#msgGrad)" strokeWidth={2} />
                   </AreaChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -121,11 +133,15 @@ export default function DashboardPage() {
               <CardContent>
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={stats.dailyUsers}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="date" tick={axisTick} tickLine={false} axisLine={false} />
+                    <YAxis tick={axisTick} tickLine={false} axisLine={false} width={32} />
+                    <Tooltip
+                      cursor={{ fill: "var(--accent)", fillOpacity: 0.4 }}
+                      contentStyle={tooltipStyle}
+                      labelStyle={{ color: "var(--muted-foreground)" }}
+                    />
+                    <Bar dataKey="count" fill="var(--primary)" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>

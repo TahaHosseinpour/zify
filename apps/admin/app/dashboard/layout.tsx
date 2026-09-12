@@ -1,10 +1,6 @@
 import { AppSidebar } from "@/components/app-sidebar"
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar"
-import { Separator } from "@/components/ui/separator"
+import { PanelHeader } from "@/components/panel-header"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@zify/db"
@@ -30,14 +26,13 @@ export default async function DashboardLayout({
   const shop = user.shops[0]
 
   return (
-    <SidebarProvider>
+    <SidebarProvider className="panel-theme bg-background">
       <AppSidebar side="right" shopName={shop?.name} userMobile={user.mobile} />
       <SidebarInset>
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="me-2" />
-          <Separator orientation="vertical" className="h-4" />
-        </header>
-        <div className="flex flex-1 flex-col gap-4 p-4">{children}</div>
+        <PanelHeader />
+        <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-5 p-4 sm:p-6">
+          {children}
+        </div>
       </SidebarInset>
     </SidebarProvider>
   )

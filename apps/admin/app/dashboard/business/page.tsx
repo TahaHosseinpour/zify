@@ -75,8 +75,6 @@ export default function BusinessPage() {
 
   return (
     <form onSubmit={handleSave} className="flex flex-col gap-6">
-      <h1 className="text-xl font-bold">اطلاعات کسب‌وکار</h1>
-
       <Card>
         <CardHeader>
           <CardTitle className="text-base">اطلاعات پایه</CardTitle>

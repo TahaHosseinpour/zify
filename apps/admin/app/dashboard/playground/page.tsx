@@ -104,7 +104,6 @@ export default function PlaygroundPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-xl font-bold">آزمایش گفت‌وگو</h1>
           <p className="text-xs text-muted-foreground">
             مثل یک مشتری با دستیار حرف بزنید. زیر هر پاسخ، وضعیت داخلی دستیار برای همان
             نوبت نمایش داده می‌شود.

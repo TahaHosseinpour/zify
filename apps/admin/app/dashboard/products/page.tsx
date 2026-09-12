@@ -185,8 +185,7 @@ export default function ProductsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">محصولات</h1>
+      <div className="flex items-center justify-end">
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => setBulkOpen(true)}>
             <HugeiconsIcon icon={FileImportIcon} data-icon="inline-start" />

@@ -172,6 +172,72 @@
   }
 }
 
+/* The public landing page reads the same tokens as the panel, so the panel
+   palette is scoped to .panel-theme instead of overriding :root. */
+.panel-theme {
+  --background: oklch(0.982 0.006 293);
+  --foreground: oklch(0.19 0.03 293);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.19 0.03 293);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.19 0.03 293);
+  --primary: oklch(0.55 0.24 293);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.96 0.014 293);
+  --secondary-foreground: oklch(0.29 0.06 293);
+  --muted: oklch(0.965 0.011 293);
+  --muted-foreground: oklch(0.53 0.035 293);
+  --accent: oklch(0.955 0.03 293);
+  --accent-foreground: oklch(0.43 0.19 293);
+  --destructive: oklch(0.58 0.21 22);
+  --border: oklch(0.925 0.013 293);
+  --input: oklch(0.925 0.013 293);
+  --ring: oklch(0.55 0.24 293);
+
+  --sidebar: oklch(0.97 0 0);
+  --sidebar-foreground: oklch(0.2 0 0);
+  --sidebar-primary: oklch(0.55 0.22 285);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.94 0.05 285);
+  --sidebar-accent-foreground: oklch(0.2 0 0);
+  --sidebar-border: oklch(0.92 0 0);
+  --sidebar-ring: oklch(0.55 0.22 285);
+}
+
+/* Graphite: neutral chrome, violet reserved for accent — mirrors the light
+   mode's own logic instead of tinting every surface with brand hue. */
+.dark .panel-theme {
+  color-scheme: dark;
+
+  --background: oklch(0.245 0.004 285);
+  --foreground: oklch(0.96 0.003 285);
+  --card: oklch(0.285 0.005 285);
+  --card-foreground: oklch(0.96 0.003 285);
+  --popover: oklch(0.285 0.005 285);
+  --popover-foreground: oklch(0.96 0.003 285);
+  --primary: oklch(0.68 0.19 293);
+  --primary-foreground: oklch(0.16 0.02 293);
+  --secondary: oklch(0.34 0.006 285);
+  --secondary-foreground: oklch(0.96 0.003 285);
+  --muted: oklch(0.34 0.006 285);
+  --muted-foreground: oklch(0.75 0.008 285);
+  --accent: oklch(0.37 0.03 293);
+  --accent-foreground: oklch(0.85 0.11 293);
+  --destructive: oklch(0.62 0.18 22);
+  --border: oklch(0.36 0.008 285);
+  --input: oklch(0.36 0.008 285);
+  --ring: oklch(0.68 0.19 293);
+
+  --sidebar: oklch(0.245 0.004 285);
+  --sidebar-foreground: oklch(0.96 0.003 285);
+  --sidebar-primary: oklch(0.72 0.17 293);
+  --sidebar-primary-foreground: oklch(0.16 0.02 293);
+  --sidebar-accent: oklch(0.34 0.006 285);
+  --sidebar-accent-foreground: oklch(0.97 0.003 285);
+  --sidebar-border: oklch(0.36 0.008 285);
+  --sidebar-ring: oklch(0.72 0.17 293);
+}
+
 @keyframes star-movement-bottom {
   0%   { transform: translate(0%, 0%); opacity: 1; }
   100% { transform: translate(-100%, 0%); opacity: 0; }
