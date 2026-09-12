@@ -64,6 +64,15 @@ async def reset_memory(request: Request):
     return {"ok": True, "deletedRows": deleted}
 
 
+def _to_float(v) -> Optional[float]:
+    """Prisma's Decimal (or a malformed value) coerced to a plain float for
+    JSON, or None rather than a 500 if it isn't numeric at all."""
+    try:
+        return float(v) if v is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def single_purchase_url(products: list[dict], pinned_id: Optional[str]) -> Optional[str]:
     """The one link a top-level buy button can point at, or None.
 
@@ -206,12 +215,6 @@ async def chat(request: Request):
         context: list[RetrievedItem] = result.get("retrieved_context", [])
         product_items = [i for i in context if i["type"] == "product"]
         product_ids = [i["id"] for i in product_items]
-
-        def _to_float(v):
-            try:
-                return float(v) if v is not None else None
-            except (TypeError, ValueError):
-                return None
 
         products = [
             {

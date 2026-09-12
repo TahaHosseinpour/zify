@@ -21,4 +21,18 @@ package = false
 [dependency-groups]
 dev = [
     "langgraph-cli[inmem]>=0.4.30",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=7.1.0",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = ["db: needs the live Postgres instance from docker-compose.yml"]
+# The DB-backed fixtures (real_db, shop_id) are session-scoped so the suite
+# connects once, not once per test. Prisma's connection is bound to whichever
+# event loop created it, so the loop itself must also be session-scoped, or
+# the second test to touch it fails with "Event loop is closed".
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"

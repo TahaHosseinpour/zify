@@ -364,7 +364,13 @@ class ExploreFiltersModel(BaseModel):
 class IntentResult(BaseModel):
     intent: str
     mode: str
-    stage: str
+    # Optional, same as value_driver/objection: the prompt tells the model to
+    # leave it null when the current message doesn't make it clear, so the
+    # merge logic below can keep the previous turn's value. A bare `str` made
+    # that instruction impossible to follow — with_structured_output turns the
+    # schema into a hard constraint, so the model was forced to guess a stage
+    # on every turn no matter what the wording asked for.
+    stage: Optional[str] = None
     value_driver: Optional[str] = None
     objection: Optional[str] = None
     explore_filters: Optional[ExploreFiltersModel] = None
