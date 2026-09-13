@@ -91,6 +91,14 @@ class SalesAgentState(TypedDict, total=False):
     explore_filters: dict
     intent: Optional[str]
 
+    # The shop's real category/brand vocabulary, fetched once at the start of
+    # the conversation and cached here so every later turn's classification
+    # reuses it instead of re-querying. `None` means "not fetched yet" (the
+    # first turn); `[]` means "fetched, shop genuinely has none" — the
+    # distinction matters so a real empty catalog isn't re-queried forever.
+    shop_categories: Optional[list[str]]
+    shop_brands: Optional[list[str]]
+
     # Buyer profiling
     stage: Optional[str]  # "browsing" | "considering" | "ready_to_buy"
     value_driver: Optional[str]  # "low_price" | "high_quality" |

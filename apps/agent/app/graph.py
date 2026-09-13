@@ -154,9 +154,19 @@ def _product_where(
     # required the *stored* category to contain the classifier's phrase, so a
     # customer being more specific than the taxonomy ("کفش ورزشی مردانه" against
     # a stored "کفش ورزشی") matched nothing and silently relaxed the filter.
+    #
+    # `category` may also be a *list* here — `_resolve_category_candidates`'s
+    # output when the classifier found no exact vocabulary match but embedding
+    # similarity did. Uncertain resolutions widen to several categories rather
+    # than betting the whole search on the single nearest one.
     if f.get("category"):
-        clauses.append(f"lower(category) = lower(${n})")
-        params.append(str(f["category"]).strip())
+        cats = f["category"] if isinstance(f["category"], list) else [f["category"]]
+        if len(cats) == 1:
+            clauses.append(f"lower(category) = lower(${n})")
+            params.append(str(cats[0]).strip())
+        else:
+            clauses.append(f"lower(category) = ANY(${n})")
+            params.append([str(c).strip().lower() for c in cats])
         n += 1
     if f.get("brand"):
         clauses.append(f"lower(brand) = lower(${n})")
@@ -554,11 +564,34 @@ async def shop_categories(shop_id: str) -> list[str]:
     return [str(r["category"]) for r in rows]
 
 
+async def shop_brands(shop_id: str) -> list[str]:
+    """The brands this shop actually stocks — same closed-vocabulary guarantee
+    as shop_categories, so the classifier can't invent a brand ("راکت بینگ
+    بنگ") and can't mistake an unfamiliar one for a real one either."""
+    rows = await db.query_raw(
+        """SELECT DISTINCT brand FROM products
+           WHERE "shopId" = $1 AND "isActive" = true
+             AND brand IS NOT NULL AND brand <> ''
+           ORDER BY brand""",
+        shop_id,
+    )
+    return [str(r["brand"]) for r in rows]
+
+
 async def analyze_intent(state: SalesAgentState) -> dict:
     # Give the classifier a short window of recent turns, not just the last
     # message, so filters/intent are read in context ("cheaper than that one").
     recent = state["messages"][-INTENT_HISTORY_WINDOW:]
-    categories = await shop_categories(state["shop_id"])
+
+    # Fetched once per conversation, not once per turn: `None` means "never
+    # fetched", so the first turn queries and every later turn reuses the
+    # cached value from the checkpoint instead of re-querying.
+    categories = state.get("shop_categories")
+    if categories is None:
+        categories = await shop_categories(state["shop_id"])
+    brands = state.get("shop_brands")
+    if brands is None:
+        brands = await shop_brands(state["shop_id"])
 
     result: IntentResult = await structured_llm.ainvoke(
         [SystemMessage(content=build_intent_analysis_prompt(categories)), *recent]
@@ -622,6 +655,10 @@ async def analyze_intent(state: SalesAgentState) -> dict:
         "value_driver": result.value_driver or state.get("value_driver"),
         "objection": new_objection,
         "explore_filters": merged_filters,
+        # Written every turn, but only ever *fetched* once (see above) — this
+        # just keeps the checkpoint holding what's already in memory.
+        "shop_categories": categories,
+        "shop_brands": brands,
         # Wipe both retrieval buffers from the previous turn so nothing freezes:
         # retrieved_raw is reset via the None sentinel, retrieved_context via [].
         "retrieved_raw": RESET_CONTEXT,
@@ -741,15 +778,125 @@ def _active_filters(filters: dict) -> dict:
     }
 
 
+# Cosine-distance bands this step uses to resolve `category` by embedding
+# similarity — the sole authority on category matching now (see
+# _filter_step: it runs on every search turn, not only when analyze_intent's
+# classifier left category null, and its result overrides the classifier's
+# own pick). Two bands, not one threshold: a close match is trusted alone; a
+# merely plausible one widens to every category in that band instead of
+# gambling the whole search on a single guess. Below both, the search stays
+# unscoped — the honest "we don't have this" path.
+#
+# CONFIDENT is deliberately very strict (near-verbatim only). The classifier
+# choosing between real vocabulary entries by its own judgment is exactly
+# what put a customer's "شلوار ورزشی زنانه" ("women's sports pants") under
+# "ست ورزشی زنانه" ("women's sports set") instead of the product's actual
+# "لباس ورزشی زنانه" ("women's sportswear") — two categories sharing two of
+# three words with the query score deceptively close to each other, so a
+# lenient confident band commits to whichever wins that noise. Widening
+# instead costs nothing extra here: the vector step ranks by full product
+# content next, which carries far more signal than a 2-3 word category name.
+#
+# CANDIDATE is still an unvalidated placeholder (see the product-distance
+# calibration note on RELEVANCE_MAX_DISTANCE for how that one was tuned) —
+# the one real number gathered so far, a genuinely unrelated pair ("شلوار
+# اسلش" vs "کفش ورزشی"), landed at 0.697, comfortably above it.
+CATEGORY_CONFIDENT_MAX_DISTANCE = 0.15
+CATEGORY_CANDIDATE_MAX_DISTANCE = 0.55
+
+
+def _cosine_distance(a: list[float], b: list[float]) -> float:
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = sum(x * x for x in a) ** 0.5
+    norm_b = sum(y * y for y in b) ** 0.5
+    if not norm_a or not norm_b:
+        return 1.0
+    return 1 - dot / (norm_a * norm_b)
+
+
+# A name containing one of these marks a catch-all/leftover bucket, not a
+# product type — "سایر لوازم ورزشی" ("other sports equipment") describes
+# nothing specific, so a generic or ambiguous query ("توپ", "شلوار ورزشی")
+# embeds deceptively close to it precisely *because* it isn't about anything
+# in particular. Real, specific categories ("توپ والیبال") lose that contest
+# to a bucket whose whole content is "doesn't fit elsewhere". Excluded here so
+# it can never be a fuzzy-resolved guess — an exact, literal customer request
+# for it still works via analyze_intent's own vocabulary match, untouched.
+_CATCHALL_CATEGORY_MARKERS = ("سایر", "متفرقه", "دیگر")
+
+
+async def _resolve_category_candidates(state: SalesAgentState) -> list[str]:
+    """Embedding-similarity fallback for `category` when the classifier found
+    no exact vocabulary match.
+
+    Returns zero, one, or several categories: zero when nothing is even
+    plausible (the search stays unscoped, same as today), one when a single
+    category is a close match, several when multiple are merely plausible so
+    the vector step gets to narrow it down instead of this step betting the
+    whole search on one guess.
+
+    Embeds the same text `_search_text` builds for the vector step right
+    after this one runs, so that call is a cache hit — this adds one new
+    embedding call (the category names, shared process-wide across every
+    conversation for this shop once warm), never two.
+    """
+    categories = [
+        c
+        for c in (state.get("shop_categories") or [])
+        if not any(marker in c for marker in _CATCHALL_CATEGORY_MARKERS)
+    ]
+    if not categories:
+        return []
+    text = _search_text(state)
+    if not text.strip():
+        return []
+
+    query_vec = await embed(text)
+    category_vecs = await asyncio.gather(*(embed(c) for c in categories))
+    scored = sorted(
+        zip(categories, (_cosine_distance(query_vec, v) for v in category_vecs)),
+        key=lambda pair: pair[1],
+    )
+
+    # The two thresholds above are unvalidated placeholders (see the comment
+    # on them) — this span is how they get tuned from real traffic instead of
+    # a guess: every attempt's full distance ranking lands in Langfuse, so a
+    # wrong cutoff shows up as a visibly wrong `resolved` next to the
+    # customer's actual message, not just a bad reply with no way to tell why.
+    with tracing.span(
+        "category_resolution", as_type="retriever", input={"text": text, "categories": categories}
+    ) as obs:
+        if scored[0][1] > CATEGORY_CANDIDATE_MAX_DISTANCE:
+            resolved: list[str] = []
+        elif scored[0][1] <= CATEGORY_CONFIDENT_MAX_DISTANCE:
+            resolved = [scored[0][0]]
+        else:
+            resolved = [c for c, d in scored if d <= CATEGORY_CANDIDATE_MAX_DISTANCE]
+        obs.update(output={"distances": [{"category": c, "distance": d} for c, d in scored], "resolved": resolved})
+    return resolved
+
+
 async def _filter_step(state: SalesAgentState) -> dict:
     """Step 1, shared by both paths: turn the customer's stated constraints
     into a concrete candidate set (or a reason why there isn't one).
 
     Filters are tried as a whole first, then progressively relaxed. Each retry
-    is one indexed SQL query with no embedding or LLM involved, and only runs
-    when the previous attempt matched nothing.
+    is one indexed SQL query with no LLM involved, and only runs when the
+    previous attempt matched nothing.
     """
-    filters = state.get("explore_filters") or {}
+    filters = dict(state.get("explore_filters") or {})
+    # Always resolved, not only when analyze_intent's classifier left category
+    # null — the classifier is free to *choose* among real vocabulary entries
+    # by its own judgment, and that choice can be wrong the same way a null
+    # guess can be. Embedding distance against the real vocabulary is the one
+    # check applied uniformly; it overrides the classifier's pick when it
+    # disagrees, and changes nothing when the two agree (an exact/near-exact
+    # match wins its own comparison trivially). Only overrides when it found
+    # something — an embedding hiccup must never erase an already-valid pick.
+    resolved = await _resolve_category_candidates(state)
+    if resolved:
+        filters["category"] = resolved
+
     if not has_meaningful_filters(filters):
         return {
             "candidate_ids": [],
@@ -1296,11 +1443,25 @@ async def ask_question(state: SalesAgentState) -> dict:
         "تا نیازش روشن شود (مثلاً نوع، کاربرد، بودجه یا سایز). از اطلاعات بالا فقط برای هدفمندتر "
         "کردن سوالت استفاده کن، نه برای دادن پاسخ کامل."
     )
-    if state.get("out_of_catalog"):
+    out_of_catalog = bool(state.get("out_of_catalog"))
+    if out_of_catalog:
+        # The classifier's own guess can be wrong the same way it was for the
+        # search path (fuse_results_explore): its reasoning is purely lexical
+        # against the vocabulary list, so a word sharing no literal overlap
+        # with any category ("شلوار" vs the real "لباس ورزشی زنانه") reads as
+        # "not in catalog" even though it is. Embedding similarity catches the
+        # semantic link a word-list scan can't — proof enough to overturn the
+        # guess and fall through to the normal clarify-or-answer branches
+        # below instead of falsely telling the customer the shop doesn't
+        # carry it.
+        if await _resolve_category_candidates(state):
+            out_of_catalog = False
+
+    if out_of_catalog:
         # Never interrogate a customer about a category we don't stock. The
         # agent used to say "we have no flashlights" and then ask what kind of
         # flashlight they wanted.
-        categories = await shop_categories(state["shop_id"])
+        categories = state.get("shop_categories") or await shop_categories(state["shop_id"])
         available = "، ".join(categories) if categories else ""
         extra = (
             "فروشگاه این نوع محصول را ندارد. صریح و کوتاه بگو که موجود نیست و "
@@ -1317,7 +1478,7 @@ async def ask_question(state: SalesAgentState) -> dict:
         build_llm_messages(system_prompt, state["messages"], context_block + extra, state.get("summary"))
     )
 
-    return {"messages": [reply]}
+    return {"messages": [reply], "out_of_catalog": out_of_catalog}
 
 
 async def smalltalk_reply(state: SalesAgentState) -> dict:

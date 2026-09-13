@@ -14,7 +14,7 @@ from app import graph as G
 from app.graph import ExploreFiltersModel, IntentResult
 
 
-def install_classifier(monkeypatch, result: IntentResult, categories=None):
+def install_classifier(monkeypatch, result: IntentResult, categories=None, brands=None):
     class FakeStructuredLLM:
         @staticmethod
         async def ainvoke(messages):
@@ -25,7 +25,11 @@ def install_classifier(monkeypatch, result: IntentResult, categories=None):
     async def fake_categories(shop_id):
         return categories or []
 
+    async def fake_brands(shop_id):
+        return brands or []
+
     monkeypatch.setattr(G, "shop_categories", fake_categories)
+    monkeypatch.setattr(G, "shop_brands", fake_brands)
 
 
 def base_state(**overrides):
