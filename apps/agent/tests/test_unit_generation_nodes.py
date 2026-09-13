@@ -137,6 +137,68 @@ class TestAskQuestion:
         assert "ندارد" in prompt_text
         assert "کفش" in prompt_text  # available categories are suggested
 
+    async def test_out_of_catalog_is_revoked_by_a_real_category_match(
+        self, fake_llm, fake_shop_db, monkeypatch
+    ):
+        # The regression this covers: analyze_intent's classifier flags
+        # out_of_catalog purely by lexical vocabulary scanning, and misses a
+        # word with no literal overlap with any category name ("شلوار" vs the
+        # real "لباس ورزشی زنانه") even though the shop stocks it. Embedding
+        # similarity catches what the word-list scan can't.
+        async def fake_embed(text):
+            vectors = {"شلوار می‌خوام": [1, 0], "لباس ورزشی زنانه": [1, 0]}
+            return vectors[text]
+
+        async def no_faq(shop_id, vec, k):
+            return []
+
+        async def no_shop_info(shop_id, vec, k):
+            return []
+
+        monkeypatch.setattr(G, "embed", fake_embed)
+        monkeypatch.setattr(G, "vector_search_faq", no_faq)
+        monkeypatch.setattr(G, "vector_search_shop_info", no_shop_info)
+
+        result = await G.ask_question(
+            base_state(
+                out_of_catalog=True,
+                intent="needs_clarification",
+                messages=[{"content": "شلوار می‌خوام"}],
+                shop_categories=["لباس ورزشی زنانه"],
+            )
+        )
+        prompt_text = fake_llm[-1][-1].content
+        assert "ندارد" not in prompt_text
+        assert result["out_of_catalog"] is False
+
+    async def test_out_of_catalog_stays_when_no_category_is_plausible(
+        self, fake_llm, fake_shop_db, monkeypatch
+    ):
+        async def fake_embed(text):
+            vectors = {"چیز عجیبی می‌خوام": [1, 0], "کفش ورزشی": [0, 1]}
+            return vectors[text]
+
+        async def no_faq(shop_id, vec, k):
+            return []
+
+        async def no_shop_info(shop_id, vec, k):
+            return []
+
+        monkeypatch.setattr(G, "embed", fake_embed)
+        monkeypatch.setattr(G, "vector_search_faq", no_faq)
+        monkeypatch.setattr(G, "vector_search_shop_info", no_shop_info)
+
+        result = await G.ask_question(
+            base_state(
+                out_of_catalog=True,
+                messages=[{"content": "چیز عجیبی می‌خوام"}],
+                shop_categories=["کفش ورزشی"],
+            )
+        )
+        prompt_text = fake_llm[-1][-1].content
+        assert "ندارد" in prompt_text
+        assert result["out_of_catalog"] is True
+
     async def test_needs_clarification_adds_the_clarify_instruction(self, fake_llm, fake_shop_db, monkeypatch):
         async def fake_embed(text):
             return [0.1]
