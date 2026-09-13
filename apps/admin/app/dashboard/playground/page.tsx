@@ -101,7 +101,7 @@ export default function PlaygroundPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
           <p className="text-xs text-muted-foreground">
@@ -115,7 +115,7 @@ export default function PlaygroundPage() {
         </Button>
       </div>
 
-      <div className="flex flex-col gap-6 pb-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto pb-4">
         {turns.length === 0 && !sending && (
           <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
             <HugeiconsIcon icon={TestTube01Icon} className="size-12 opacity-30" />
@@ -221,7 +221,7 @@ export default function PlaygroundPage() {
 
       <form
         onSubmit={send}
-        className="sticky bottom-0 flex items-center gap-2 border-t bg-background py-3"
+        className="flex shrink-0 items-center gap-2 border-t bg-background py-3"
       >
         <Input
           value={draft}

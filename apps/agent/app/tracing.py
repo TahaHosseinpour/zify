@@ -15,10 +15,22 @@ context, so individual nodes need no changes.
 from __future__ import annotations
 
 import os
+from contextlib import nullcontext
 from typing import Any, Optional
 
 _handler: Optional[Any] = None
 _resolved = False
+
+
+class _NoopSpan:
+    """Stand-in for a Langfuse observation when tracing is off, so call sites
+    never need an `if tracing_enabled` check around `.update(...)`."""
+
+    def update(self, **_kwargs: Any) -> None:
+        pass
+
+
+_NOOP_SPAN = _NoopSpan()
 
 
 def _configured() -> bool:
@@ -101,6 +113,36 @@ def chat_config(
         "product_id": product_id,
     }
     return config
+
+
+def span(name: str, as_type: str = "retriever", input: Optional[Any] = None):
+    """A Langfuse observation around one retrieval call — the exact SQL or
+    vector query that ran, and (via `.update(output=...)` inside the `with`
+    block) what it returned.
+
+    The CallbackHandler traces LLM calls automatically because they're
+    LangChain runnables; a raw `db.query_raw` is neither, so without this it
+    never appeared in a trace at all — only its result, folded into whatever
+    the generation node did with it. This makes the query itself a first-class
+    span nested wherever the current trace context is (the ambient graph
+    invocation), the same way `llm.ainvoke` nests without explicit config
+    threading.
+
+    No-ops (yields a `_NoopSpan`) when tracing is off or unavailable, so call
+    sites never need to check first — same philosophy as `get_handler`.
+    """
+    if not _configured():
+        return nullcontext(_NOOP_SPAN)
+
+    try:
+        from langfuse import get_client
+
+        return get_client().start_as_current_observation(
+            name=name, as_type=as_type, input=input
+        )
+    except Exception as err:  # noqa: BLE001 — tracing must never break retrieval
+        print(f"[agent] langfuse: span '{name}' unavailable: {err}")
+        return nullcontext(_NOOP_SPAN)
 
 
 def flush() -> None:

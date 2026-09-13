@@ -15,6 +15,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
 from pydantic import BaseModel, Field
 
+from . import tracing
 from .db import db
 from .prompts import (
     build_explore_prompt,
@@ -191,13 +192,14 @@ async def filter_candidate_ids(
     should let step 2 re-apply the filters itself.
     """
     where, params, n = _product_where(shop_id, filters, exclude_ids, 1)
-    rows = await db.query_raw(
-        f"SELECT id FROM products WHERE {where} LIMIT ${n}",
-        *params,
-        CANDIDATE_POOL_LIMIT + 1,
-    )
-    ids = [str(r["id"]) for r in rows]
-    if len(ids) > CANDIDATE_POOL_LIMIT:
+    sql = f"SELECT id FROM products WHERE {where} LIMIT ${n}"
+    limit = CANDIDATE_POOL_LIMIT + 1
+    with tracing.span("sql_filter_candidates", input={"sql": sql, "params": [*params, limit]}) as obs:
+        rows = await db.query_raw(sql, *params, limit)
+        ids = [str(r["id"]) for r in rows]
+        overflowed = len(ids) > CANDIDATE_POOL_LIMIT
+        obs.update(output={"row_count": len(ids), "overflowed": overflowed, "ids": ids})
+    if overflowed:
         return [], True
     return ids, False
 
@@ -205,6 +207,15 @@ async def filter_candidate_ids(
 _PRODUCT_COLUMNS = (
     'id, name, price, description, category, brand, stock, "productUrl", "imageUrl"'
 )
+
+
+def _log_items(items: list[RetrievedItem]) -> list[dict]:
+    """A trace-safe, size-bounded view of retrieved rows for a span's output —
+    id/score/type plus a content preview, never the full prompt text."""
+    return [
+        {"id": i["id"], "type": i["type"], "score": i.get("score"), "preview": i["content"][:120]}
+        for i in items
+    ]
 
 
 # The fan-out branches all embed the *same* query text concurrently, so the
@@ -274,57 +285,58 @@ async def vector_search_products(
         where, extra, n = _product_where(shop_id, filters, exclude_ids, 2)
         params += extra
 
-    rows = await db.query_raw(
-        f"""SELECT {_PRODUCT_COLUMNS},
-                   embedding <=> $1::vector AS score
-            FROM products
-            WHERE {where}
-            ORDER BY score ASC
-            LIMIT ${n}""",
-        *params,
-        k,
-    )
-    return [
-        RetrievedItem(
-            id=str(r["id"]),
-            type="product",
-            content=_product_content(r),
-            score=float(r["score"]),
-            metadata={
-                "name": r["name"],
-                "productUrl": r.get("productUrl"),
-                "imageUrl": r.get("imageUrl"),
-                "price": r["price"],
-                "stock": r.get("stock"),
-            },
-        )
-        for r in rows
-    ]
+    sql = f"""SELECT {_PRODUCT_COLUMNS},
+               embedding <=> $1::vector AS score
+        FROM products
+        WHERE {where}
+        ORDER BY score ASC
+        LIMIT ${n}"""
+    loggable_params = [f"<embedding dim={len(query_vec)}>", *params[1:], k]
+    with tracing.span("vector_search_products", input={"sql": sql, "params": loggable_params}) as obs:
+        rows = await db.query_raw(sql, *params, k)
+        items = [
+            RetrievedItem(
+                id=str(r["id"]),
+                type="product",
+                content=_product_content(r),
+                score=float(r["score"]),
+                metadata={
+                    "name": r["name"],
+                    "productUrl": r.get("productUrl"),
+                    "imageUrl": r.get("imageUrl"),
+                    "price": r["price"],
+                    "stock": r.get("stock"),
+                },
+            )
+            for r in rows
+        ]
+        obs.update(output={"row_count": len(items), "results": _log_items(items)})
+    return items
 
 
 async def vector_search_faq(
     shop_id: str, query_vec: list[float], k: int = 3
 ) -> list[RetrievedItem]:
-    rows = await db.query_raw(
-        """SELECT id, question, answer,
-                  embedding <=> $1::vector AS score
-           FROM faq_items
-           WHERE "shopId" = $2 AND embedding IS NOT NULL
-           ORDER BY score ASC
-           LIMIT $3""",
-        _vector_literal(query_vec),
-        shop_id,
-        k,
-    )
-    return [
-        RetrievedItem(
-            id=str(r["id"]),
-            type="faq",
-            content=f"سوال: {r['question']}\nپاسخ: {r['answer']}",
-            score=float(r["score"]),
-        )
-        for r in rows
-    ]
+    sql = """SELECT id, question, answer,
+              embedding <=> $1::vector AS score
+       FROM faq_items
+       WHERE "shopId" = $2 AND embedding IS NOT NULL
+       ORDER BY score ASC
+       LIMIT $3"""
+    loggable_params = [f"<embedding dim={len(query_vec)}>", shop_id, k]
+    with tracing.span("vector_search_faq", input={"sql": sql, "params": loggable_params}) as obs:
+        rows = await db.query_raw(sql, _vector_literal(query_vec), shop_id, k)
+        items = [
+            RetrievedItem(
+                id=str(r["id"]),
+                type="faq",
+                content=f"سوال: {r['question']}\nپاسخ: {r['answer']}",
+                score=float(r["score"]),
+            )
+            for r in rows
+        ]
+        obs.update(output={"row_count": len(items), "results": _log_items(items)})
+    return items
 
 
 async def vector_search_shop_info(
@@ -336,26 +348,26 @@ async def vector_search_shop_info(
     info and prompt extra whenever the catalog is re-embedded, so this is the
     live copy — the system prompt no longer repeats it (see prompts.py).
     """
-    rows = await db.query_raw(
-        """SELECT id, content,
-                  embedding <=> $1::vector AS score
-           FROM shop_info_chunks
-           WHERE "shopId" = $2 AND embedding IS NOT NULL
-           ORDER BY score ASC
-           LIMIT $3""",
-        _vector_literal(query_vec),
-        shop_id,
-        k,
-    )
-    return [
-        RetrievedItem(
-            id=str(r["id"]),
-            type="shop_info",
-            content=str(r["content"]),
-            score=float(r["score"]),
-        )
-        for r in rows
-    ]
+    sql = """SELECT id, content,
+              embedding <=> $1::vector AS score
+       FROM shop_info_chunks
+       WHERE "shopId" = $2 AND embedding IS NOT NULL
+       ORDER BY score ASC
+       LIMIT $3"""
+    loggable_params = [f"<embedding dim={len(query_vec)}>", shop_id, k]
+    with tracing.span("vector_search_shop_info", input={"sql": sql, "params": loggable_params}) as obs:
+        rows = await db.query_raw(sql, _vector_literal(query_vec), shop_id, k)
+        items = [
+            RetrievedItem(
+                id=str(r["id"]),
+                type="shop_info",
+                content=str(r["content"]),
+                score=float(r["score"]),
+            )
+            for r in rows
+        ]
+        obs.update(output={"row_count": len(items), "results": _log_items(items)})
+    return items
 
 
 # ── Intent Analysis Schema ────────────────────────────────────────────────────
@@ -830,31 +842,31 @@ async def sorted_products(
         return []
 
     where, params, n = _product_where(shop_id, filters, exclude_ids, 1)
-    rows = await db.query_raw(
-        f"""SELECT {_PRODUCT_COLUMNS}
-            FROM products WHERE {where}
-            ORDER BY price {direction} LIMIT ${n}""",
-        *params,
-        SORT_LIMIT,
-    )
-    return [
-        RetrievedItem(
-            id=str(r["id"]),
-            type="product",
-            content=_product_content(r),
-            # Sorted rows are exact answers to the stated constraint, so they
-            # must clear the relevance floor that similarity results face.
-            score=0.0,
-            metadata={
-                "name": r["name"],
-                "productUrl": r.get("productUrl"),
-                "imageUrl": r.get("imageUrl"),
-                "price": r["price"],
-                "stock": r.get("stock"),
-            },
-        )
-        for r in rows
-    ]
+    sql = f"""SELECT {_PRODUCT_COLUMNS}
+        FROM products WHERE {where}
+        ORDER BY price {direction} LIMIT ${n}"""
+    with tracing.span("sql_sorted_products", input={"sql": sql, "params": [*params, SORT_LIMIT]}) as obs:
+        rows = await db.query_raw(sql, *params, SORT_LIMIT)
+        items = [
+            RetrievedItem(
+                id=str(r["id"]),
+                type="product",
+                content=_product_content(r),
+                # Sorted rows are exact answers to the stated constraint, so they
+                # must clear the relevance floor that similarity results face.
+                score=0.0,
+                metadata={
+                    "name": r["name"],
+                    "productUrl": r.get("productUrl"),
+                    "imageUrl": r.get("imageUrl"),
+                    "price": r["price"],
+                    "stock": r.get("stock"),
+                },
+            )
+            for r in rows
+        ]
+        obs.update(output={"row_count": len(items), "results": _log_items(items)})
+    return items
 
 
 def _search_text(state: SalesAgentState) -> str:
