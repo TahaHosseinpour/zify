@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Zify - managed by pyinfra (deploy/tasks/database.py).
+#
+# pgvector isn't in the base `postgresql` package - it's a versioned sibling
+# package (postgresql-<N>-pgvector) that has to match whatever major version
+# apt installed for `postgresql` itself, whether that's a fresh install or
+# whatever this shared box already had running for other sites. So this
+# detects the version rather than hard-coding one.
+#
+# That packaged version only exists in Debian/Ubuntu's repos for fairly
+# recent releases, though - e.g. this server's Ubuntu ships PostgreSQL 14,
+# and Ubuntu has no `postgresql-14-pgvector` package at all
+# (`E: Unable to locate package`). Where the package isn't there, this falls
+# back to pgvector's own documented fallback: build it from source against
+# postgresql-server-dev-<N>. Either way the result is the same `vector.control`
+# file in Postgres's extension directory, which is also what makes this
+# idempotent - a rebuild is skipped once that file exists.
+set -euo pipefail
+
+PG_VERSION="$(ls /usr/lib/postgresql | sort -Vr | head -1)"
+PG_CONFIG="/usr/lib/postgresql/${PG_VERSION}/bin/pg_config"
+EXT_DIR="$("$PG_CONFIG" --sharedir)/extension"
+
+if [ -f "$EXT_DIR/vector.control" ]; then
+  echo "pgvector already installed for PostgreSQL ${PG_VERSION} - nothing to do."
+  exit 0
+fi
+
+apt-get update -qq
+if apt-get install -y "postgresql-${PG_VERSION}-pgvector"; then
+  echo "Installed packaged pgvector for PostgreSQL ${PG_VERSION}."
+  exit 0
+fi
+
+echo "No postgresql-${PG_VERSION}-pgvector package - building pgvector from source."
+
+apt-get install -y build-essential "postgresql-server-dev-${PG_VERSION}" git
+
+SRC_DIR=/usr/local/src/pgvector
+if [ ! -d "$SRC_DIR" ]; then
+  # No --branch pin on purpose: pgvector's default branch is kept releasable,
+  # and pinning a tag here just goes stale as new versions ship.
+  git clone --depth 1 https://github.com/pgvector/pgvector.git "$SRC_DIR"
+else
+  git -C "$SRC_DIR" pull --ff-only
+fi
+
+make -C "$SRC_DIR" clean
+make -C "$SRC_DIR" PG_CONFIG="$PG_CONFIG"
+make -C "$SRC_DIR" install PG_CONFIG="$PG_CONFIG"
+
+echo "Built and installed pgvector from source for PostgreSQL ${PG_VERSION}."

@@ -58,17 +58,20 @@ def database():
         commands=["/tmp/zify-ensure-postgres.sh"],
     )
 
-    # pgvector isn't in the base `postgresql` package - it's a versioned
-    # sibling package (postgresql-<N>-pgvector) that has to match whatever
-    # major version apt just installed above, whether that's a fresh install
-    # or whatever this shared box already had running for other sites. So
-    # this detects the version rather than hard-coding one.
+    # pgvector: packaged (postgresql-<N>-pgvector) on recent Debian/Ubuntu,
+    # built from source as a fallback where it isn't - e.g. this server's
+    # Ubuntu ships PostgreSQL 14, which has no such package at all. See the
+    # script's own header for why building from source is safe here.
+    files.template(
+        name="Upload the pgvector install script",
+        src=str(TEMPLATES_DIR / "ensure-pgvector.sh.j2"),
+        dest="/tmp/zify-ensure-pgvector.sh",
+        mode="700",
+    )
+
     server.shell(
         name="Install pgvector for the installed PostgreSQL version",
-        commands=[
-            "PG_VERSION=$(ls /usr/lib/postgresql | sort -Vr | head -1) && "
-            "apt-get install -y postgresql-${PG_VERSION}-pgvector",
-        ],
+        commands=["/tmp/zify-ensure-pgvector.sh"],
     )
 
     script = files.template(
