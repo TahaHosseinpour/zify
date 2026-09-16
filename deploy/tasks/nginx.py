@@ -43,6 +43,13 @@ def nginx():
         # certificate covers both, so this keeps that.
         server_name=f"{domain} www.{domain}" if domain else "zify.invalid",
         cert_domain=domain,
+        # Always reachable over plain HTTP by IP, independent of DNS/cert
+        # state - `server_name` matches this exactly and wins over whatever
+        # else on the box holds `default_server`, so it doesn't need to fight
+        # valida/starboard for that, and it's useful as a fallback for as
+        # long as site_domain's DNS is broken (see host.name's own comment
+        # in inventory.py - this is that same address).
+        server_ip=host.name,
         web_root=host.data.get("web_root"),
         app_port=host.data.get("app_port"),
         https_ready=https_ready,

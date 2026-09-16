@@ -15,6 +15,35 @@
 # needs *some* port-80 server block for this domain to exist, which both
 # branches below provide.
 
+# Always-on plain-HTTP fallback by IP, independent of DNS/certs - useful
+# whenever site_domain's DNS isn't actually pointed here yet (or breaks
+# later). No TLS: a cert can only cover a real domain name, not a bare IP, so
+# this deliberately stays HTTP-only rather than redirecting to a cert that
+# doesn't match.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{ server_ip }};
+
+    location /_next/static/ {
+        alias {{ web_root }}/current/apps/admin/.next/static/;
+        expires 1y;
+        access_log off;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:{{ app_port }};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+
 {% if https_ready %}
 server {
     listen 80;
