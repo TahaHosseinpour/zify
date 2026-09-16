@@ -63,18 +63,19 @@ bun install --frozen-lockfile
 # recorded. This is Prisma's documented baselining procedure for exactly this
 # situation: https://pris.ly/d/migrate-baseline. Every deploy after this one
 # finds `products` already there and takes the ordinary `migrate deploy` path.
-cd packages/db
-DATABASE_URL="$(grep -m1 '^DATABASE_URL=' .env | cut -d= -f2-)"
-if [ -z "$(psql "$DATABASE_URL" -tAc "SELECT to_regclass('public.products')")" ]; then
-  echo "Empty database - baselining migration history instead of migrate deploy."
-  bunx prisma db push --skip-generate
-  for migration_dir in prisma/migrations/*/; do
-    bunx prisma migrate resolve --applied "$(basename "$migration_dir")"
-  done
-else
-  bunx prisma migrate deploy
-fi
-cd ..
+(
+  cd packages/db
+  DATABASE_URL="$(grep -m1 '^DATABASE_URL=' .env | cut -d= -f2-)"
+  if [ -z "$(psql "$DATABASE_URL" -tAc "SELECT to_regclass('public.products')")" ]; then
+    echo "Empty database - baselining migration history instead of migrate deploy."
+    bunx prisma db push --skip-generate
+    for migration_dir in prisma/migrations/*/; do
+      bunx prisma migrate resolve --applied "$(basename "$migration_dir")"
+    done
+  else
+    bunx prisma migrate deploy
+  fi
+)
 
 (cd apps/admin && bun run build)
 (cd packages/db && bunx prisma db seed)
