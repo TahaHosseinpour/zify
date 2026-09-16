@@ -221,10 +221,9 @@ def website():
                 'chmod 600 "$SWAPFILE" && mkswap "$SWAPFILE" >/dev/null && swapon "$SWAPFILE"; '
                 "fi && "
                 # apps/agent/.venv/bin is put on PATH *before* it exists (uv
-                # sync creates it two steps down) so `bunx prisma generate`
-                # can find the `prisma-client-py` generator script it
-                # installs there - see packages/db/prisma/schema.prisma's
-                # python_client generator block.
+                # sync creates it two steps down) so the python_client
+                # generate step below can find the `prisma-client-py`
+                # generator script it installs there.
                 'export PATH="$(pwd)/apps/agent/.venv/bin:/usr/local/bin:$PATH" && '
                 "bun install --frozen-lockfile && "
                 # --no-dev: the `dev` group (pytest, langgraph-cli[inmem] for
@@ -236,7 +235,18 @@ def website():
                 # currently supports). Skipping the group sidesteps that
                 # entirely rather than pinning a Python version to dodge it.
                 "(cd apps/agent && uv sync --frozen --no-dev) && "
-                "(cd packages/db && bunx prisma generate) && "
+                # Two separate `--generator` runs, not one `prisma generate`:
+                # prisma-client-py 0.15.0 (apps/agent's pinned `prisma`
+                # Python package) validates the JS-side Prisma CLI's engine
+                # hash against the exact one it expects (5.17.0's) and refuses
+                # to generate against anything else, including the 5.22.0
+                # that packages/db's own `prisma` devDependency actually
+                # resolves to - "python_client" is generated with that pinned
+                # version instead, while "client" (the JS client actually used
+                # by apps/admin at runtime) keeps using whatever's really
+                # installed rather than being downgraded to match.
+                "(cd packages/db && bunx prisma generate --generator client) && "
+                "(cd packages/db && bunx prisma@5.17.0 generate --generator python_client) && "
                 "(cd packages/db && bunx prisma migrate deploy) && "
                 "(cd apps/admin && bun run build) && "
                 "(cd packages/db && bunx prisma db seed) && "
