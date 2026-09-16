@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# Zify - managed by pyinfra (deploy/tasks/website.py). Runs before anything
+# else touches the server.
+#
+# Two jobs, in this order:
+#
+#   1. Prune old releases. Each release carries a full node_modules + .next
+#      *and* a full Python venv (uv sync for the agent), so the build has to
+#      fit alongside every release it's about to replace - and this box also
+#      hosts valida and (per its own deploy's troubleshooting notes)
+#      starboard, so disk is worth being careful about.
+#   2. Refuse to go on if there still isn't room to build, with a message
+#      that says what to delete - rather than dying halfway through
+#      `bun install` or `uv sync`.
+#
+# The release being deployed and whatever `current` points at are never
+# pruned, so a failed build still leaves the running site intact.
+set -euo pipefail
+
+WEB_ROOT="{{ web_root }}"
+RELEASES="$WEB_ROOT/releases"
+NEW_RELEASE="{{ release_id }}"
+KEEP={{ keep_releases }}
+MIN_FREE_MB={{ min_free_mb }}
+
+# On a brand new server this runs before anything else has ever created
+# $WEB_ROOT (that's `website()`, later) - `df` below needs it to exist, and
+# there is nothing to prune yet regardless.
+mkdir -p "$WEB_ROOT"
+
+current="__none__"
+if [ -L "$WEB_ROOT/current" ]; then
+  current="$(basename "$(readlink -f "$WEB_ROOT/current")")"
+fi
+
+if [ -d "$RELEASES" ]; then
+  # `current` and the incoming release are protected above the keep count, so
+  # only the remainder is up for deletion.
+  extra=$(( KEEP - 2 ))
+  [ "$extra" -lt 0 ] && extra=0
+
+  # `|| true` on the greps: grep exits 1 when it outputs nothing (i.e. there's
+  # nothing left to prune), and under `set -o pipefail` that silently killed
+  # the whole script right here - the deploy then failed with only "executed 0
+  # commands" and no message, before ever reaching the disk check.
+  ls -1t "$RELEASES" \
+    | { grep -vx "$NEW_RELEASE" || true; } \
+    | { grep -vx "$current" || true; } \
+    | tail -n "+$(( extra + 1 ))" \
+    | while read -r stale; do
+        echo "Pruning old release $stale"
+        rm -rf -- "${RELEASES:?}/$stale"
+      done
+fi
+
+# npm/bun's cache under the build user's home grows with every install and is
+# never trimmed on its own, so clear it before measuring free space - it's
+# only a cache (the build re-downloads what it needs).
+if command -v bun >/dev/null 2>&1; then
+  bun pm cache rm >/dev/null 2>&1 || true
+fi
+# Same idea for uv's package cache (the agent's `uv sync`).
+if command -v uv >/dev/null 2>&1; then
+  uv cache clean >/dev/null 2>&1 || true
+fi
+
+avail_mb="$(df -Pm "$WEB_ROOT" | awk 'NR == 2 { print $4 }')"
+if [ "$avail_mb" -lt "$MIN_FREE_MB" ]; then
+  cat >&2 <<MSG
+Not enough free disk to build a release: ${avail_mb}M available, ${MIN_FREE_MB}M
+needed (bun install + next build + uv sync's venv, all at once).
+
+Stopping here on purpose - pushing on would fill the disk, and a full disk on
+this box also shuts PostgreSQL down. The biggest directories right now:
+MSG
+
+  du -xh --max-depth=2 / 2>/dev/null | sort -rh | head -15 >&2
+  cat >&2 <<'MSG'
+
+Usual suspects, cheapest first:
+  journalctl --vacuum-size=50M
+  apt-get clean && apt-get autoremove --purge -y
+  truncate -s 0 /var/log/btmp.1 /var/log/auth.log /var/log/auth.log.1
+  rm -rf /var/www/zify/releases/<old ids>     # keeps only `current`
+  rm -rf /var/www/valida/releases/<old ids>   # this box's other sites
+  rm -rf /opt/starboard/releases/<old ids>
+MSG
+  exit 1
+fi
+
+echo "Disk check OK: ${avail_mb}M free under $WEB_ROOT."

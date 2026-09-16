@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+# Zify - managed by pyinfra (deploy/tasks/database.py). Safe to re-run: the
+# generated secrets are created only once and persisted in
+# {{ web_root }}/shared/.env, every step after that is idempotent (CREATE
+# ROLE / CREATE DATABASE / CREATE EXTENSION all guarded by existence checks).
+set -euo pipefail
+
+SHARED_DIR="{{ web_root }}/shared"
+ENV_FILE="$SHARED_DIR/.env"
+
+mkdir -p "$SHARED_DIR"
+
+if [ ! -f "$ENV_FILE" ]; then
+  DB_PASSWORD="$(openssl rand -hex 24)"
+  JWT_SECRET="$(openssl rand -base64 32)"
+
+  umask 077
+  cat > "$ENV_FILE" <<EOF
+NODE_ENV=production
+DATABASE_URL=postgresql://{{ db_user }}:${DB_PASSWORD}@127.0.0.1:5432/{{ db_name }}
+DB_PASSWORD=${DB_PASSWORD}
+JWT_SECRET=${JWT_SECRET}
+EOF
+  chown {{ site_user }}:{{ site_user }} "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
+  echo "Generated $ENV_FILE"
+fi
+
+# Keys that come from the deploy config (group_data/production.py and
+# deploy_secrets.py) rather than being generated here, so every deploy syncs
+# the *current* config into the server, the same way valida's deploy does -
+# without this, changing something like `sms_mock` in group_data would
+# silently do nothing on an existing server. The generated secrets above
+# (DB_PASSWORD, JWT_SECRET, DATABASE_URL) are deliberately left alone. Only
+# key names are printed below, never values. Runs before the build and
+# restarts pm2 with --update-env, so build-time and runtime both see it.
+set_env() {
+  local key="$1" value="$2" current tmp
+  current="$(grep -m1 "^${key}=" "$ENV_FILE" | cut -d= -f2- || true)"
+
+  tmp="$(mktemp "$SHARED_DIR/.env.XXXXXX")"
+  if grep -q "^${key}=" "$ENV_FILE"; then
+    if [ "$current" = "$value" ]; then
+      rm -f "$tmp"
+      return 0
+    fi
+    # awk + ENVIRON rather than sed, so values with /, & or backslashes are
+    # copied verbatim instead of being read as sed syntax.
+    KEY="$key" VALUE="$value" awk '
+      BEGIN { k = ENVIRON["KEY"] "="; v = ENVIRON["VALUE"] }
+      index($0, k) == 1 { print k v; next }
+      { print }
+    ' "$ENV_FILE" > "$tmp"
+  else
+    cat "$ENV_FILE" > "$tmp"
+    if [ -s "$tmp" ] && [ -n "$(tail -c1 "$tmp")" ]; then
+      echo >> "$tmp"
+    fi
+    printf '%s=%s\n' "$key" "$value" >> "$tmp"
+  fi
+
+  chown {{ site_user }}:{{ site_user }} "$tmp"
+  chmod 600 "$tmp"
+  mv "$tmp" "$ENV_FILE"
+  echo "Updated $key in $ENV_FILE"
+}
+
+{%- macro sq(value) -%}
+'{{ (value if value is not none else '') | string | replace("'", "'\"'\"'") }}'
+{%- endmacro %}
+
+set_env OPENAI_API_KEY {{ sq(openai_api_key) }}
+set_env OPENAI_BASE_URL {{ sq(openai_base_url) }}
+set_env OPENAI_CHAT_MODEL {{ sq(openai_chat_model) }}
+set_env OPENAI_EMBEDDING_MODEL {{ sq(openai_embedding_model) }}
+
+set_env LANGSMITH_TRACING {{ 'true' if langsmith_tracing else 'false' }}
+set_env LANGSMITH_ENDPOINT {{ sq(langsmith_endpoint) }}
+set_env LANGSMITH_API_KEY {{ sq(langsmith_api_key) }}
+set_env LANGSMITH_PROJECT {{ sq(langsmith_project) }}
+
+set_env LANGFUSE_HOST {{ sq(langfuse_host) }}
+set_env LANGFUSE_PUBLIC_KEY {{ sq(langfuse_public_key) }}
+set_env LANGFUSE_SECRET_KEY {{ sq(langfuse_secret_key) }}
+
+set_env SMSIR_API_KEY {{ sq(smsir_api_key) }}
+set_env SMSIR_TEMPLATE_ID {{ sq(smsir_template_id) }}
+set_env SMS_MOCK {{ 'true' if sms_mock else 'false' }}
+
+set_env TELEGRAM_BOT_TOKEN {{ sq(telegram_bot_token) }}
+set_env BOT_USERNAME {{ sq(bot_username) }}
+set_env NEXT_PUBLIC_BOT_USERNAME {{ sq(bot_username) }}
+
+set_env AGENT_URL {{ sq('http://localhost:' ~ agent_port) }}
+set_env AGENT_PORT {{ sq(agent_port) }}
+set_env NEXT_PUBLIC_APP_URL {{ sq(public_app_url) }}
+
+# Seeded with the ADMIN role on every deploy (packages/db/prisma/seed.ts,
+# run from tasks/website.py) - this is who can log into /admin with a
+# password.
+set_env ADMIN_MOBILE {{ sq(admin_mobile) }}
+set_env ADMIN_PASSWORD {{ sq(admin_password) }}
+
+# Pull DB_PASSWORD (and only that - never echo the rest) back out for the
+# role/database setup below, whether the .env above was just created or was
+# already there from a previous deploy.
+DB_PASSWORD="$(grep -m1 '^DB_PASSWORD=' "$ENV_FILE" | cut -d= -f2-)"
+
+# `sudo -u postgres` keeps this script's working directory, and postgres
+# cannot read /root - which is where pyinfra lands. Harmless, but it prints
+# `could not change directory to "/root": Permission denied` on every deploy
+# and buries the errors that do matter.
+cd /tmp
+
+sudo -u postgres psql -v ON_ERROR_STOP=1 <<SQL
+DO \$\$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '{{ db_user }}') THEN
+    CREATE ROLE {{ db_user }} LOGIN PASSWORD '${DB_PASSWORD}';
+  ELSE
+    ALTER ROLE {{ db_user }} WITH LOGIN PASSWORD '${DB_PASSWORD}';
+  END IF;
+END
+\$\$;
+
+SELECT 'CREATE DATABASE {{ db_name }} OWNER {{ db_user }}'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{{ db_name }}')
+\gexec
+SQL
+
+# `vector` (pgvector) as the superuser, not as {{ db_user }}: it isn't
+# guaranteed to be a "trusted" extension depending on how the distro packaged
+# it, and CREATE EXTENSION then needs superuser regardless of table
+# ownership. packages/db/prisma/migrations/0001_init_pgvector also runs
+# `CREATE EXTENSION IF NOT EXISTS vector`, which is why this is safe to leave
+# in both places - whichever runs first wins, the other is a no-op.
+sudo -u postgres psql -v ON_ERROR_STOP=1 -d {{ db_name }} \
+  -c "CREATE EXTENSION IF NOT EXISTS vector;"

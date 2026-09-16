@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Zify - managed by pyinfra (deploy/tasks/database.py).
+#
+# Why this exists: `postgresql.service` is a meta-unit (oneshot +
+# RemainAfterExit) that pulls in the real per-cluster units. systemd reports
+# it "active" even when every cluster underneath it is down, so pyinfra's
+# `systemd.service(..., running=True)` prints "No changes" and the deploy
+# walks straight into the next step, which dies with:
+#
+#   psql: error: connection to server on socket "/var/run/postgresql/
+#   .s.PGSQL.5432" failed: No such file or directory
+#
+# What actually accepts connections is postgresql@<version>-<cluster>.service.
+# So: ask pg_isready (the only honest answer), and start the clusters by name
+# if it says no.
+set -euo pipefail
+
+if pg_isready -q; then
+  exit 0
+fi
+
+echo "PostgreSQL is not accepting connections yet - starting its clusters."
+
+# `pg_lsclusters -h` drops the header; columns are: version cluster port ...
+pg_lsclusters -h | awk '{print $1, $2}' | while read -r version cluster; do
+  systemctl start "postgresql@${version}-${cluster}.service" || true
+done
+
+for _ in $(seq {{ startup_timeout }}); do
+  if pg_isready -q; then
+    exit 0
+  fi
+  sleep 1
+done
+
+cat >&2 <<'MSG'
+PostgreSQL is installed but still refuses connections after waiting.
+
+The usual cause on this server is a full disk: Postgres shuts the cluster
+down when it can no longer write WAL, and it will not come back up until
+there is free space again. Check the `df` output and the log below, free
+some space (old releases under {{ web_root }}/releases, and this is a shared
+box - also check /var/www/valida/releases and /opt/starboard/releases), plus
+`journalctl --vacuum-size=50M` and `apt-get clean`, then re-run the deploy.
+MSG
+
+df -h / >&2 || true
+journalctl -u 'postgresql@*' -n 30 --no-pager >&2 || true
+exit 1

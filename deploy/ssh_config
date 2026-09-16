@@ -1,0 +1,17 @@
+# SSH options for the Zify deploy. inventory.py points at this file, and
+# pyinfra reads it through paramiko's ssh_config support.
+#
+# ServerAliveInterval is the one that matters here. Without keepalives the SSH
+# connection goes quiet while pyinfra waits at the "Detected changes" prompt,
+# and anything in between - a home router's NAT table, a VPN, a local firewall -
+# is free to drop it. The next command then fails with:
+#
+#   [WinError 10053] An established connection was aborted by the software in
+#   your host machine
+#
+# Only ServerAliveInterval and ConnectTimeout are read from here; other ssh
+# options are ignored, so connection settings belong in inventory.py instead.
+
+Host *
+    ServerAliveInterval 15
+    ConnectTimeout 30

@@ -1,0 +1,5 @@
+# deploy/templates/*.sh.j2 get uploaded verbatim to the server and run as
+# bash there - a CRLF from a Windows checkout would break `set -euo pipefail`
+# with `$'\r': command not found`.
+deploy/templates/*.j2 text eol=lf
+*.sh text eol=lf

@@ -1,0 +1,8 @@
+# Site tarballs built by tasks/website.py before upload.
+/.artifacts/
+
+__pycache__/
+*.pyc
+
+# Real secret values - see deploy_secrets.example.py for the template.
+/deploy_secrets.py

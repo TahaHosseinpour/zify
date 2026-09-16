@@ -1,0 +1,98 @@
+# Zify - managed by pyinfra (deploy/tasks/nginx.py).
+# Edits made on the server are overwritten by the next deploy.
+#
+# This is a *named* vhost on a shared box with other sites (valida, possibly
+# more) - it does not claim `default_server`, so it only answers once
+# `server_name` below is a real domain (see group_data/production.py's
+# `site_domain`). Until then `server_name` is a placeholder in the reserved
+# `.invalid` TLD (RFC 2606) that can never match a real Host header on
+# purpose, rather than `_`, which would fight another site on this box for
+# the bare-IP/no-Host-header response.
+#
+# The certbot `--nginx` authenticator (deploy/tasks/nginx.py's `https()`)
+# injects its own temporary location block during renewal, so this doesn't
+# need a static `.well-known/acme-challenge` location of its own - it only
+# needs *some* port-80 server block for this domain to exist, which both
+# branches below provide.
+
+{% if https_ready %}
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{ server_name }};
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+{% endif %}
+
+server {
+{% if https_ready %}
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name {{ server_name }};
+
+    ssl_certificate     /etc/letsencrypt/live/{{ cert_domain }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ cert_domain }}/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+{% else %}
+    # No certificate yet - plain HTTP until `https()` obtains one (needs this
+    # block up first, so certbot's nginx authenticator has a vhost to use).
+    listen 80;
+    listen [::]:80;
+    server_name {{ server_name }};
+{% endif %}
+
+    charset utf-8;
+
+    access_log /var/log/nginx/zify.access.log;
+    error_log /var/log/nginx/zify.error.log;
+
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header Referrer-Policy strict-origin-when-cross-origin;
+
+    # Product photos / CSV imports go through JSON request bodies in the
+    # admin panel, so this needs real headroom.
+    client_max_body_size 15m;
+
+    # Every Next.js build asset carries a content hash in its filename, so
+    # nginx can serve it straight off disk - faster, and off the Node/Bun
+    # process's plate entirely - instead of proxying it through. Note the
+    # admin app's own subdirectory: unlike a single-app deploy, this monorepo
+    # release has apps/admin/.next, not just .next at the release root.
+    location /_next/static/ {
+        alias {{ web_root }}/current/apps/admin/.next/static/;
+        expires 1y;
+        access_log off;
+    }
+
+    # Everything else - pages and /api/** alike - goes to the Next.js server
+    # pm2 keeps running (tasks/service.py). The agent and the bot are not
+    # exposed here; the admin app talks to the agent over localhost only.
+    location / {
+        proxy_pass http://127.0.0.1:{{ app_port }};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_min_length 1024;
+    gzip_types
+        text/plain
+        text/css
+        application/javascript
+        application/json
+        image/svg+xml
+        font/woff
+        font/woff2;
+}
