@@ -198,60 +198,18 @@ def website():
             symbolic=True,
         )
 
-        build_swapfile = f"{web_root}/.build-swap"
-        build_swap_mb = host.data.get("build_swap_mb", 2048)
+        files.template(
+            name=f"Upload the build script for release {release_id}",
+            src=str(TEMPLATES_DIR / "build-release.sh.j2"),
+            dest="/tmp/zify-build-release.sh",
+            mode="700",
+            web_root=web_root,
+            build_swap_mb=host.data.get("build_swap_mb", 2048),
+        )
 
         server.shell(
             name=f"Install, generate, migrate, build and seed release {release_id}",
-            commands=[
-                # This server carries no permanent swap on purpose (see
-                # group_data's `build_swap_mb` comment) - `bun install` +
-                # `uv sync` + `next build` back to back is the one point in
-                # this deploy that actually needs the headroom, so a swapfile
-                # is made just for this shell and `trap ... EXIT` removes it
-                # again whether the build succeeds or dies partway through.
-                # If a previous run crashed before its own trap fired, the
-                # `swapon --show` check below just reuses what's already there
-                # instead of erroring on a second `mkswap`.
-                f'SWAPFILE="{build_swapfile}" && '
-                "trap 'swapoff \"$SWAPFILE\" 2>/dev/null || true; rm -f \"$SWAPFILE\"' EXIT && "
-                'if ! swapon --show=NAME --noheadings 2>/dev/null | grep -qx "$SWAPFILE"; then '
-                f'fallocate -l {build_swap_mb}M "$SWAPFILE" 2>/dev/null || '
-                f'dd if=/dev/zero of="$SWAPFILE" bs=1M count={build_swap_mb} status=none; '
-                'chmod 600 "$SWAPFILE" && mkswap "$SWAPFILE" >/dev/null && swapon "$SWAPFILE"; '
-                "fi && "
-                # apps/agent/.venv/bin is put on PATH *before* it exists (uv
-                # sync creates it two steps down) so the python_client
-                # generate step below can find the `prisma-client-py`
-                # generator script it installs there.
-                'export PATH="$(pwd)/apps/agent/.venv/bin:/usr/local/bin:$PATH" && '
-                "bun install --frozen-lockfile && "
-                # --no-dev: the `dev` group (pytest, langgraph-cli[inmem] for
-                # the local dev server, ...) is neither needed to run
-                # `main.py` in production nor safe to build here - it pulls
-                # in jsonschema-rs, a Rust/PyO3 extension that fails to
-                # compile against whatever Python uv picks for a bare
-                # `>=3.12` (it auto-selected 3.14 here, newer than PyO3
-                # currently supports). Skipping the group sidesteps that
-                # entirely rather than pinning a Python version to dodge it.
-                "(cd apps/agent && uv sync --frozen --no-dev) && "
-                # Two separate `--generator` runs, not one `prisma generate`:
-                # prisma-client-py 0.15.0 (apps/agent's pinned `prisma`
-                # Python package) validates the JS-side Prisma CLI's engine
-                # hash against the exact one it expects (5.17.0's) and refuses
-                # to generate against anything else, including the 5.22.0
-                # that packages/db's own `prisma` devDependency actually
-                # resolves to - "python_client" is generated with that pinned
-                # version instead, while "client" (the JS client actually used
-                # by apps/admin at runtime) keeps using whatever's really
-                # installed rather than being downgraded to match.
-                "(cd packages/db && bunx prisma generate --generator client) && "
-                "(cd packages/db && bunx prisma@5.17.0 generate --generator python_client) && "
-                "(cd packages/db && bunx prisma migrate deploy) && "
-                "(cd apps/admin && bun run build) && "
-                "(cd packages/db && bunx prisma db seed) && "
-                "touch .build-complete",
-            ],
+            commands=["/tmp/zify-build-release.sh"],
             _chdir=release_dir,
         )
 
