@@ -227,7 +227,15 @@ def website():
                 # python_client generator block.
                 'export PATH="$(pwd)/apps/agent/.venv/bin:/usr/local/bin:$PATH" && '
                 "bun install --frozen-lockfile && "
-                "(cd apps/agent && uv sync --frozen) && "
+                # --no-dev: the `dev` group (pytest, langgraph-cli[inmem] for
+                # the local dev server, ...) is neither needed to run
+                # `main.py` in production nor safe to build here - it pulls
+                # in jsonschema-rs, a Rust/PyO3 extension that fails to
+                # compile against whatever Python uv picks for a bare
+                # `>=3.12` (it auto-selected 3.14 here, newer than PyO3
+                # currently supports). Skipping the group sidesteps that
+                # entirely rather than pinning a Python version to dodge it.
+                "(cd apps/agent && uv sync --frozen --no-dev) && "
                 "(cd packages/db && bunx prisma generate) && "
                 "(cd packages/db && bunx prisma migrate deploy) && "
                 "(cd apps/admin && bun run build) && "
