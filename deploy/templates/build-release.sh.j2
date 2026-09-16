@@ -78,6 +78,10 @@ bun install --frozen-lockfile
 )
 
 (cd apps/admin && bun run build)
-(cd packages/db && bunx prisma db seed)
+# Not `prisma db seed` - that CLI command only works with a "prisma.seed"
+# key in package.json (which is how valida's deploy does it), and
+# packages/db/package.json doesn't have one; it defines its own `db:seed`
+# script (`bun prisma/seed.ts`) instead, so this runs that directly.
+(cd packages/db && bun run db:seed)
 
 touch .build-complete
