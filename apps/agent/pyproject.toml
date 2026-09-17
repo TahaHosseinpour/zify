@@ -28,8 +28,13 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests"]
-markers = ["db: needs the live Postgres instance from docker-compose.yml"]
+# Tests live at the repo root (/tests), grouped by kind rather than by
+# service, not under apps/agent — see /tests/conftest.py.
+testpaths = ["../../tests/integration/agent", "../../tests/unit/agent", "../../tests/agent-eval"]
+markers = [
+    "db: needs the live Postgres instance from docker-compose.yml",
+    "eval: scenario-level agent evals (multi-turn conversations through the real graph)",
+]
 # The DB-backed fixtures (real_db, shop_id) are session-scoped so the suite
 # connects once, not once per test. Prisma's connection is bound to whichever
 # event loop created it, so the loop itself must also be session-scoped, or

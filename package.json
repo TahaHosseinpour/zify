@@ -11,12 +11,20 @@
     "dev:agent": "cd apps/agent && RELOAD=true python -m uv run python main.py",
     "start:agent": "cd apps/agent && python -m uv run python main.py",
     "dev:bot": "bun run --cwd apps/telegram-bot dev",
+    "admin": "bun run --cwd apps/admin dev",
+    "agent": "apps/agent/.venv/Scripts/python.exe apps/agent/main.py",
+    "bot": "bun run --cwd apps/telegram-bot dev",
     "db:generate": "bun run --cwd packages/db db:generate",
     "db:migrate": "bun run --cwd packages/db db:migrate",
     "db:studio": "bun run --cwd packages/db db:studio",
     "db:seed": "bun run --cwd packages/db db:seed",
     "db:backfill-categories": "bun run --cwd packages/db db:backfill-categories",
-    "deploy": "python -m pyinfra deploy/inventory.py deploy/deploy.py"
+    "deploy": "python -m pyinfra deploy/inventory.py deploy/deploy.py",
+    "lint": "bun run --cwd apps/admin lint",
+    "test": "bun run test:unit && bun run test:integration",
+    "test:unit": "bun run --cwd apps/admin test:unit && bun run --cwd apps/telegram-bot test:unit && apps/agent/.venv/Scripts/python.exe -m pytest -c apps/agent/pyproject.toml tests/unit/agent",
+    "test:integration": "bun run --cwd apps/admin test:integration && bun run --cwd apps/telegram-bot test:integration && apps/agent/.venv/Scripts/python.exe -m pytest -c apps/agent/pyproject.toml tests/integration/agent",
+    "test:agent-eval": "apps/agent/.venv/Scripts/python.exe -m pytest -c apps/agent/pyproject.toml -m eval tests/agent-eval"
   },
   "dependencies": {
     "@hugeicons/react": "^1.1.9"

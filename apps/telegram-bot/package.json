@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "bun --env-file=../../.env --watch src/index.ts",
     "start": "bun --env-file=../../.env src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test --pass-with-no-tests ../../tests/unit/telegram-bot ../../tests/integration/telegram-bot",
+    "test:unit": "bun test --pass-with-no-tests ../../tests/unit/telegram-bot",
+    "test:integration": "bun test --pass-with-no-tests ../../tests/integration/telegram-bot"
   },
   "dependencies": {
     "@zify/db": "workspace:*",

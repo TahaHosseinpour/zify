@@ -22,12 +22,16 @@ from pathlib import Path
 
 import pytest
 
-AGENT_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent
+AGENT_ROOT = REPO_ROOT / "apps" / "agent"
+# AGENT_ROOT so `from app import graph` resolves; REPO_ROOT so `from
+# tests.conftest import ...` resolves `tests` as a namespace package.
 sys.path.insert(0, str(AGENT_ROOT))
+sys.path.insert(0, str(REPO_ROOT))
 
 from dotenv import load_dotenv  # noqa: E402
 
-load_dotenv(AGENT_ROOT.parent.parent / ".env")
+load_dotenv(REPO_ROOT / ".env")
 
 from app import graph as G  # noqa: E402
 from app.db import db  # noqa: E402
@@ -40,12 +44,14 @@ if sys.platform == "win32":
 
 
 def pytest_collection_modifyitems(config, items):
-    """Auto-mark tests under tests/db_/ as requiring the database."""
+    """Auto-mark tests under tests/db_/ as requiring the database, and tests
+    under tests/agent-eval/ as scenario-level agent evals."""
     for item in items:
-        if "db" in item.keywords:
-            continue
-        if "/db_" in str(item.fspath).replace("\\", "/") or item.fspath.purebasename.startswith("test_db"):
+        path = str(item.fspath).replace("\\", "/")
+        if "db" not in item.keywords and ("/db_" in path or item.fspath.purebasename.startswith("test_db")):
             item.add_marker(pytest.mark.db)
+        if "/tests/agent-eval/" in path:
+            item.add_marker(pytest.mark.eval)
 
 
 @pytest.fixture(scope="session")
