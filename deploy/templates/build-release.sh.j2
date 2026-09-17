@@ -57,18 +57,41 @@ bun install --frozen-lockfile
 # does not exist).
 #
 # So: on a database this app has never touched, sync the *current*
-# schema.prisma directly with `db push` (the single source of truth, pgvector
-# extension included) and then tell Prisma's own bookkeeping that every
-# migration already on disk is already applied - not run again, just
-# recorded. This is Prisma's documented baselining procedure for exactly this
-# situation: https://pris.ly/d/migrate-baseline. Every deploy after this one
-# finds `products` already there and takes the ordinary `migrate deploy` path.
+# schema.prisma directly with `db push` - but that alone is NOT the "pgvector
+# extension included" it sounds like: schema.prisma's `embedding` fields are
+# commented out (Prisma can't represent the `vector` type), and 0002's
+# partial/functional indexes aren't representable as `@@index` either, so
+# `db push` silently creates neither. This bit everyone here once already -
+# `db push` ran, every migration got marked "applied" without their SQL ever
+# executing, and production was missing `embedding` entirely until caught by
+# a runtime "column embedding does not exist" error.
+#
+# So: run `db push` for what it *does* cover (every table/column actually in
+# schema.prisma), then explicitly run the on-disk SQL of migrations whose
+# changes schema.prisma can't express - each one is written with `IF NOT
+# EXISTS` guards for exactly this, safe to run even where `db push` already
+# created something adjacent. Only THEN tell Prisma's own bookkeeping that
+# every migration already on disk is applied - not run again, just recorded
+# (Prisma's documented baselining procedure: https://pris.ly/d/migrate-baseline).
+# Every deploy after this one finds `products` already there and takes the
+# ordinary `migrate deploy` path below instead.
+#
+# NOT_IN_SCHEMA lists exactly those schema-unrepresentable migrations - if you
+# add another one (a raw SQL feature Prisma's schema can't express: an
+# extension, a partial/functional index, a custom type), guard every
+# statement in it with IF NOT EXISTS/OR REPLACE/etc. and add its directory
+# name here too, or `db push` will just as silently skip it again.
+NOT_IN_SCHEMA="0001_init_pgvector 0002_product_filter_indexes"
 (
   cd packages/db
   DATABASE_URL="$(grep -m1 '^DATABASE_URL=' .env | cut -d= -f2-)"
   if [ -z "$(psql "$DATABASE_URL" -tAc "SELECT to_regclass('public.products')")" ]; then
     echo "Empty database - baselining migration history instead of migrate deploy."
     bunx prisma db push --skip-generate
+    for name in $NOT_IN_SCHEMA; do
+      echo "Applying $name's SQL directly (db push can't represent it)."
+      psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "prisma/migrations/$name/migration.sql"
+    done
     for migration_dir in prisma/migrations/*/; do
       bunx prisma migrate resolve --applied "$(basename "$migration_dir")"
     done

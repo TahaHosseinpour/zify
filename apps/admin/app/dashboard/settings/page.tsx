@@ -16,7 +16,7 @@ import {
 import { toast } from "sonner"
 
 export default function SettingsPage() {
-  const [form, setForm] = useState({ personaCharacter: "", personaTone: "formal", systemPromptExtra: "" })
+  const [form, setForm] = useState({ slug: "", personaCharacter: "", personaTone: "formal", systemPromptExtra: "" })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [resetting, setResetting] = useState(false)
@@ -75,6 +75,7 @@ export default function SettingsPage() {
       .then((shop) => {
         if (shop) {
           setForm({
+            slug: shop.slug ?? "",
             personaCharacter: shop.personaCharacter ?? "",
             personaTone: shop.personaTone ?? "formal",
             systemPromptExtra: shop.systemPromptExtra ?? "",
@@ -98,15 +99,48 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       })
-      if (!res.ok) throw new Error()
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error)
       toast.success("تنظیمات ذخیره شد")
-    } catch { toast.error("خطا در ذخیره") } finally { setSaving(false) }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error && err.message ? err.message : "خطا در ذخیره")
+    } finally { setSaving(false) }
   }
 
   if (loading) return <div className="flex flex-col gap-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
 
+  function slugify(text: string) {
+    return text
+      .toLowerCase()
+      .replace(/\s+/g, "-")
+      .replace(/[^a-z0-9-]/g, "")
+      .slice(0, 30)
+  }
+
   return (
     <form onSubmit={handleSave} className="flex flex-col gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">شناسه یکتا فروشگاه</CardTitle>
+          <CardDescription>
+            لینک تلگرام شما را می‌سازد: t.me/bot?start={form.slug || "shop-slug"} — تغییر آن یعنی
+            لینک‌های قبلی که به مشتریان داده‌اید دیگر کار نمی‌کنند.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-1.5">
+            <Label>شناسه یکتا (انگلیسی)</Label>
+            <Input
+              dir="ltr"
+              value={form.slug}
+              onChange={(e) => setForm((p) => ({ ...p, slug: slugify(e.target.value) }))}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Separator />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">شخصیت دستیار فروش</CardTitle>

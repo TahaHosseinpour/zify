@@ -7,9 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Add01Icon, Copy01Icon, LinkSquare01Icon } from "@hugeicons/core-free-icons"
+import { Add01Icon, Copy01Icon, LinkSquare01Icon, Delete01Icon } from "@hugeicons/core-free-icons"
 
 interface Channel {
   id: string
@@ -24,6 +28,8 @@ export default function ChannelsPage() {
   const [channels, setChannels] = useState<Channel[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const [shopSlug, setShopSlug] = useState("")
 
   useEffect(() => {
@@ -49,6 +55,22 @@ export default function ChannelsPage() {
       const updated = await fetch("/api/channels").then((r) => r.json())
       setChannels(updated)
     } catch { toast.error("خطا در ساخت کانال") } finally { setCreating(false) }
+  }
+
+  async function handleDelete() {
+    if (!deleteId) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/channels/${deleteId}`, { method: "DELETE" })
+      if (!res.ok) throw new Error()
+      setChannels((prev) => prev.filter((c) => c.id !== deleteId))
+      toast.success("کانال حذف شد")
+    } catch {
+      toast.error("خطا در حذف کانال")
+    } finally {
+      setDeleting(false)
+      setDeleteId(null)
+    }
   }
 
   function copyLink(link: string) {
@@ -120,12 +142,32 @@ export default function ChannelsPage() {
                       ایجاد: {new Date(ch.createdAt).toLocaleDateString("fa-IR")}
                     </p>
                   </div>
+                  <Button size="icon-sm" variant="ghost" onClick={() => setDeleteId(ch.id)}>
+                    <HugeiconsIcon icon={Delete01Icon} className="text-destructive" />
+                  </Button>
                 </CardContent>
               </Card>
             </motion.div>
           ))}
         </div>
       )}
+
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف کانال</AlertDialogTitle>
+            <AlertDialogDescription>
+              این کانال حذف می‌شود و لینک اختصاصی آن دیگر کار نخواهد کرد. ادامه می‌دهید؟
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>انصراف</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" disabled={deleting} onClick={handleDelete}>
+              {deleting ? "در حال حذف..." : "حذف"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

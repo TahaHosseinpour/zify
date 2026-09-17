@@ -62,12 +62,26 @@ export async function PATCH(req: NextRequest) {
   if (!shop) return NextResponse.json({ error: "فروشگاه یافت نشد" }, { status: 404 })
 
   const body = await req.json()
-  const { name, description, categories, supportInfo, personaCharacter, personaTone, systemPromptExtra } = body
+  const { name, slug, description, categories, supportInfo, personaCharacter, personaTone, systemPromptExtra } = body
+
+  if (slug !== undefined && slug !== shop.slug) {
+    if (!slug) {
+      return NextResponse.json({ error: "شناسه یکتا الزامی است" }, { status: 400 })
+    }
+    // Every existing Telegram deep link (t.me/bot?start=<slug>) a customer
+    // already has bakes in the old slug - changing it breaks those, which is
+    // the shop owner's call to make, not something to silently prevent.
+    const existing = await prisma.shop.findUnique({ where: { slug } })
+    if (existing && existing.id !== shop.id) {
+      return NextResponse.json({ error: "این شناسه قبلاً استفاده شده است" }, { status: 400 })
+    }
+  }
 
   const updated = await prisma.shop.update({
     where: { id: shop.id },
     data: {
       ...(name !== undefined && { name }),
+      ...(slug !== undefined && { slug }),
       ...(description !== undefined && { description }),
       ...(categories !== undefined && { categories }),
       ...(supportInfo !== undefined && { supportInfo }),
