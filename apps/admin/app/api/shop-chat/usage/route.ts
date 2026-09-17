@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getUsageStatus } from "@zify/db"
+import { getUsageStatus, WEEKLY_INPUT_TOKEN_LIMIT, MONTHLY_INPUT_TOKEN_LIMIT } from "@zify/db"
 import { resolveShopVisitor } from "@/lib/resolve-shop-visitor"
 
 export async function GET(req: NextRequest) {
@@ -17,10 +17,10 @@ export async function GET(req: NextRequest) {
   if (!resolved.endUser) {
     return NextResponse.json({
       weeklyUsed: 0,
-      weeklyLimit: 20_000,
+      weeklyLimit: WEEKLY_INPUT_TOKEN_LIMIT,
       weeklyResetAt: null,
       monthlyUsed: 0,
-      monthlyLimit: 40_000,
+      monthlyLimit: MONTHLY_INPUT_TOKEN_LIMIT,
       monthlyResetAt: null,
     })
   }

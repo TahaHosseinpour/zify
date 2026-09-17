@@ -5,8 +5,8 @@ import { prisma } from "./index";
 // is). Mirrored in apps/agent/app/usage.py, which is where these are actually
 // enforced (this TS side is display-only: admin panel + the bot's usage
 // button) - keep both in sync if these ever change.
-export const WEEKLY_INPUT_TOKEN_LIMIT = 20_000;
-export const MONTHLY_INPUT_TOKEN_LIMIT = 40_000;
+export const WEEKLY_INPUT_TOKEN_LIMIT = 80_000;
+export const MONTHLY_INPUT_TOKEN_LIMIT = 200_000;
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const MONTH_MS = 30 * 24 * 60 * 60 * 1000;

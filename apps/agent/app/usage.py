@@ -16,8 +16,8 @@ from langchain_core.outputs import LLMResult
 
 from .db import db
 
-WEEKLY_INPUT_TOKEN_LIMIT = 20_000
-MONTHLY_INPUT_TOKEN_LIMIT = 40_000
+WEEKLY_INPUT_TOKEN_LIMIT = 80_000
+MONTHLY_INPUT_TOKEN_LIMIT = 200_000
 
 _WEEK = timedelta(days=7)
 _MONTH = timedelta(days=30)
