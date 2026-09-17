@@ -82,8 +82,17 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          # `sed` strips any CR - the secret was pasted from a Windows dev
+          # machine at least once, and a CRLF-terminated OpenSSH key fails to
+          # parse with the exact "not a valid OPENSSH private key file" error
+          # this step is here to catch early (with a clear message) instead
+          # of failing much later as a cryptic pyinfra SSH connection error.
+          printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" | sed 's/\r$//' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null || {
+            echo "::error::DEPLOY_SSH_PRIVATE_KEY is not a valid private key (check for CRLF line endings, a missing BEGIN/END line, or the wrong key format) - re-add the secret from the raw key file." >&2
+            exit 1
+          }
           ssh-keyscan -p 22 -H 181.41.194.141 >> ~/.ssh/known_hosts 2>/dev/null
 
       # deploy/deploy_secrets.py is gitignored on purpose (see its own
