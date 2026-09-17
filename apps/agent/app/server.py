@@ -14,6 +14,13 @@ from .db import db
 from .graph import build_graph
 from .state import RetrievedItem
 from .tracing import chat_config, flush as flush_tracing
+from .usage import (
+    WEEKLY_INPUT_TOKEN_LIMIT,
+    TokenUsageCallback,
+    UsageStatus,
+    increment_input_tokens,
+    usage_status,
+)
 
 
 @asynccontextmanager
@@ -178,6 +185,36 @@ def build_debug(
     }
 
 
+def _limit_reached_reply(status: UsageStatus) -> str:
+    """Which cap was hit decides which reset date to quote - a customer who
+    blew through the weekly cap needs to know when *that* resets, not the
+    (later) monthly one, even though both are technically true."""
+    if status.weekly_used >= WEEKLY_INPUT_TOKEN_LIMIT:
+        window, reset_at = "هفتگی", status.weekly_reset_at
+    else:
+        window, reset_at = "ماهانه", status.monthly_reset_at
+    return (
+        f"به سقف مصرف {window} خودتون رسیدید. "
+        f"از {reset_at.strftime('%Y/%m/%d')} دوباره می‌تونید پیام بدید."
+    )
+
+
+def _limit_reached_response(status: UsageStatus, mode: str, product_id) -> dict:
+    return {
+        "reply": _limit_reached_reply(status),
+        "mode": mode,
+        "productId": product_id,
+        "stage": None,
+        "intent": None,
+        "valueDriver": None,
+        "objection": None,
+        "suggestedProductIds": [],
+        "products": [],
+        "purchaseUrl": None,
+        "showBuyActions": False,
+    }
+
+
 @app.post("/chat")
 async def chat(request: Request):
     try:
@@ -187,12 +224,25 @@ async def chat(request: Request):
         message = body.get("message")
         mode = body.get("mode") or "explore"
         product_id = body.get("productId")
+        # Absent for the admin playground (shop owners testing their own bot
+        # aren't a real customer and have no EndUser row) - the quota gate and
+        # usage tracking below both simply skip when this is missing.
+        end_user_id = body.get("endUserId")
         want_debug = bool(body.get("debug"))
 
         if not shop_id or not thread_id or not message:
             return JSONResponse(
                 {"error": "shopId, threadId, message are required"}, status_code=400
             )
+
+        usage_cb = None
+        if end_user_id:
+            status = await usage_status(end_user_id)
+            if status.over_limit:
+                # Refused before spending a single token on a request we're
+                # about to turn away - no graph run, no LLM call at all.
+                return _limit_reached_response(status, mode, product_id)
+            usage_cb = TokenUsageCallback()
 
         graph = request.app.state.graph
         started = time.perf_counter()
@@ -204,9 +254,18 @@ async def chat(request: Request):
                 "mode": mode,
                 "product_id": product_id,
             },
-            chat_config(thread_id, shop_id, mode, product_id),
+            chat_config(
+                thread_id,
+                shop_id,
+                mode,
+                product_id,
+                extra_callbacks=[usage_cb] if usage_cb else None,
+            ),
         )
         latency_ms = int((time.perf_counter() - started) * 1000)
+
+        if usage_cb is not None:
+            await increment_input_tokens(end_user_id, usage_cb.input_tokens)
 
         messages = result.get("messages") or []
         last = messages[-1] if messages else None

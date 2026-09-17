@@ -21,6 +21,7 @@ verified the shape of what actually crossed the wire to a client.
 """
 
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -29,6 +30,7 @@ from tests.conftest import item
 
 from app import graph as G
 from app import server as S
+from app.usage import UsageStatus
 
 
 def new_client():
@@ -94,7 +96,7 @@ def build_stubbed_app(monkeypatch, analyze_result, search_results=None):
 
     monkeypatch.setattr(G, "vector_search_explore", vector_search_stub)
 
-    def fake_chat_config(thread_id, shop_id, mode, product_id=None):
+    def fake_chat_config(thread_id, shop_id, mode, product_id=None, extra_callbacks=None):
         return {"configurable": {"thread_id": thread_id}}
 
     monkeypatch.setattr(S, "chat_config", fake_chat_config)
@@ -130,7 +132,7 @@ class TestChatErrorHandling:
 
         monkeypatch.setattr(G, "maybe_summarize", no_summarize)
 
-        def fake_chat_config(thread_id, shop_id, mode, product_id=None):
+        def fake_chat_config(thread_id, shop_id, mode, product_id=None, extra_callbacks=None):
             return {"configurable": {"thread_id": thread_id}}
 
         monkeypatch.setattr(S, "chat_config", fake_chat_config)
@@ -328,3 +330,90 @@ class TestChatResponseShape:
         assert "filterStatus" in debug
         assert "latencyMs" in debug
         assert debug["latencyMs"] >= 0
+
+
+class TestUsageQuotaGate:
+    """The weekly/monthly input-token cap (apps/agent/app/usage.py) - checked
+    before the graph runs, so a customer who's already over never costs
+    another LLM call, and incremented after with whatever the turn spent."""
+
+    def _under_limit_status(self):
+        now = datetime.now(timezone.utc)
+        return UsageStatus(
+            weekly_used=100, weekly_reset_at=now + timedelta(days=1),
+            monthly_used=100, monthly_reset_at=now + timedelta(days=10),
+        )
+
+    def _over_weekly_status(self):
+        now = datetime.now(timezone.utc)
+        return UsageStatus(
+            weekly_used=20_000, weekly_reset_at=now + timedelta(days=2),
+            monthly_used=25_000, monthly_reset_at=now + timedelta(days=10),
+        )
+
+    async def test_over_limit_short_circuits_without_running_the_graph(self, monkeypatch):
+        async def tripwire(state):
+            raise AssertionError("graph ran despite the end user being over their quota")
+
+        monkeypatch.setattr(G, "analyze_intent", tripwire)
+
+        async def fake_chat_config(thread_id, shop_id, mode, product_id=None, extra_callbacks=None):
+            return {"configurable": {"thread_id": thread_id}}
+
+        monkeypatch.setattr(S, "chat_config", fake_chat_config)
+
+        async def over_limit(end_user_id):
+            return self._over_weekly_status()
+
+        monkeypatch.setattr(S, "usage_status", over_limit)
+        S.app.state.graph = G.build_graph()
+
+        async with new_client() as client:
+            res = await client.post("/chat", json={**REQUIRED_BODY, "endUserId": "u1"})
+        body = res.json()
+        assert "هفتگی" in body["reply"]
+        assert body["products"] == []
+        assert body["showBuyActions"] is False
+
+    async def test_under_limit_runs_normally_and_increments_afterwards(self, monkeypatch):
+        client = build_stubbed_app(
+            monkeypatch,
+            {"intent": "smalltalk", "mode": "explore", "retrieved_raw": None, "retrieved_context": []},
+        )
+
+        async def under_limit(end_user_id):
+            return self._under_limit_status()
+
+        recorded = {}
+
+        async def fake_increment(end_user_id, tokens):
+            recorded["end_user_id"] = end_user_id
+            recorded["tokens"] = tokens
+
+        monkeypatch.setattr(S, "usage_status", under_limit)
+        monkeypatch.setattr(S, "increment_input_tokens", fake_increment)
+
+        async with client:
+            res = await client.post("/chat", json={**REQUIRED_BODY, "endUserId": "u1"})
+        assert res.json()["reply"] == "پاسخ آزمایشی"
+        # The stubbed LLM (fake_llm fixture equivalent used by build_stubbed_app)
+        # carries no real usage_metadata, so 0 is the correct amount to have
+        # recorded here - what matters is that increment ran at all, for this
+        # end user, not a fabricated non-zero count.
+        assert recorded["end_user_id"] == "u1"
+        assert recorded["tokens"] == 0
+
+    async def test_missing_end_user_id_skips_the_quota_system_entirely(self, monkeypatch):
+        client = build_stubbed_app(
+            monkeypatch,
+            {"intent": "smalltalk", "mode": "explore", "retrieved_raw": None, "retrieved_context": []},
+        )
+
+        async def tripwire(end_user_id):
+            raise AssertionError("usage_status called with no endUserId in the request")
+
+        monkeypatch.setattr(S, "usage_status", tripwire)
+
+        async with client:
+            res = await client.post("/chat", json=REQUIRED_BODY)  # no endUserId
+        assert res.json()["reply"] == "پاسخ آزمایشی"

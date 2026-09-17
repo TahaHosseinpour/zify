@@ -82,27 +82,40 @@ def chat_config(
     shop_id: str,
     mode: str,
     product_id: Optional[str] = None,
+    extra_callbacks: Optional[list[Any]] = None,
 ) -> dict:
     """Build the run config for a /chat graph invocation.
 
-    Always carries the checkpointer's thread_id; adds Langfuse callbacks and
-    trace attributes when tracing is enabled.
+    Always carries the checkpointer's thread_id; `extra_callbacks` (e.g.
+    usage.TokenUsageCallback - see server.py) are always attached regardless
+    of whether Langfuse is configured. Langfuse's own callbacks and trace
+    attributes are added on top of those when tracing is enabled.
     """
     config: dict[str, Any] = {"configurable": {"thread_id": thread_id}}
+    callbacks = list(extra_callbacks or [])
+
+    # Thread ids look like "<shopId>:<endUserId>:<conversationId>" (see
+    # packages/db/src/conversations.ts) - the middle part is what
+    # server.reset_memory and Langfuse's user_id both key on. The admin
+    # playground's synthetic "<shopId>:playground-<sessionId>" has no third
+    # part, so this falls back to the whole remainder for anything shorter.
+    parts = thread_id.split(":")
+    end_user_id = parts[1] if len(parts) > 1 else thread_id
 
     handler = get_handler()
+    if handler is not None:
+        callbacks.append(handler)
+
+    if callbacks:
+        config["callbacks"] = callbacks
+
     if handler is None:
         return config
-
-    # Thread ids look like "<shopId>:<endUserId>" (see server.reset_memory), so
-    # the whole thread is the Langfuse session and the end user is its user_id.
-    end_user_id = thread_id.split(":", 1)[1] if ":" in thread_id else thread_id
 
     tags = [f"mode:{mode}", f"shop:{shop_id}"]
     if product_id:
         tags.append("product-scoped")
 
-    config["callbacks"] = [handler]
     config["run_name"] = "chat"
     config["metadata"] = {
         "langfuse_session_id": thread_id,

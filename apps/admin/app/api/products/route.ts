@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { prisma } from "@zify/db"
 import { embedProduct } from "@/lib/embeddings"
+import { MAX_ACTIVE_PRODUCTS, MAX_MONTHLY_PRODUCT_UPLOADS, checkAndRecordProductUpload } from "@/lib/product-limits"
 
 async function getShop(userId: string) {
   const user = await prisma.user.findUnique({
@@ -38,6 +39,15 @@ export async function POST(req: NextRequest) {
 
   if (!name || price === undefined) {
     return NextResponse.json({ error: "نام و قیمت الزامی است" }, { status: 400 })
+  }
+
+  const limitCheck = await checkAndRecordProductUpload(shop.id)
+  if (!limitCheck.ok) {
+    const message =
+      limitCheck.reason === "active_cap"
+        ? `سقف ${MAX_ACTIVE_PRODUCTS.toLocaleString("fa-IR")} محصول فعال پر شده است. برای افزودن محصول جدید، ابتدا یکی از محصولات فعلی را حذف یا غیرفعال کنید.`
+        : `سقف ماهانه افزودن محصول (${MAX_MONTHLY_PRODUCT_UPLOADS.toLocaleString("fa-IR")} مورد) پر شده است. ماه بعد دوباره امکان‌پذیر خواهد بود.`
+    return NextResponse.json({ error: message }, { status: 429 })
   }
 
   const product = await prisma.product.create({
