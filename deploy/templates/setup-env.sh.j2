@@ -95,11 +95,9 @@ set_env AGENT_URL {{ sq('http://localhost:' ~ agent_port) }}
 set_env AGENT_PORT {{ sq(agent_port) }}
 set_env NEXT_PUBLIC_APP_URL {{ sq(public_app_url) }}
 
-# Seeded with the ADMIN role on every deploy (packages/db/prisma/seed.ts,
-# run from tasks/website.py) - this is who can log into /admin with a
-# password.
-set_env ADMIN_MOBILE {{ sq(admin_mobile) }}
-set_env ADMIN_PASSWORD {{ sq(admin_password) }}
+# Panel accounts seeded on every deploy (packages/db/prisma/seed.ts, run from
+# tasks/website.py) - each can log into /admin with a password.
+set_env ADMIN_USERS {{ sq(admin_users) }}
 
 # Pull DB_PASSWORD (and only that - never echo the rest) back out for the
 # role/database setup below, whether the .env above was just created or was
