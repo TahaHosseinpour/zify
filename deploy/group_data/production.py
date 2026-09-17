@@ -105,7 +105,7 @@ db_user = "zify"
 
 # --- OpenAI / tracing config (non-secret) - see deploy_secrets.py for keys ---
 
-openai_base_url = "https://api.openai.com/v1"
+openai_base_url = "https://api.tapsage.com/openai/v1"
 openai_chat_model = "gpt-4o-mini"
 openai_embedding_model = "text-embedding-3-small"
 
