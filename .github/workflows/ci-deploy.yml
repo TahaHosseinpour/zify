@@ -89,7 +89,13 @@ jobs:
           # of failing much later as a cryptic pyinfra SSH connection error.
           printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" | sed 's/\r$//' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null || {
+          # `deploy/tasks/system.py`'s base_system() re-asserts the deploying
+          # machine's own public key in the server's authorized_keys on every
+          # run (so a local dev deploy never falls off it) - it needs the
+          # matching .pub file to exist here too, derived rather than stored
+          # as its own secret since it isn't sensitive and must always match
+          # the private half above.
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub || {
             echo "::error::DEPLOY_SSH_PRIVATE_KEY is not a valid private key (check for CRLF line endings, a missing BEGIN/END line, or the wrong key format) - re-add the secret from the raw key file." >&2
             exit 1
           }
