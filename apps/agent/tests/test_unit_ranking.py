@@ -141,6 +141,30 @@ class TestFuseResultsExploreOutOfCatalogRevocation:
         assert result["out_of_catalog"] is True
 
 
+class TestFuseContextProductShownProducts:
+    """fuse_context_product's "related products" are rendered as real cards,
+    same as an explore turn's - an ordinal reference right after ("the second
+    one") must resolve against them, not a stale explore-mode list."""
+
+    async def test_related_products_update_shown_products(self):
+        products = [item("p1", score=0.1), item("p2", score=0.2)]
+        state = {"retrieved_raw": products, "filter_effective": {}, "product_id": None}
+        result = await G.fuse_context_product(state)
+        assert [i["id"] for i in result["shown_products"]] == ["p1", "p2"]
+
+    async def test_faq_only_result_leaves_shown_products_untouched(self):
+        # Nothing purchasable to number - the key must be absent, not [],
+        # so a prior explore turn's list (and its ordinal references) survives.
+        state = {"retrieved_raw": [item("f1", typ="faq")], "filter_effective": {}, "product_id": None}
+        result = await G.fuse_context_product(state)
+        assert "shown_products" not in result
+
+    async def test_empty_result_leaves_shown_products_untouched(self):
+        state = {"retrieved_raw": [], "filter_effective": {}, "product_id": None}
+        result = await G.fuse_context_product(state)
+        assert "shown_products" not in result
+
+
 class TestRouterAfterIntent:
     def test_smalltalk_skips_retrieval_entirely(self):
         assert G.router_after_intent({"intent": "smalltalk"}) == "smalltalk_reply"

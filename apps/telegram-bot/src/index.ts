@@ -1,5 +1,13 @@
 import { Bot, InlineKeyboard } from "grammy"
-import { prisma, type Prisma } from "@zify/db"
+import {
+  prisma,
+  type Prisma,
+  getOrStartConversation,
+  startNewConversation,
+  resumeConversation,
+  listRecentConversations,
+  getUsageStatus,
+} from "@zify/db"
 import type { ChatRequest, ChatResponse } from "@zify/shared"
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!
@@ -23,14 +31,14 @@ async function upsertEndUser(shopId: string, telegramUserId: string, firstName?:
   })
 }
 
-async function getOrCreateConversation(shopId: string, endUserId: string, mode: string, productId?: string) {
-  const existing = await prisma.conversation.findFirst({
-    where: { shopId, endUserId },
-    orderBy: { startedAt: "desc" },
-  })
-  if (existing) return existing
-  return prisma.conversation.create({
-    data: { shopId, endUserId, mode, productId },
+// A telegram user can have /start'd more than one shop (a separate EndUser
+// row each, @@unique([shopId, telegramUserId])) - a bare text message with no
+// shop context picks whichever shop they most recently /start'd, same
+// tie-break the code has always used.
+async function resolveEndUserForTelegram(telegramUserId: string) {
+  return prisma.endUser.findFirst({
+    where: { telegramUserId },
+    orderBy: { createdAt: "desc" },
   })
 }
 
@@ -50,6 +58,20 @@ const PRODUCT_CARD_LIMIT = 8
 
 async function recordEvent(shopId: string, endUserId: string, type: string, metadata?: Record<string, unknown>) {
   await prisma.event.create({ data: { shopId, endUserId, type, metadata: metadata as Prisma.InputJsonValue | undefined } })
+}
+
+// Attached to the main reply of every turn (not to every per-product card -
+// that would repeat the same three buttons under six messages in a row).
+// `base` is an existing keyboard (the purchase button, when there is one) to
+// add this row underneath; omit it to get just the nav row on its own.
+function withNavRow(base?: InlineKeyboard): InlineKeyboard {
+  const kb = base ?? new InlineKeyboard()
+  if (base) kb.row()
+  return kb.text("💬 چت جدید", "newchat").text("🕑 چت‌های قبلی", "history").text("📊 سقف مصرف", "usage")
+}
+
+function formatDateTime(d: Date): string {
+  return `${d.toLocaleDateString("fa-IR")} ${d.toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" })}`
 }
 
 // ── /start handler ────────────────────────────────────────────────────────────
@@ -89,14 +111,14 @@ bot.command("start", async (ctx) => {
 
   const endUser = await upsertEndUser(shop.id, telegramUserId, firstName, username)
   const mode = productId ? "product" : "explore"
-  await getOrCreateConversation(shop.id, endUser.id, mode, productId)
+  await getOrStartConversation(shop.id, endUser.id, mode, productId)
   await recordEvent(shop.id, endUser.id, "view")
 
   const welcomeMsg = productId
     ? `سلام ${firstName ?? ""}! 👋 به ${shop.name} خوش آمدید.\nبرای مشاهده اطلاعات این محصول آماده‌ام.`
     : `سلام ${firstName ?? ""}! 👋 به ${shop.name} خوش آمدید.\nمی‌توانم در یافتن محصول مناسب کمکتان کنم.`
 
-  await ctx.reply(welcomeMsg)
+  await ctx.reply(welcomeMsg, { reply_markup: withNavRow() })
 })
 
 // ── Message handler ───────────────────────────────────────────────────────────
@@ -108,19 +130,16 @@ bot.on("message:text", async (ctx) => {
   const telegramUserId = String(from.id)
   const userMessage = ctx.message.text
 
-  // Find the most recent conversation for this user across all shops
-  const endUser = await prisma.endUser.findFirst({
-    where: { telegramUserId },
-    orderBy: { createdAt: "desc" },
-    include: { conversations: { orderBy: { startedAt: "desc" }, take: 1 } },
-  })
-
-  if (!endUser || endUser.conversations.length === 0) {
+  const endUser = await resolveEndUserForTelegram(telegramUserId)
+  if (!endUser) {
     await ctx.reply("لطفاً ابتدا از طریق لینک اختصاصی فروشگاه وارد شوید.")
     return
   }
 
-  const conversation = endUser.conversations[0]
+  // Bounded-lifetime conversation: continues the active one within 24h of its
+  // last message, otherwise starts a fresh one (fresh LangGraph memory too -
+  // see packages/db/src/conversations.ts).
+  const conversation = await getOrStartConversation(endUser.shopId, endUser.id, "explore")
 
   // Record the user message
   await prisma.message.create({
@@ -136,7 +155,7 @@ bot.on("message:text", async (ctx) => {
   await ctx.replyWithChatAction("typing")
 
   try {
-    const threadId = `${endUser.shopId}:${endUser.id}`
+    const threadId = `${endUser.shopId}:${endUser.id}:${conversation.id}`
 
     const agentResponse = await callAgent({
       shopId: endUser.shopId,
@@ -161,9 +180,10 @@ bot.on("message:text", async (ctx) => {
     // just told the customer to take their time must not sprout buy buttons.
     const showBuyActions = agentResponse.showBuyActions !== false
 
-    // Send the assistant reply text (with a buy button if a purchase URL exists)
+    // Send the assistant reply text (with a buy button if a purchase URL exists),
+    // plus the persistent nav row (new chat / history / usage) on this main reply.
     if (showBuyActions && agentResponse.purchaseUrl) {
-      const keyboard = new InlineKeyboard().url("🛒 خرید محصول", agentResponse.purchaseUrl)
+      const keyboard = withNavRow(new InlineKeyboard().url("🛒 خرید محصول", agentResponse.purchaseUrl))
       await ctx.reply(agentResponse.reply, { reply_markup: keyboard })
       // Rendering a link is not a click: Telegram url-buttons fire no callback,
       // so this records the impression. Recording it as "click" inflated the
@@ -172,7 +192,7 @@ bot.on("message:text", async (ctx) => {
         url: agentResponse.purchaseUrl,
       })
     } else {
-      await ctx.reply(agentResponse.reply)
+      await ctx.reply(agentResponse.reply, { reply_markup: withNavRow() })
     }
 
     // Send a card per suggested product. Products without an image still get a
@@ -227,6 +247,72 @@ bot.on("message:text", async (ctx) => {
     console.error("[bot] agent call failed:", err)
     await ctx.reply("متأسفانه در این لحظه مشکلی پیش آمده. لطفاً دوباره امتحان کنید.")
   }
+})
+
+// ── Nav buttons: new chat / history / resume / usage ─────────────────────────
+
+bot.on("callback_query:data", async (ctx) => {
+  const from = ctx.from
+  const data = ctx.callbackQuery.data
+  if (!from) return
+
+  const telegramUserId = String(from.id)
+  const endUser = await resolveEndUserForTelegram(telegramUserId)
+  if (!endUser) {
+    await ctx.answerCallbackQuery({ text: "لطفاً ابتدا از طریق لینک فروشگاه وارد شوید." })
+    return
+  }
+
+  if (data === "newchat") {
+    await startNewConversation(endUser.shopId, endUser.id)
+    await ctx.answerCallbackQuery({ text: "چت جدید شروع شد ✅" })
+    await ctx.reply("چت جدید شروع شد. چطور می‌تونم کمکتون کنم؟", { reply_markup: withNavRow() })
+    return
+  }
+
+  if (data === "history") {
+    const conversations = await listRecentConversations(endUser.shopId, endUser.id, 10)
+    if (conversations.length === 0) {
+      await ctx.answerCallbackQuery({ text: "هنوز چت قبلی‌ای ندارید." })
+      return
+    }
+    const keyboard = new InlineKeyboard()
+    for (const c of conversations) {
+      keyboard.text(formatDateTime(c.lastMessageAt), `resume:${c.id}`).row()
+    }
+    await ctx.answerCallbackQuery()
+    await ctx.reply("کدوم گفت‌وگو رو می‌خواید ادامه بدید؟", { reply_markup: keyboard })
+    return
+  }
+
+  if (data.startsWith("resume:")) {
+    const conversationId = data.slice("resume:".length)
+    const resumed = await resumeConversation(endUser.shopId, endUser.id, conversationId)
+    if (!resumed) {
+      await ctx.answerCallbackQuery({ text: "این گفتگو پیدا نشد." })
+      return
+    }
+    await ctx.answerCallbackQuery({ text: "این گفتگو ادامه پیدا می‌کنه ✅" })
+    await ctx.reply("این گفتگو رو ادامه می‌دیم. بفرمایید 🙂", { reply_markup: withNavRow() })
+    return
+  }
+
+  if (data === "usage") {
+    const status = await getUsageStatus(endUser.id)
+    await ctx.answerCallbackQuery()
+    const weeklyPct = Math.min(100, Math.round((status.weeklyUsed / status.weeklyLimit) * 100))
+    const monthlyPct = Math.min(100, Math.round((status.monthlyUsed / status.monthlyLimit) * 100))
+    await ctx.reply(
+      "📊 سقف مصرف شما:\n\n" +
+        `هفتگی: ${weeklyPct}٪ (${status.weeklyUsed.toLocaleString("fa-IR")} از ${status.weeklyLimit.toLocaleString("fa-IR")} توکن)\n` +
+        `بازنشانی: ${status.weeklyResetAt.toLocaleDateString("fa-IR")}\n\n` +
+        `ماهانه: ${monthlyPct}٪ (${status.monthlyUsed.toLocaleString("fa-IR")} از ${status.monthlyLimit.toLocaleString("fa-IR")} توکن)\n` +
+        `بازنشانی: ${status.monthlyResetAt.toLocaleDateString("fa-IR")}`
+    )
+    return
+  }
+
+  await ctx.answerCallbackQuery()
 })
 
 // ── Error handler ─────────────────────────────────────────────────────────────

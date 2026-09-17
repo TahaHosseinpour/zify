@@ -235,15 +235,17 @@ class TestPerTurnResets:
         assert updates["candidate_ids"] == []
         assert updates["filter_status"] == G.FILTER_NONE
 
-    async def test_buy_actions_resets_to_true_every_turn(self, monkeypatch):
-        # Only handle_purchase turns it off; every other turn must default back
-        # on, or a "let me think" turn's False would leak into the next reply.
+    async def test_buy_actions_resets_to_false_every_turn(self, monkeypatch):
+        # The turn's shape isn't known yet at this point (clarifying question?
+        # small talk? an actual product list?) - only suggest_products/
+        # product_agent turn it back on, and only when they actually have a
+        # product to show; handle_purchase sets its own value.
         install_classifier(
             monkeypatch,
             IntentResult(intent="browse", mode="explore", stage="browsing"),
         )
         updates = await G.analyze_intent(base_state())
-        assert updates["buy_actions"] is True
+        assert updates["buy_actions"] is False
 
     async def test_value_driver_persists_when_unstated(self, monkeypatch):
         install_classifier(

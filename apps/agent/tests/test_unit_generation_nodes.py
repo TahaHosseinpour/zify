@@ -68,11 +68,33 @@ class TestSuggestProducts:
         assert "فروشگاه یافت نشد" in result["messages"][0].content
         assert fake_llm == []  # never reached the LLM call
 
+    async def test_buy_actions_on_when_a_product_is_in_context(self, fake_llm, fake_shop_db):
+        result = await G.suggest_products(base_state(retrieved_context=[item("p1")]))
+        assert result["buy_actions"] is True
+
+    async def test_buy_actions_off_when_context_has_no_product(self, fake_llm, fake_shop_db):
+        # FAQ-only or out-of-catalog turns reach this node with nothing
+        # purchasable in retrieved_context - a button then would be a lie.
+        result = await G.suggest_products(base_state(retrieved_context=[item("f1", typ="faq")]))
+        assert result["buy_actions"] is False
+
+    async def test_buy_actions_off_when_context_is_empty(self, fake_llm, fake_shop_db):
+        result = await G.suggest_products(base_state(retrieved_context=[]))
+        assert result["buy_actions"] is False
+
 
 class TestProductAgent:
     async def test_returns_the_llm_reply(self, fake_llm, fake_shop_db):
         result = await G.product_agent(base_state())
         assert result["messages"][0].content == "پاسخ آزمایشی"
+
+    async def test_buy_actions_on_when_a_product_is_in_context(self, fake_llm, fake_shop_db):
+        result = await G.product_agent(base_state(retrieved_context=[item("p1")]))
+        assert result["buy_actions"] is True
+
+    async def test_buy_actions_off_when_context_has_no_product(self, fake_llm, fake_shop_db):
+        result = await G.product_agent(base_state(retrieved_context=[item("f1", typ="faq")]))
+        assert result["buy_actions"] is False
 
     async def test_uses_the_product_prompt_builder_not_the_explore_one(self, fake_llm, fake_shop_db, monkeypatch):
         calls = {"product": 0, "explore": 0}

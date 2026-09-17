@@ -68,10 +68,12 @@ class SalesAgentState(TypedDict, total=False):
     # classifier found no matching category in the shop's vocabulary, or every
     # retrieved product was too far from the query to be a real answer.
     out_of_catalog: Optional[bool]
-    # Whether the client should render buy buttons for this turn. False on the
-    # closing turns that are explicitly told not to push (a customer who said
-    # "let me think" was still shown five purchase buttons). Per-turn: reset by
-    # analyze_intent and set by handle_purchase.
+    # Whether the client should render buy buttons for this turn. Defaults to
+    # False at the start of every turn (analyze_intent) - the shape of the
+    # turn isn't known yet, and a clarifying question or small-talk reply must
+    # never sprout a button. suggest_products/product_agent turn it back on
+    # only when retrieved_context actually holds a product; handle_purchase
+    # sets its own value from the closing move (False on "let me think").
     buy_actions: Optional[bool]
     # Explicit ordering the customer asked for ("cheapest", "most expensive").
     # Vector similarity cannot express a superlative, so these are resolved by

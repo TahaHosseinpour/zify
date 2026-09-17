@@ -673,8 +673,12 @@ async def analyze_intent(state: SalesAgentState) -> dict:
         # leak into the next question.
         "out_of_catalog": result.out_of_catalog,
         "sort": result.sort,
-        # Search turns show buy buttons; only handle_purchase turns it off.
-        "buy_actions": True,
+        # Default to no buttons - this runs before the turn's shape is even
+        # known (clarifying question? small talk? a real product list?). Only
+        # the nodes that actually populate retrieved_context with purchasable
+        # products (suggest_products, product_agent) turn it back on;
+        # handle_purchase sets its own value based on the closing move.
+        "buy_actions": False,
     }
 
     # Resolve an ordinal reference ("the second one") to a concrete product id.
@@ -1343,8 +1347,8 @@ async def fuse_results_explore(state: SalesAgentState) -> dict:
 
 
 async def fuse_context_product(state: SalesAgentState) -> dict:
-    """Barrier for the product fan-out. shown_products and out_of_catalog stay
-    untouched: only the explore path may set them.
+    """Barrier for the product fan-out. out_of_catalog stays untouched: only
+    the explore path may set it.
 
     Not an oversight: fuse_results_explore can *revoke* a wrong out_of_catalog
     guess because a category/brand match there is proof the request matches
@@ -1352,11 +1356,19 @@ async def fuse_context_product(state: SalesAgentState) -> dict:
     to offer — the pinned product was already fetched by id, not by category —
     so there is nothing here that could correct the classifier's guess either
     way, and leaving it alone is the correct (not merely convenient) choice.
+
+    shown_products *does* update here (unlike out_of_catalog): the "related
+    products" this path surfaces are rendered as real cards the customer sees,
+    same as an explore turn's results, so an ordinal reference straight after
+    ("the second one") must resolve against them - not against a stale list
+    from whatever explore turn happened before the customer zoomed in.
     """
-    return {
-        "retrieved_context": _rank_and_trim(state, PRODUCT_CONTEXT_LIMIT),
-        "candidate_ids": [],
-    }
+    top = _rank_and_trim(state, PRODUCT_CONTEXT_LIMIT)
+    updates: dict = {"retrieved_context": top, "candidate_ids": []}
+    shown = _shown_products(top)
+    if shown:
+        updates["shown_products"] = shown
+    return updates
 
 
 def build_llm_messages(
@@ -1398,7 +1410,11 @@ async def suggest_products(state: SalesAgentState) -> dict:
         build_llm_messages(system_prompt, state["messages"], context_prompt, state.get("summary"))
     )
 
-    return {"messages": [reply]}
+    # Only worth a button when there's actually a product to buy - an
+    # out-of-catalog or FAQ-only turn can reach this node with no products in
+    # retrieved_context, and a buy button under those answers would be a lie.
+    has_products = any(i["type"] == "product" for i in state.get("retrieved_context") or [])
+    return {"messages": [reply], "buy_actions": has_products}
 
 
 async def product_agent(state: SalesAgentState) -> dict:
@@ -1417,7 +1433,8 @@ async def product_agent(state: SalesAgentState) -> dict:
         build_llm_messages(system_prompt, state["messages"], context_prompt, state.get("summary"))
     )
 
-    return {"messages": [reply]}
+    has_products = any(i["type"] == "product" for i in state.get("retrieved_context") or [])
+    return {"messages": [reply], "buy_actions": has_products}
 
 
 async def ask_question(state: SalesAgentState) -> dict:
