@@ -20,11 +20,13 @@ bugs shipped: the underlying graph logic was correct in isolation, but nothing
 verified the shape of what actually crossed the wire to a client.
 """
 
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from langchain_core.language_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage
 from tests.conftest import item
 
@@ -417,3 +419,98 @@ class TestUsageQuotaGate:
         async with client:
             res = await client.post("/chat", json=REQUIRED_BODY)  # no endUserId
         assert res.json()["reply"] == "پاسخ آزمایشی"
+
+
+class TestChatStreamEndpoint:
+    """/chat/stream - the storefront's SSE contract. build_stubbed_app's
+    FakeLLM (a bare object with only .ainvoke) can't stream, so this uses a
+    real GenericFakeChatModel instead, which is an actual BaseChatModel and
+    exercises LangGraph's real stream_mode="messages" token-interception path."""
+
+    @staticmethod
+    def _sse_events(text: str) -> list[tuple[str, dict]]:
+        events = []
+        for block in text.strip().split("\n\n"):
+            if not block:
+                continue
+            event, data = None, None
+            for line in block.splitlines():
+                if line.startswith("event: "):
+                    event = line[len("event: "):]
+                elif line.startswith("data: "):
+                    data = json.loads(line[len("data: "):])
+            if event:
+                events.append((event, data))
+        return events
+
+    def _build_streaming_app(self, monkeypatch, reply_text: str, intent="smalltalk"):
+        async def analyze(state):
+            return {"intent": intent, "mode": "explore", "retrieved_raw": None, "retrieved_context": []}
+
+        monkeypatch.setattr(G, "analyze_intent", analyze)
+
+        async def no_summarize(state):
+            return {}
+
+        monkeypatch.setattr(G, "maybe_summarize", no_summarize)
+        monkeypatch.setattr(
+            G, "llm", GenericFakeChatModel(messages=iter([AIMessage(content=reply_text)]))
+        )
+
+        class FakeShopTable:
+            @staticmethod
+            async def find_unique(**kw):
+                return None
+
+        class FakeDB:
+            shop = FakeShopTable()
+
+        monkeypatch.setattr(G, "db", FakeDB())
+
+        def fake_chat_config(thread_id, shop_id, mode, product_id=None, extra_callbacks=None):
+            return {"configurable": {"thread_id": thread_id}}
+
+        monkeypatch.setattr(S, "chat_config", fake_chat_config)
+        S.app.state.graph = G.build_graph()
+        return new_client()
+
+    async def test_streams_answer_chunks_that_concatenate_to_the_full_reply(self, monkeypatch):
+        client = self._build_streaming_app(monkeypatch, "hello there friend")
+        async with client:
+            res = await client.post("/chat/stream", json=REQUIRED_BODY)
+
+        assert res.status_code == 200
+        events = self._sse_events(res.text)
+        answers = [d["text"] for e, d in events if e == "answer"]
+        assert len(answers) > 1  # genuinely multiple chunks, not one blob
+        assert "".join(answers) == "hello there friend"
+
+    async def test_done_event_carries_metadata_but_not_the_already_streamed_reply(self, monkeypatch):
+        client = self._build_streaming_app(monkeypatch, "hi")
+        async with client:
+            res = await client.post("/chat/stream", json=REQUIRED_BODY)
+
+        events = self._sse_events(res.text)
+        done = [d for e, d in events if e == "done"]
+        assert len(done) == 1
+        assert "reply" not in done[0]
+        assert "mode" in done[0] and "products" in done[0]
+
+    async def test_intent_classification_tokens_are_not_relayed_to_the_client(self, monkeypatch):
+        # Only suggest_products/product_agent/ask_question/smalltalk_reply/
+        # handle_purchase should ever produce an "answer" chunk - analyze_intent
+        # is stubbed in every test here, but this documents *why* filtering by
+        # langgraph_node (not by which LLM instance) is the right mechanism:
+        # maybe_summarize uses the same `llm` object and must never leak either.
+        client = self._build_streaming_app(monkeypatch, "just the reply")
+        async with client:
+            res = await client.post("/chat/stream", json=REQUIRED_BODY)
+
+        events = self._sse_events(res.text)
+        answers = [d["text"] for e, d in events if e == "answer"]
+        assert "".join(answers) == "just the reply"
+
+    async def test_missing_required_field_returns_400_not_a_stream(self, monkeypatch):
+        async with new_client() as client:
+            res = await client.post("/chat/stream", json={"shopId": "s1", "threadId": "s1:u1"})
+        assert res.status_code == 400

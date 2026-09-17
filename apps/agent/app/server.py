@@ -1,12 +1,13 @@
 from contextlib import asynccontextmanager
 from collections import Counter
+import json
 import os
 import time
 import traceback
 from typing import Optional
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
@@ -215,6 +216,52 @@ def _limit_reached_response(status: UsageStatus, mode: str, product_id) -> dict:
     }
 
 
+def _build_chat_payload(result: dict) -> dict:
+    """The response shape both /chat and /chat/stream's final event share -
+    everything derived from the graph's finished state. /chat/stream's
+    "reply" duplicates text already delivered token-by-token via "answer"
+    events; harmless, but the client should prefer the streamed text."""
+    messages = result.get("messages") or []
+    last = messages[-1] if messages else None
+    reply = last.content if last is not None and isinstance(last.content, str) else ""
+
+    context: list[RetrievedItem] = result.get("retrieved_context", [])
+    product_items = [i for i in context if i["type"] == "product"]
+    product_ids = [i["id"] for i in product_items]
+
+    products = [
+        {
+            "id": i["id"],
+            "name": i.get("metadata", {}).get("name"),
+            "price": _to_float(i.get("metadata", {}).get("price")),
+            "imageUrl": i.get("metadata", {}).get("imageUrl"),
+            "productUrl": i.get("metadata", {}).get("productUrl"),
+        }
+        for i in product_items
+    ]
+
+    pinned_id = result.get("product_id")
+    purchase_url = single_purchase_url(products, pinned_id)
+
+    # Clients render buy buttons from this rather than guessing: a turn that
+    # tells the customer to take their time must not sprout purchase buttons.
+    buy_actions = result.get("buy_actions")
+
+    return {
+        "reply": reply,
+        "mode": result.get("mode"),
+        "productId": pinned_id,
+        "stage": result.get("stage"),
+        "intent": result.get("intent"),
+        "valueDriver": result.get("value_driver"),
+        "objection": result.get("objection"),
+        "suggestedProductIds": product_ids,
+        "products": products,
+        "purchaseUrl": purchase_url,
+        "showBuyActions": True if buy_actions is None else bool(buy_actions),
+    }
+
+
 @app.post("/chat")
 async def chat(request: Request):
     try:
@@ -267,45 +314,7 @@ async def chat(request: Request):
         if usage_cb is not None:
             await increment_input_tokens(end_user_id, usage_cb.input_tokens)
 
-        messages = result.get("messages") or []
-        last = messages[-1] if messages else None
-        reply = last.content if last is not None and isinstance(last.content, str) else ""
-
-        context: list[RetrievedItem] = result.get("retrieved_context", [])
-        product_items = [i for i in context if i["type"] == "product"]
-        product_ids = [i["id"] for i in product_items]
-
-        products = [
-            {
-                "id": i["id"],
-                "name": i.get("metadata", {}).get("name"),
-                "price": _to_float(i.get("metadata", {}).get("price")),
-                "imageUrl": i.get("metadata", {}).get("imageUrl"),
-                "productUrl": i.get("metadata", {}).get("productUrl"),
-            }
-            for i in product_items
-        ]
-
-        pinned_id = result.get("product_id")
-        purchase_url = single_purchase_url(products, pinned_id)
-
-        # Clients render buy buttons from this rather than guessing: a turn that
-        # tells the customer to take their time must not sprout purchase buttons.
-        buy_actions = result.get("buy_actions")
-
-        response = {
-            "reply": reply,
-            "mode": result.get("mode"),
-            "productId": pinned_id,
-            "stage": result.get("stage"),
-            "intent": result.get("intent"),
-            "valueDriver": result.get("value_driver"),
-            "objection": result.get("objection"),
-            "suggestedProductIds": product_ids,
-            "products": products,
-            "purchaseUrl": purchase_url,
-            "showBuyActions": True if buy_actions is None else bool(buy_actions),
-        }
+        response = _build_chat_payload(result)
 
         if want_debug:
             response["debug"] = build_debug(result, path, node_updates, latency_ms)
@@ -315,3 +324,99 @@ async def chat(request: Request):
         print(f"[agent] error: {err}")
         traceback.print_exc()
         return JSONResponse({"error": "internal error"}, status_code=500)
+
+
+# Node names whose LLM call actually produces customer-facing text - the only
+# ones /chat/stream relays token-by-token. analyze_intent's structured-output
+# call and maybe_summarize's summary are real LLM calls too (same `llm`
+# instance, in maybe_summarize's case), but neither is something a customer
+# should see appearing token-by-token in the reply box.
+_REPLY_NODES = {"suggest_products", "product_agent", "ask_question", "smalltalk_reply", "handle_purchase"}
+
+
+def _sse(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+@app.post("/chat/stream")
+async def chat_stream(request: Request):
+    """Same contract as /chat, but the reply streams token-by-token as
+    Server-Sent Events instead of arriving as one JSON blob - built for the
+    storefront's chat UI. `event: answer` chunks carry `{"text": "..."}` as
+    they're generated; a final `event: done` carries everything /chat returns
+    except `reply` (already delivered) - products, purchaseUrl, mode, etc.
+    `event: error` on failure, same message shape as /chat's own error body.
+
+    LangGraph's `stream_mode="messages"` streams token deltas from *every*
+    LLM call a node makes without any change to how the nodes themselves call
+    the model (they still just `await llm.ainvoke(...)`) - filtered here to
+    _REPLY_NODES so the customer only ever sees the actual reply forming, not
+    the intent classifier's or the summarizer's internal calls.
+    """
+    body = await request.json()
+    shop_id = body.get("shopId")
+    thread_id = body.get("threadId")
+    message = body.get("message")
+    mode = body.get("mode") or "explore"
+    product_id = body.get("productId")
+    end_user_id = body.get("endUserId")
+
+    if not shop_id or not thread_id or not message:
+        return JSONResponse(
+            {"error": "shopId, threadId, message are required"}, status_code=400
+        )
+
+    async def event_stream():
+        try:
+            if end_user_id:
+                status = await usage_status(end_user_id)
+                if status.over_limit:
+                    # Refused before spending a single token - no graph run.
+                    yield _sse("answer", {"text": _limit_reached_reply(status)})
+                    done = _limit_reached_response(status, mode, product_id)
+                    done.pop("reply", None)
+                    yield _sse("done", done)
+                    return
+
+            usage_cb = TokenUsageCallback() if end_user_id else None
+            graph = request.app.state.graph
+            config = chat_config(
+                thread_id,
+                shop_id,
+                mode,
+                product_id,
+                extra_callbacks=[usage_cb] if usage_cb else None,
+            )
+            input_state = {
+                "messages": [HumanMessage(content=message)],
+                "shop_id": shop_id,
+                "mode": mode,
+                "product_id": product_id,
+            }
+
+            result: dict = {}
+            async for stream_mode, chunk in graph.astream(
+                input_state, config, stream_mode=["messages", "values"]
+            ):
+                if stream_mode == "messages":
+                    message_chunk, metadata = chunk
+                    if metadata.get("langgraph_node") not in _REPLY_NODES:
+                        continue
+                    text = message_chunk.content
+                    if text:
+                        yield _sse("answer", {"text": text})
+                else:
+                    result = chunk
+
+            if usage_cb is not None:
+                await increment_input_tokens(end_user_id, usage_cb.input_tokens)
+
+            done = _build_chat_payload(result)
+            done.pop("reply", None)
+            yield _sse("done", done)
+        except Exception as err:  # noqa: BLE001
+            print(f"[agent] stream error: {err}")
+            traceback.print_exc()
+            yield _sse("error", {"message": "internal error"})
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
