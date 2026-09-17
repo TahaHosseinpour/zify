@@ -349,7 +349,7 @@ class TestUsageQuotaGate:
     def _over_weekly_status(self):
         now = datetime.now(timezone.utc)
         return UsageStatus(
-            weekly_used=20_000, weekly_reset_at=now + timedelta(days=2),
+            weekly_used=80_000, weekly_reset_at=now + timedelta(days=2),
             monthly_used=25_000, monthly_reset_at=now + timedelta(days=10),
         )
 
@@ -359,7 +359,7 @@ class TestUsageQuotaGate:
 
         monkeypatch.setattr(G, "analyze_intent", tripwire)
 
-        async def fake_chat_config(thread_id, shop_id, mode, product_id=None, extra_callbacks=None):
+        def fake_chat_config(thread_id, shop_id, mode, product_id=None, extra_callbacks=None):
             return {"configurable": {"thread_id": thread_id}}
 
         monkeypatch.setattr(S, "chat_config", fake_chat_config)
