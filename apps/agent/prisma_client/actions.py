@@ -586,11 +586,11 @@ class UserActions(Generic[_PrismaModelT]):
         Example
         -------
         ```py
-        # find the second User record ordered by the fullName field
+        # find the second User record ordered by the password field
         user = await User.prisma().find_first_or_raise(
             skip=1,
             order={
-                'fullName': 'desc',
+                'password': 'desc',
             },
         )
         ```
@@ -756,7 +756,7 @@ class UserActions(Generic[_PrismaModelT]):
         # update all User records
         total = await User.prisma().update_many(
             data={
-                'isVerified': True
+                'fullName': 'biabhbdai'
             },
             where={}
         )
@@ -820,7 +820,7 @@ class UserActions(Generic[_PrismaModelT]):
         results = await User.prisma().count(
             select={
                 '_all': True,
-                'onboardingCompleted': True,
+                'isVerified': True,
             },
         )
         ```
@@ -887,7 +887,7 @@ class UserActions(Generic[_PrismaModelT]):
         results = await User.prisma().count(
             select={
                 '_all': True,
-                'createdAt': True,
+                'onboardingCompleted': True,
             },
         )
         ```
@@ -1027,10 +1027,10 @@ class UserActions(Generic[_PrismaModelT]):
         Example
         -------
         ```py
-        # group User records by updatedAt values
+        # group User records by createdAt values
         # and count how many records are in each group
         results = await User.prisma().group_by(
-            ['updatedAt'],
+            ['createdAt'],
             count=True,
         )
         ```
@@ -6349,7 +6349,6 @@ class EndUserActions(Generic[_PrismaModelT]):
             data={
                 # data to create a EndUser record
                 'shopId': 'cabdjadaji',
-                'telegramUserId': 'faajgfadf',
             },
         )
         ```
@@ -6404,13 +6403,11 @@ class EndUserActions(Generic[_PrismaModelT]):
             data=[
                 {
                     # data to create a EndUser record
-                    'shopId': 'biaagcedjc',
-                    'telegramUserId': 'cahhaghecf',
+                    'shopId': 'faajgfadf',
                 },
                 {
                     # data to create a EndUser record
-                    'shopId': 'bghcbbcidi',
-                    'telegramUserId': 'jcgghhgdj',
+                    'shopId': 'biaagcedjc',
                 },
             ],
             skip_duplicates=True,
@@ -6464,7 +6461,7 @@ class EndUserActions(Generic[_PrismaModelT]):
         ```py
         enduser = await EndUser.prisma().delete(
             where={
-                'id': 'beehgcebbg',
+                'id': 'cahhaghecf',
             },
         )
         ```
@@ -6516,7 +6513,7 @@ class EndUserActions(Generic[_PrismaModelT]):
         ```py
         enduser = await EndUser.prisma().find_unique(
             where={
-                'id': 'bhdiaidiaf',
+                'id': 'bghcbbcidi',
             },
         )
         ```
@@ -6567,7 +6564,7 @@ class EndUserActions(Generic[_PrismaModelT]):
         ```py
         enduser = await EndUser.prisma().find_unique_or_raise(
             where={
-                'id': 'deajegcfi',
+                'id': 'jcgghhgdj',
             },
         )
         ```
@@ -6694,11 +6691,11 @@ class EndUserActions(Generic[_PrismaModelT]):
         Example
         -------
         ```py
-        # find the second EndUser record ordered by the firstName field
+        # find the second EndUser record ordered by the webVisitorId field
         enduser = await EndUser.prisma().find_first(
             skip=1,
             order={
-                'firstName': 'desc',
+                'webVisitorId': 'desc',
             },
         )
         ```
@@ -6762,11 +6759,11 @@ class EndUserActions(Generic[_PrismaModelT]):
         Example
         -------
         ```py
-        # find the second EndUser record ordered by the username field
+        # find the second EndUser record ordered by the firstName field
         enduser = await EndUser.prisma().find_first_or_raise(
             skip=1,
             order={
-                'username': 'desc',
+                'firstName': 'desc',
             },
         )
         ```
@@ -6819,7 +6816,7 @@ class EndUserActions(Generic[_PrismaModelT]):
         ```py
         enduser = await EndUser.prisma().update(
             where={
-                'id': 'gabahhhjf',
+                'id': 'beehgcebbg',
             },
             data={
                 # data to update the EndUser record to
@@ -6876,17 +6873,15 @@ class EndUserActions(Generic[_PrismaModelT]):
         ```py
         enduser = await EndUser.prisma().upsert(
             where={
-                'id': 'cjagadcjg',
+                'id': 'bhdiaidiaf',
             },
             data={
                 'create': {
-                    'id': 'cjagadcjg',
-                    'shopId': 'bghcbbcidi',
-                    'telegramUserId': 'jcgghhgdj',
+                    'id': 'bhdiaidiaf',
+                    'shopId': 'biaagcedjc',
                 },
                 'update': {
-                    'shopId': 'bghcbbcidi',
-                    'telegramUserId': 'jcgghhgdj',
+                    'shopId': 'biaagcedjc',
                 },
             },
         )
@@ -6934,7 +6929,7 @@ class EndUserActions(Generic[_PrismaModelT]):
         # update all EndUser records
         total = await EndUser.prisma().update_many(
             data={
-                'createdAt': datetime.datetime.utcnow()
+                'username': 'deajegcfi'
             },
             where={}
         )
@@ -6998,7 +6993,7 @@ class EndUserActions(Generic[_PrismaModelT]):
         results = await EndUser.prisma().count(
             select={
                 '_all': True,
-                'id': True,
+                'createdAt': True,
             },
         )
         ```
@@ -7065,7 +7060,7 @@ class EndUserActions(Generic[_PrismaModelT]):
         results = await EndUser.prisma().count(
             select={
                 '_all': True,
-                'shopId': True,
+                'activeConversationId': True,
             },
         )
         ```
@@ -7205,10 +7200,10 @@ class EndUserActions(Generic[_PrismaModelT]):
         Example
         -------
         ```py
-        # group EndUser records by telegramUserId values
+        # group EndUser records by weeklyInputTokens values
         # and count how many records are in each group
         results = await EndUser.prisma().group_by(
-            ['telegramUserId'],
+            ['weeklyInputTokens'],
             count=True,
         )
         ```
@@ -7297,7 +7292,7 @@ class ConversationActions(Generic[_PrismaModelT]):
         ```py
         users = await Conversation.prisma().query_raw(
             'SELECT * FROM Conversation WHERE id = $1',
-            'bifficggej',
+            'gabahhhjf',
         )
         ```
         """
@@ -7337,7 +7332,7 @@ class ConversationActions(Generic[_PrismaModelT]):
         ```py
         user = await Conversation.prisma().query_first(
             'SELECT * FROM Conversation WHERE shopId = $1',
-            'bgbbaajbic',
+            'cjagadcjg',
         )
         ```
         """
@@ -7376,8 +7371,8 @@ class ConversationActions(Generic[_PrismaModelT]):
         conversation = await Conversation.prisma().create(
             data={
                 # data to create a Conversation record
-                'shopId': 'eegghdhjb',
-                'endUserId': 'daafgidjg',
+                'shopId': 'bifficggej',
+                'endUserId': 'bgbbaajbic',
             },
         )
         ```
@@ -7432,13 +7427,13 @@ class ConversationActions(Generic[_PrismaModelT]):
             data=[
                 {
                     # data to create a Conversation record
-                    'shopId': 'gdcgcgagj',
-                    'endUserId': 'bhceabbgja',
+                    'shopId': 'eegghdhjb',
+                    'endUserId': 'daafgidjg',
                 },
                 {
                     # data to create a Conversation record
-                    'shopId': 'ehabfhegh',
-                    'endUserId': 'bcajcajjbc',
+                    'shopId': 'gdcgcgagj',
+                    'endUserId': 'bhceabbgja',
                 },
             ],
             skip_duplicates=True,
@@ -7492,7 +7487,7 @@ class ConversationActions(Generic[_PrismaModelT]):
         ```py
         conversation = await Conversation.prisma().delete(
             where={
-                'id': 'bfdgheeegf',
+                'id': 'ehabfhegh',
             },
         )
         ```
@@ -7544,7 +7539,7 @@ class ConversationActions(Generic[_PrismaModelT]):
         ```py
         conversation = await Conversation.prisma().find_unique(
             where={
-                'id': 'ececbijji',
+                'id': 'bcajcajjbc',
             },
         )
         ```
@@ -7595,7 +7590,7 @@ class ConversationActions(Generic[_PrismaModelT]):
         ```py
         conversation = await Conversation.prisma().find_unique_or_raise(
             where={
-                'id': 'cbcfgdcdhf',
+                'id': 'bfdgheeegf',
             },
         )
         ```
@@ -7847,7 +7842,7 @@ class ConversationActions(Generic[_PrismaModelT]):
         ```py
         conversation = await Conversation.prisma().update(
             where={
-                'id': 'fdgjfbhia',
+                'id': 'ececbijji',
             },
             data={
                 # data to update the Conversation record to
@@ -7904,17 +7899,17 @@ class ConversationActions(Generic[_PrismaModelT]):
         ```py
         conversation = await Conversation.prisma().upsert(
             where={
-                'id': 'jcehcdchh',
+                'id': 'cbcfgdcdhf',
             },
             data={
                 'create': {
-                    'id': 'jcehcdchh',
-                    'shopId': 'ehabfhegh',
-                    'endUserId': 'bcajcajjbc',
+                    'id': 'cbcfgdcdhf',
+                    'shopId': 'gdcgcgagj',
+                    'endUserId': 'bhceabbgja',
                 },
                 'update': {
-                    'shopId': 'ehabfhegh',
-                    'endUserId': 'bcajcajjbc',
+                    'shopId': 'gdcgcgagj',
+                    'endUserId': 'bhceabbgja',
                 },
             },
         )
@@ -8026,7 +8021,7 @@ class ConversationActions(Generic[_PrismaModelT]):
         results = await Conversation.prisma().count(
             select={
                 '_all': True,
-                'id': True,
+                'lastMessageAt': True,
             },
         )
         ```
@@ -8093,7 +8088,7 @@ class ConversationActions(Generic[_PrismaModelT]):
         results = await Conversation.prisma().count(
             select={
                 '_all': True,
-                'shopId': True,
+                'id': True,
             },
         )
         ```
@@ -8233,10 +8228,10 @@ class ConversationActions(Generic[_PrismaModelT]):
         Example
         -------
         ```py
-        # group Conversation records by endUserId values
+        # group Conversation records by shopId values
         # and count how many records are in each group
         results = await Conversation.prisma().group_by(
-            ['endUserId'],
+            ['shopId'],
             count=True,
         )
         ```
@@ -8325,7 +8320,7 @@ class MessageActions(Generic[_PrismaModelT]):
         ```py
         users = await Message.prisma().query_raw(
             'SELECT * FROM Message WHERE id = $1',
-            'bgcbjdhjcc',
+            'fdgjfbhia',
         )
         ```
         """
@@ -8365,7 +8360,7 @@ class MessageActions(Generic[_PrismaModelT]):
         ```py
         user = await Message.prisma().query_first(
             'SELECT * FROM Message WHERE conversationId = $1',
-            'bieiidcabj',
+            'jcehcdchh',
         )
         ```
         """
@@ -8404,9 +8399,9 @@ class MessageActions(Generic[_PrismaModelT]):
         message = await Message.prisma().create(
             data={
                 # data to create a Message record
-                'conversationId': 'bjcbfcieaa',
-                'role': 'cbaaechiej',
-                'content': 'iejbeaaeg',
+                'conversationId': 'bgcbjdhjcc',
+                'role': 'bieiidcabj',
+                'content': 'bjcbfcieaa',
             },
         )
         ```
@@ -8461,15 +8456,15 @@ class MessageActions(Generic[_PrismaModelT]):
             data=[
                 {
                     # data to create a Message record
-                    'conversationId': 'jcibfcbhf',
-                    'role': 'chdadcaga',
-                    'content': 'jicieifbh',
+                    'conversationId': 'cbaaechiej',
+                    'role': 'iejbeaaeg',
+                    'content': 'jcibfcbhf',
                 },
                 {
                     # data to create a Message record
-                    'conversationId': 'fbahdheji',
-                    'role': 'cbbheiicgh',
-                    'content': 'beabjeejdg',
+                    'conversationId': 'chdadcaga',
+                    'role': 'jicieifbh',
+                    'content': 'fbahdheji',
                 },
             ],
             skip_duplicates=True,
@@ -8523,7 +8518,7 @@ class MessageActions(Generic[_PrismaModelT]):
         ```py
         message = await Message.prisma().delete(
             where={
-                'id': 'bcjhgahffd',
+                'id': 'cbbheiicgh',
             },
         )
         ```
@@ -8575,7 +8570,7 @@ class MessageActions(Generic[_PrismaModelT]):
         ```py
         message = await Message.prisma().find_unique(
             where={
-                'id': 'fbjeiiffa',
+                'id': 'beabjeejdg',
             },
         )
         ```
@@ -8626,7 +8621,7 @@ class MessageActions(Generic[_PrismaModelT]):
         ```py
         message = await Message.prisma().find_unique_or_raise(
             where={
-                'id': 'jhgidcgbf',
+                'id': 'bcjhgahffd',
             },
         )
         ```
@@ -8878,7 +8873,7 @@ class MessageActions(Generic[_PrismaModelT]):
         ```py
         message = await Message.prisma().update(
             where={
-                'id': 'bgjgecfejc',
+                'id': 'fbjeiiffa',
             },
             data={
                 # data to update the Message record to
@@ -8935,19 +8930,19 @@ class MessageActions(Generic[_PrismaModelT]):
         ```py
         message = await Message.prisma().upsert(
             where={
-                'id': 'bgjcgchib',
+                'id': 'jhgidcgbf',
             },
             data={
                 'create': {
-                    'id': 'bgjcgchib',
-                    'conversationId': 'fbahdheji',
-                    'role': 'cbbheiicgh',
-                    'content': 'beabjeejdg',
+                    'id': 'jhgidcgbf',
+                    'conversationId': 'chdadcaga',
+                    'role': 'jicieifbh',
+                    'content': 'fbahdheji',
                 },
                 'update': {
-                    'conversationId': 'fbahdheji',
-                    'role': 'cbbheiicgh',
-                    'content': 'beabjeejdg',
+                    'conversationId': 'chdadcaga',
+                    'role': 'jicieifbh',
+                    'content': 'fbahdheji',
                 },
             },
         )
@@ -8995,7 +8990,7 @@ class MessageActions(Generic[_PrismaModelT]):
         # update all Message records
         total = await Message.prisma().update_many(
             data={
-                'id': 'bacdaibgfa'
+                'id': 'bgjgecfejc'
             },
             where={}
         )
@@ -9358,7 +9353,7 @@ class EventActions(Generic[_PrismaModelT]):
         ```py
         users = await Event.prisma().query_raw(
             'SELECT * FROM Event WHERE id = $1',
-            'dchgibach',
+            'bgjcgchib',
         )
         ```
         """
@@ -9398,7 +9393,7 @@ class EventActions(Generic[_PrismaModelT]):
         ```py
         user = await Event.prisma().query_first(
             'SELECT * FROM Event WHERE shopId = $1',
-            'fchheijjc',
+            'bacdaibgfa',
         )
         ```
         """
@@ -9437,8 +9432,8 @@ class EventActions(Generic[_PrismaModelT]):
         event = await Event.prisma().create(
             data={
                 # data to create a Event record
-                'shopId': 'cacjdfhejh',
-                'type': 'bdbifjhbbi',
+                'shopId': 'dchgibach',
+                'type': 'fchheijjc',
             },
         )
         ```
@@ -9493,13 +9488,13 @@ class EventActions(Generic[_PrismaModelT]):
             data=[
                 {
                     # data to create a Event record
-                    'shopId': 'cbccbbcdfb',
-                    'type': 'bacejedaca',
+                    'shopId': 'cacjdfhejh',
+                    'type': 'bdbifjhbbi',
                 },
                 {
                     # data to create a Event record
-                    'shopId': 'bhbhdahfaj',
-                    'type': 'bfjibceaec',
+                    'shopId': 'cbccbbcdfb',
+                    'type': 'bacejedaca',
                 },
             ],
             skip_duplicates=True,
@@ -9553,7 +9548,7 @@ class EventActions(Generic[_PrismaModelT]):
         ```py
         event = await Event.prisma().delete(
             where={
-                'id': 'ibhgcdbgd',
+                'id': 'bhbhdahfaj',
             },
         )
         ```
@@ -9605,7 +9600,7 @@ class EventActions(Generic[_PrismaModelT]):
         ```py
         event = await Event.prisma().find_unique(
             where={
-                'id': 'badaffhddg',
+                'id': 'bfjibceaec',
             },
         )
         ```
@@ -9656,7 +9651,7 @@ class EventActions(Generic[_PrismaModelT]):
         ```py
         event = await Event.prisma().find_unique_or_raise(
             where={
-                'id': 'bbdbfcfihd',
+                'id': 'ibhgcdbgd',
             },
         )
         ```
@@ -9908,7 +9903,7 @@ class EventActions(Generic[_PrismaModelT]):
         ```py
         event = await Event.prisma().update(
             where={
-                'id': 'cbagggbji',
+                'id': 'badaffhddg',
             },
             data={
                 # data to update the Event record to
@@ -9965,17 +9960,17 @@ class EventActions(Generic[_PrismaModelT]):
         ```py
         event = await Event.prisma().upsert(
             where={
-                'id': 'bchgafhjed',
+                'id': 'bbdbfcfihd',
             },
             data={
                 'create': {
-                    'id': 'bchgafhjed',
-                    'shopId': 'bhbhdahfaj',
-                    'type': 'bfjibceaec',
+                    'id': 'bbdbfcfihd',
+                    'shopId': 'cbccbbcdfb',
+                    'type': 'bacejedaca',
                 },
                 'update': {
-                    'shopId': 'bhbhdahfaj',
-                    'type': 'bfjibceaec',
+                    'shopId': 'cbccbbcdfb',
+                    'type': 'bacejedaca',
                 },
             },
         )
@@ -10386,7 +10381,7 @@ class OrderActions(Generic[_PrismaModelT]):
         ```py
         users = await Order.prisma().query_raw(
             'SELECT * FROM Order WHERE id = $1',
-            'heffgjdei',
+            'cbagggbji',
         )
         ```
         """
@@ -10426,7 +10421,7 @@ class OrderActions(Generic[_PrismaModelT]):
         ```py
         user = await Order.prisma().query_first(
             'SELECT * FROM Order WHERE shopId = $1',
-            'dahihgbeb',
+            'bchgafhjed',
         )
         ```
         """
@@ -10465,8 +10460,8 @@ class OrderActions(Generic[_PrismaModelT]):
         order = await Order.prisma().create(
             data={
                 # data to create a Order record
-                'shopId': 'bgheaejbcc',
-                'amount': Decimal('1526854643.95807'),
+                'shopId': 'heffgjdei',
+                'amount': Decimal('307876141.167404'),
             },
         )
         ```
@@ -10521,13 +10516,13 @@ class OrderActions(Generic[_PrismaModelT]):
             data=[
                 {
                     # data to create a Order record
-                    'shopId': 'bfbdafajcb',
-                    'amount': Decimal('204674734.206765'),
+                    'shopId': 'bfcgifeged',
+                    'amount': Decimal('958077104.151305'),
                 },
                 {
                     # data to create a Order record
-                    'shopId': 'bbidjbbjaa',
-                    'amount': Decimal('1589704933.124347'),
+                    'shopId': 'caeghehde',
+                    'amount': Decimal('2067651663.118391'),
                 },
             ],
             skip_duplicates=True,
@@ -10581,7 +10576,7 @@ class OrderActions(Generic[_PrismaModelT]):
         ```py
         order = await Order.prisma().delete(
             where={
-                'id': 'bdgjicijhb',
+                'id': 'bfijhaejdd',
             },
         )
         ```
@@ -10633,7 +10628,7 @@ class OrderActions(Generic[_PrismaModelT]):
         ```py
         order = await Order.prisma().find_unique(
             where={
-                'id': 'bghifjdeia',
+                'id': 'bcedehfiji',
             },
         )
         ```
@@ -10684,7 +10679,7 @@ class OrderActions(Generic[_PrismaModelT]):
         ```py
         order = await Order.prisma().find_unique_or_raise(
             where={
-                'id': 'eadfcbbcb',
+                'id': 'bdgjicijhb',
             },
         )
         ```
@@ -10936,7 +10931,7 @@ class OrderActions(Generic[_PrismaModelT]):
         ```py
         order = await Order.prisma().update(
             where={
-                'id': 'geihgahba',
+                'id': 'bghifjdeia',
             },
             data={
                 # data to update the Order record to
@@ -10993,17 +10988,17 @@ class OrderActions(Generic[_PrismaModelT]):
         ```py
         order = await Order.prisma().upsert(
             where={
-                'id': 'gahdcdhbj',
+                'id': 'eadfcbbcb',
             },
             data={
                 'create': {
-                    'id': 'gahdcdhbj',
-                    'shopId': 'bbidjbbjaa',
-                    'amount': Decimal('1589704933.124347'),
+                    'id': 'eadfcbbcb',
+                    'shopId': 'caeghehde',
+                    'amount': Decimal('2067651663.118391'),
                 },
                 'update': {
-                    'shopId': 'bbidjbbjaa',
-                    'amount': Decimal('1589704933.124347'),
+                    'shopId': 'caeghehde',
+                    'amount': Decimal('2067651663.118391'),
                 },
             },
         )
@@ -11051,7 +11046,7 @@ class OrderActions(Generic[_PrismaModelT]):
         # update all Order records
         total = await Order.prisma().update_many(
             data={
-                'status': 'begiijahea'
+                'status': 'geihgahba'
             },
             where={}
         )

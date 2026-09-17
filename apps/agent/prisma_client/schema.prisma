@@ -22,6 +22,9 @@ model User {
   mobile              String    @unique
   otp                 String?
   otpExpiry           DateTime?
+  // Optional scrypt password hash ("salt:hash"); set from settings so the user
+  // can log in with mobile+password instead of OTP. Null = OTP-only account.
+  password            String?
   fullName            String?
   isVerified          Boolean   @default(false)
   onboardingCompleted Boolean   @default(false)
@@ -46,6 +49,14 @@ model Shop {
   systemPromptExtra String?
   ownerId           String
   createdAt         DateTime @default(now())
+
+  // Rolling-month cap on product *creates* (deploy/README-style lazy reset:
+  // app code checks `now > monthlyUploadsResetAt` before incrementing, rolls
+  // the window forward and zeroes the counter when it has expired, no cron
+  // needed). Separate from the 1000-active-product cap so delete+recreate
+  // cycling can't be used to bypass it - this counts creates, not net rows.
+  monthlyProductUploads Int      @default(0)
+  monthlyUploadsResetAt DateTime @default(now())
 
   owner          User            @relation(fields: [ownerId], references: [id])
   products       Product[]
@@ -124,10 +135,30 @@ model Channel {
 model EndUser {
   id             String   @id @default(cuid())
   shopId         String
-  telegramUserId String
+  // Exactly one of telegramUserId/webVisitorId is set - which channel this
+  // identity came from. Both nullable-unique: Postgres allows any number of
+  // NULLs in a unique index, so a Telegram row's null webVisitorId (and vice
+  // versa) never collides with another row of the other kind.
+  telegramUserId String?
+  webVisitorId   String?
   firstName      String?
   username       String?
   createdAt      DateTime @default(now())
+
+  // Which Conversation this user's next message continues - see
+  // packages/db/src/conversations.ts. Not a Prisma relation on purpose (a
+  // second relation between EndUser and Conversation, alongside
+  // Conversation.endUserId, would need @relation naming on both sides for no
+  // real benefit - this is just an id looked up manually when needed).
+  activeConversationId String?
+
+  // Input-token usage caps (packages/db/src/conversations.ts and
+  // apps/agent/app/server.py enforce these) - lazy reset like
+  // Shop.monthlyProductUploads, no cron needed.
+  weeklyInputTokens  Int      @default(0)
+  weeklyResetAt      DateTime @default(now())
+  monthlyInputTokens Int      @default(0)
+  monthlyResetAt     DateTime @default(now())
 
   shop          Shop           @relation(fields: [shopId], references: [id])
   conversations Conversation[]
@@ -135,16 +166,20 @@ model EndUser {
   orders        Order[]
 
   @@unique([shopId, telegramUserId])
+  @@unique([shopId, webVisitorId])
   @@map("end_users")
 }
 
 model Conversation {
-  id        String   @id @default(cuid())
-  shopId    String
-  endUserId String
-  mode      String   @default("explore")
-  productId String?
-  startedAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  shopId        String
+  endUserId     String
+  mode          String   @default("explore")
+  productId     String?
+  startedAt     DateTime @default(now())
+  // Bumped on every turn - what getOrStartConversation checks against the
+  // 24h window, and what the Telegram/storefront history lists sort by.
+  lastMessageAt DateTime @default(now())
 
   shop     Shop      @relation(fields: [shopId], references: [id])
   endUser  EndUser   @relation(fields: [endUserId], references: [id])

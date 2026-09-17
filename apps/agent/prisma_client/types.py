@@ -1147,6 +1147,7 @@ class UserOptionalCreateInput(TypedDict, total=False):
     id: _str
     otp: Optional[_str]
     otpExpiry: Optional[datetime.datetime]
+    password: Optional[_str]
     fullName: Optional[_str]
     isVerified: _bool
     onboardingCompleted: _bool
@@ -1168,6 +1169,7 @@ class UserOptionalCreateWithoutRelationsInput(TypedDict, total=False):
     id: _str
     otp: Optional[_str]
     otpExpiry: Optional[datetime.datetime]
+    password: Optional[_str]
     fullName: Optional[_str]
     isVerified: _bool
     onboardingCompleted: _bool
@@ -1222,6 +1224,7 @@ class UserUpdateInput(TypedDict, total=False):
     mobile: _str
     otp: Optional[_str]
     otpExpiry: Optional[datetime.datetime]
+    password: Optional[_str]
     fullName: Optional[_str]
     isVerified: _bool
     onboardingCompleted: _bool
@@ -1236,6 +1239,7 @@ class UserUpdateManyMutationInput(TypedDict, total=False):
     mobile: _str
     otp: Optional[_str]
     otpExpiry: Optional[datetime.datetime]
+    password: Optional[_str]
     fullName: Optional[_str]
     isVerified: _bool
     onboardingCompleted: _bool
@@ -1307,6 +1311,14 @@ _User_otpExpiry_OrderByInput = TypedDict(
     total=True
 )
 
+_User_password_OrderByInput = TypedDict(
+    '_User_password_OrderByInput',
+    {
+        'password': 'SortOrder',
+    },
+    total=True
+)
+
 _User_fullName_OrderByInput = TypedDict(
     '_User_fullName_OrderByInput',
     {
@@ -1370,6 +1382,7 @@ UserOrderByInput = Union[
     '_User_mobile_OrderByInput',
     '_User_otp_OrderByInput',
     '_User_otpExpiry_OrderByInput',
+    '_User_password_OrderByInput',
     '_User_fullName_OrderByInput',
     '_User_isVerified_OrderByInput',
     '_User_onboardingCompleted_OrderByInput',
@@ -2654,6 +2667,7 @@ class UserWhereInput(TypedDict, total=False):
     mobile: Union[_str, 'types.StringFilter']
     otp: Union[None, _str, 'types.StringFilter']
     otpExpiry: Union[None, datetime.datetime, 'types.DateTimeFilter']
+    password: Union[None, _str, 'types.StringFilter']
     fullName: Union[None, _str, 'types.StringFilter']
     isVerified: Union[_bool, 'types.BooleanFilter']
     onboardingCompleted: Union[_bool, 'types.BooleanFilter']
@@ -2674,6 +2688,7 @@ class UserWhereInputRecursive1(TypedDict, total=False):
     mobile: Union[_str, 'types.StringFilter']
     otp: Union[None, _str, 'types.StringFilter']
     otpExpiry: Union[None, datetime.datetime, 'types.DateTimeFilter']
+    password: Union[None, _str, 'types.StringFilter']
     fullName: Union[None, _str, 'types.StringFilter']
     isVerified: Union[_bool, 'types.BooleanFilter']
     onboardingCompleted: Union[_bool, 'types.BooleanFilter']
@@ -2694,6 +2709,7 @@ class UserWhereInputRecursive2(TypedDict, total=False):
     mobile: Union[_str, 'types.StringFilter']
     otp: Union[None, _str, 'types.StringFilter']
     otpExpiry: Union[None, datetime.datetime, 'types.DateTimeFilter']
+    password: Union[None, _str, 'types.StringFilter']
     fullName: Union[None, _str, 'types.StringFilter']
     isVerified: Union[_bool, 'types.BooleanFilter']
     onboardingCompleted: Union[_bool, 'types.BooleanFilter']
@@ -2714,6 +2730,7 @@ class UserWhereInputRecursive3(TypedDict, total=False):
     mobile: Union[_str, 'types.StringFilter']
     otp: Union[None, _str, 'types.StringFilter']
     otpExpiry: Union[None, datetime.datetime, 'types.DateTimeFilter']
+    password: Union[None, _str, 'types.StringFilter']
     fullName: Union[None, _str, 'types.StringFilter']
     isVerified: Union[_bool, 'types.BooleanFilter']
     onboardingCompleted: Union[_bool, 'types.BooleanFilter']
@@ -2734,6 +2751,7 @@ class UserWhereInputRecursive4(TypedDict, total=False):
     mobile: Union[_str, 'types.StringFilter']
     otp: Union[None, _str, 'types.StringFilter']
     otpExpiry: Union[None, datetime.datetime, 'types.DateTimeFilter']
+    password: Union[None, _str, 'types.StringFilter']
     fullName: Union[None, _str, 'types.StringFilter']
     isVerified: Union[_bool, 'types.BooleanFilter']
     onboardingCompleted: Union[_bool, 'types.BooleanFilter']
@@ -2754,6 +2772,7 @@ class UserScalarWhereWithAggregatesInput(TypedDict, total=False):
     mobile: Union[_str, 'types.StringWithAggregatesFilter']
     otp: Union[_str, 'types.StringWithAggregatesFilter']
     otpExpiry: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    password: Union[_str, 'types.StringWithAggregatesFilter']
     fullName: Union[_str, 'types.StringWithAggregatesFilter']
     isVerified: Union[_bool, 'types.BooleanWithAggregatesFilter']
     onboardingCompleted: Union[_bool, 'types.BooleanWithAggregatesFilter']
@@ -2771,6 +2790,7 @@ class UserScalarWhereWithAggregatesInputRecursive1(TypedDict, total=False):
     mobile: Union[_str, 'types.StringWithAggregatesFilter']
     otp: Union[_str, 'types.StringWithAggregatesFilter']
     otpExpiry: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    password: Union[_str, 'types.StringWithAggregatesFilter']
     fullName: Union[_str, 'types.StringWithAggregatesFilter']
     isVerified: Union[_bool, 'types.BooleanWithAggregatesFilter']
     onboardingCompleted: Union[_bool, 'types.BooleanWithAggregatesFilter']
@@ -2788,6 +2808,7 @@ class UserScalarWhereWithAggregatesInputRecursive2(TypedDict, total=False):
     mobile: Union[_str, 'types.StringWithAggregatesFilter']
     otp: Union[_str, 'types.StringWithAggregatesFilter']
     otpExpiry: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    password: Union[_str, 'types.StringWithAggregatesFilter']
     fullName: Union[_str, 'types.StringWithAggregatesFilter']
     isVerified: Union[_bool, 'types.BooleanWithAggregatesFilter']
     onboardingCompleted: Union[_bool, 'types.BooleanWithAggregatesFilter']
@@ -2805,6 +2826,7 @@ class UserScalarWhereWithAggregatesInputRecursive3(TypedDict, total=False):
     mobile: Union[_str, 'types.StringWithAggregatesFilter']
     otp: Union[_str, 'types.StringWithAggregatesFilter']
     otpExpiry: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    password: Union[_str, 'types.StringWithAggregatesFilter']
     fullName: Union[_str, 'types.StringWithAggregatesFilter']
     isVerified: Union[_bool, 'types.BooleanWithAggregatesFilter']
     onboardingCompleted: Union[_bool, 'types.BooleanWithAggregatesFilter']
@@ -2822,6 +2844,7 @@ class UserScalarWhereWithAggregatesInputRecursive4(TypedDict, total=False):
     mobile: Union[_str, 'types.StringWithAggregatesFilter']
     otp: Union[_str, 'types.StringWithAggregatesFilter']
     otpExpiry: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    password: Union[_str, 'types.StringWithAggregatesFilter']
     fullName: Union[_str, 'types.StringWithAggregatesFilter']
     isVerified: Union[_bool, 'types.BooleanWithAggregatesFilter']
     onboardingCompleted: Union[_bool, 'types.BooleanWithAggregatesFilter']
@@ -2835,6 +2858,7 @@ class UserGroupByOutput(TypedDict, total=False):
     mobile: _str
     otp: _str
     otpExpiry: datetime.datetime
+    password: _str
     fullName: _str
     isVerified: _bool
     onboardingCompleted: _bool
@@ -2861,6 +2885,7 @@ class UserScalarAggregateOutput(TypedDict, total=False):
     mobile: _str
     otp: _str
     otpExpiry: datetime.datetime
+    password: _str
     fullName: _str
     isVerified: _bool
     onboardingCompleted: _bool
@@ -2878,6 +2903,7 @@ class UserMaxAggregateInput(TypedDict, total=False):
     mobile: bool
     otp: bool
     otpExpiry: bool
+    password: bool
     fullName: bool
     isVerified: bool
     onboardingCompleted: bool
@@ -2891,6 +2917,7 @@ class UserMinAggregateInput(TypedDict, total=False):
     mobile: bool
     otp: bool
     otpExpiry: bool
+    password: bool
     fullName: bool
     isVerified: bool
     onboardingCompleted: bool
@@ -2913,6 +2940,7 @@ UserCountAggregateInput = TypedDict(
         'mobile': bool,
         'otp': bool,
         'otpExpiry': bool,
+        'password': bool,
         'fullName': bool,
         'isVerified': bool,
         'onboardingCompleted': bool,
@@ -2930,6 +2958,7 @@ UserCountAggregateOutput = TypedDict(
         'mobile': int,
         'otp': int,
         'otpExpiry': int,
+        'password': int,
         'fullName': int,
         'isVerified': int,
         'onboardingCompleted': int,
@@ -2946,6 +2975,7 @@ UserKeys = Literal[
     'mobile',
     'otp',
     'otpExpiry',
+    'password',
     'fullName',
     'isVerified',
     'onboardingCompleted',
@@ -2958,6 +2988,7 @@ UserScalarFieldKeys = Literal[
     'mobile',
     'otp',
     'otpExpiry',
+    'password',
     'fullName',
     'isVerified',
     'onboardingCompleted',
@@ -2984,6 +3015,8 @@ class ShopOptionalCreateInput(TypedDict, total=False):
     systemPromptExtra: Optional[_str]
     ownerId: _str
     createdAt: datetime.datetime
+    monthlyProductUploads: _int
+    monthlyUploadsResetAt: datetime.datetime
     owner: 'UserCreateNestedWithoutRelationsInput'
     products: 'ProductCreateManyNestedWithoutRelationsInput'
     faqItems: 'FaqItemCreateManyNestedWithoutRelationsInput'
@@ -3016,6 +3049,8 @@ class ShopOptionalCreateWithoutRelationsInput(TypedDict, total=False):
     systemPromptExtra: Optional[_str]
     ownerId: _str
     createdAt: datetime.datetime
+    monthlyProductUploads: _int
+    monthlyUploadsResetAt: datetime.datetime
 
 
 class ShopCreateWithoutRelationsInput(ShopOptionalCreateWithoutRelationsInput):
@@ -3073,6 +3108,8 @@ class ShopUpdateInput(TypedDict, total=False):
     personaTone: Optional[_str]
     systemPromptExtra: Optional[_str]
     createdAt: datetime.datetime
+    monthlyProductUploads: Union[AtomicIntInput, _int]
+    monthlyUploadsResetAt: datetime.datetime
     owner: 'UserUpdateOneWithoutRelationsInput'
     products: 'ProductUpdateManyWithoutRelationsInput'
     faqItems: 'FaqItemUpdateManyWithoutRelationsInput'
@@ -3097,6 +3134,8 @@ class ShopUpdateManyMutationInput(TypedDict, total=False):
     personaTone: Optional[_str]
     systemPromptExtra: Optional[_str]
     createdAt: datetime.datetime
+    monthlyProductUploads: Union[AtomicIntInput, _int]
+    monthlyUploadsResetAt: datetime.datetime
 
 
 class ShopUpdateManyWithoutRelationsInput(TypedDict, total=False):
@@ -3227,6 +3266,22 @@ _Shop_createdAt_OrderByInput = TypedDict(
     total=True
 )
 
+_Shop_monthlyProductUploads_OrderByInput = TypedDict(
+    '_Shop_monthlyProductUploads_OrderByInput',
+    {
+        'monthlyProductUploads': 'SortOrder',
+    },
+    total=True
+)
+
+_Shop_monthlyUploadsResetAt_OrderByInput = TypedDict(
+    '_Shop_monthlyUploadsResetAt_OrderByInput',
+    {
+        'monthlyUploadsResetAt': 'SortOrder',
+    },
+    total=True
+)
+
 _Shop_RelevanceInner = TypedDict(
     '_Shop_RelevanceInner',
     {
@@ -3258,6 +3313,8 @@ ShopOrderByInput = Union[
     '_Shop_systemPromptExtra_OrderByInput',
     '_Shop_ownerId_OrderByInput',
     '_Shop_createdAt_OrderByInput',
+    '_Shop_monthlyProductUploads_OrderByInput',
+    '_Shop_monthlyUploadsResetAt_OrderByInput',
     '_Shop_RelevanceOrderByInput',
 ]
 
@@ -4553,6 +4610,8 @@ class ShopWhereInput(TypedDict, total=False):
     systemPromptExtra: Union[None, _str, 'types.StringFilter']
     ownerId: Union[_str, 'types.StringFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    monthlyProductUploads: Union[_int, 'types.IntFilter']
+    monthlyUploadsResetAt: Union[datetime.datetime, 'types.DateTimeFilter']
     owner: 'UserRelationFilter'
     products: 'ProductListRelationFilter'
     faqItems: 'FaqItemListRelationFilter'
@@ -4584,6 +4643,8 @@ class ShopWhereInputRecursive1(TypedDict, total=False):
     systemPromptExtra: Union[None, _str, 'types.StringFilter']
     ownerId: Union[_str, 'types.StringFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    monthlyProductUploads: Union[_int, 'types.IntFilter']
+    monthlyUploadsResetAt: Union[datetime.datetime, 'types.DateTimeFilter']
     owner: 'UserRelationFilter'
     products: 'ProductListRelationFilter'
     faqItems: 'FaqItemListRelationFilter'
@@ -4615,6 +4676,8 @@ class ShopWhereInputRecursive2(TypedDict, total=False):
     systemPromptExtra: Union[None, _str, 'types.StringFilter']
     ownerId: Union[_str, 'types.StringFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    monthlyProductUploads: Union[_int, 'types.IntFilter']
+    monthlyUploadsResetAt: Union[datetime.datetime, 'types.DateTimeFilter']
     owner: 'UserRelationFilter'
     products: 'ProductListRelationFilter'
     faqItems: 'FaqItemListRelationFilter'
@@ -4646,6 +4709,8 @@ class ShopWhereInputRecursive3(TypedDict, total=False):
     systemPromptExtra: Union[None, _str, 'types.StringFilter']
     ownerId: Union[_str, 'types.StringFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    monthlyProductUploads: Union[_int, 'types.IntFilter']
+    monthlyUploadsResetAt: Union[datetime.datetime, 'types.DateTimeFilter']
     owner: 'UserRelationFilter'
     products: 'ProductListRelationFilter'
     faqItems: 'FaqItemListRelationFilter'
@@ -4677,6 +4742,8 @@ class ShopWhereInputRecursive4(TypedDict, total=False):
     systemPromptExtra: Union[None, _str, 'types.StringFilter']
     ownerId: Union[_str, 'types.StringFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    monthlyProductUploads: Union[_int, 'types.IntFilter']
+    monthlyUploadsResetAt: Union[datetime.datetime, 'types.DateTimeFilter']
     owner: 'UserRelationFilter'
     products: 'ProductListRelationFilter'
     faqItems: 'FaqItemListRelationFilter'
@@ -4708,6 +4775,8 @@ class ShopScalarWhereWithAggregatesInput(TypedDict, total=False):
     systemPromptExtra: Union[_str, 'types.StringWithAggregatesFilter']
     ownerId: Union[_str, 'types.StringWithAggregatesFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    monthlyProductUploads: Union[_int, 'types.IntWithAggregatesFilter']
+    monthlyUploadsResetAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
 
     AND: List['ShopScalarWhereWithAggregatesInputRecursive1']
     OR: List['ShopScalarWhereWithAggregatesInputRecursive1']
@@ -4728,6 +4797,8 @@ class ShopScalarWhereWithAggregatesInputRecursive1(TypedDict, total=False):
     systemPromptExtra: Union[_str, 'types.StringWithAggregatesFilter']
     ownerId: Union[_str, 'types.StringWithAggregatesFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    monthlyProductUploads: Union[_int, 'types.IntWithAggregatesFilter']
+    monthlyUploadsResetAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
 
     AND: List['ShopScalarWhereWithAggregatesInputRecursive2']
     OR: List['ShopScalarWhereWithAggregatesInputRecursive2']
@@ -4748,6 +4819,8 @@ class ShopScalarWhereWithAggregatesInputRecursive2(TypedDict, total=False):
     systemPromptExtra: Union[_str, 'types.StringWithAggregatesFilter']
     ownerId: Union[_str, 'types.StringWithAggregatesFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    monthlyProductUploads: Union[_int, 'types.IntWithAggregatesFilter']
+    monthlyUploadsResetAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
 
     AND: List['ShopScalarWhereWithAggregatesInputRecursive3']
     OR: List['ShopScalarWhereWithAggregatesInputRecursive3']
@@ -4768,6 +4841,8 @@ class ShopScalarWhereWithAggregatesInputRecursive3(TypedDict, total=False):
     systemPromptExtra: Union[_str, 'types.StringWithAggregatesFilter']
     ownerId: Union[_str, 'types.StringWithAggregatesFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    monthlyProductUploads: Union[_int, 'types.IntWithAggregatesFilter']
+    monthlyUploadsResetAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
 
     AND: List['ShopScalarWhereWithAggregatesInputRecursive4']
     OR: List['ShopScalarWhereWithAggregatesInputRecursive4']
@@ -4788,6 +4863,8 @@ class ShopScalarWhereWithAggregatesInputRecursive4(TypedDict, total=False):
     systemPromptExtra: Union[_str, 'types.StringWithAggregatesFilter']
     ownerId: Union[_str, 'types.StringWithAggregatesFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    monthlyProductUploads: Union[_int, 'types.IntWithAggregatesFilter']
+    monthlyUploadsResetAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
 
 
 
@@ -4804,6 +4881,8 @@ class ShopGroupByOutput(TypedDict, total=False):
     systemPromptExtra: _str
     ownerId: _str
     createdAt: datetime.datetime
+    monthlyProductUploads: _int
+    monthlyUploadsResetAt: datetime.datetime
     _sum: 'ShopSumAggregateOutput'
     _avg: 'ShopAvgAggregateOutput'
     _min: 'ShopMinAggregateOutput'
@@ -4813,10 +4892,12 @@ class ShopGroupByOutput(TypedDict, total=False):
 
 class ShopAvgAggregateOutput(TypedDict, total=False):
     """Shop output for aggregating averages"""
+    monthlyProductUploads: float
 
 
 class ShopSumAggregateOutput(TypedDict, total=False):
     """Shop output for aggregating sums"""
+    monthlyProductUploads: _int
 
 
 class ShopScalarAggregateOutput(TypedDict, total=False):
@@ -4833,6 +4914,8 @@ class ShopScalarAggregateOutput(TypedDict, total=False):
     systemPromptExtra: _str
     ownerId: _str
     createdAt: datetime.datetime
+    monthlyProductUploads: _int
+    monthlyUploadsResetAt: datetime.datetime
 
 
 ShopMinAggregateOutput = ShopScalarAggregateOutput
@@ -4853,6 +4936,8 @@ class ShopMaxAggregateInput(TypedDict, total=False):
     systemPromptExtra: bool
     ownerId: bool
     createdAt: bool
+    monthlyProductUploads: bool
+    monthlyUploadsResetAt: bool
 
 
 class ShopMinAggregateInput(TypedDict, total=False):
@@ -4869,10 +4954,13 @@ class ShopMinAggregateInput(TypedDict, total=False):
     systemPromptExtra: bool
     ownerId: bool
     createdAt: bool
+    monthlyProductUploads: bool
+    monthlyUploadsResetAt: bool
 
 
 class ShopNumberAggregateInput(TypedDict, total=False):
     """Shop input for aggregating numbers"""
+    monthlyProductUploads: bool
 
 
 ShopAvgAggregateInput = ShopNumberAggregateInput
@@ -4894,6 +4982,8 @@ ShopCountAggregateInput = TypedDict(
         'systemPromptExtra': bool,
         'ownerId': bool,
         'createdAt': bool,
+        'monthlyProductUploads': bool,
+        'monthlyUploadsResetAt': bool,
         '_all': bool,
     },
     total=False,
@@ -4914,6 +5004,8 @@ ShopCountAggregateOutput = TypedDict(
         'systemPromptExtra': int,
         'ownerId': int,
         'createdAt': int,
+        'monthlyProductUploads': int,
+        'monthlyUploadsResetAt': int,
         '_all': int,
     },
     total=False,
@@ -4933,6 +5025,8 @@ ShopKeys = Literal[
     'systemPromptExtra',
     'ownerId',
     'createdAt',
+    'monthlyProductUploads',
+    'monthlyUploadsResetAt',
     'owner',
     'products',
     'faqItems',
@@ -4956,6 +5050,8 @@ ShopScalarFieldKeys = Literal[
     'systemPromptExtra',
     'ownerId',
     'createdAt',
+    'monthlyProductUploads',
+    'monthlyUploadsResetAt',
 ]
 ShopScalarFieldKeysT = TypeVar('ShopScalarFieldKeysT', bound=ShopScalarFieldKeys)
 
@@ -11896,9 +11992,16 @@ class EndUserOptionalCreateInput(TypedDict, total=False):
     """Optional arguments to the EndUser create method"""
     id: _str
     shopId: _str
+    telegramUserId: Optional[_str]
+    webVisitorId: Optional[_str]
     firstName: Optional[_str]
     username: Optional[_str]
     createdAt: datetime.datetime
+    activeConversationId: Optional[_str]
+    weeklyInputTokens: _int
+    weeklyResetAt: datetime.datetime
+    monthlyInputTokens: _int
+    monthlyResetAt: datetime.datetime
     shop: 'ShopCreateNestedWithoutRelationsInput'
     conversations: 'ConversationCreateManyNestedWithoutRelationsInput'
     events: 'EventCreateManyNestedWithoutRelationsInput'
@@ -11907,7 +12010,6 @@ class EndUserOptionalCreateInput(TypedDict, total=False):
 
 class EndUserCreateInput(EndUserOptionalCreateInput):
     """Required arguments to the EndUser create method"""
-    telegramUserId: _str
 
 
 # TODO: remove this in favour of without explicit relations
@@ -11917,14 +12019,20 @@ class EndUserOptionalCreateWithoutRelationsInput(TypedDict, total=False):
     """Optional arguments to the EndUser create method, without relations"""
     id: _str
     shopId: _str
+    telegramUserId: Optional[_str]
+    webVisitorId: Optional[_str]
     firstName: Optional[_str]
     username: Optional[_str]
     createdAt: datetime.datetime
+    activeConversationId: Optional[_str]
+    weeklyInputTokens: _int
+    weeklyResetAt: datetime.datetime
+    monthlyInputTokens: _int
+    monthlyResetAt: datetime.datetime
 
 
 class EndUserCreateWithoutRelationsInput(EndUserOptionalCreateWithoutRelationsInput):
     """Required arguments to the EndUser create method, without relations"""
-    telegramUserId: _str
 
 class EndUserConnectOrCreateWithoutRelationsInput(TypedDict):
     create: 'EndUserCreateWithoutRelationsInput'
@@ -11966,19 +12074,43 @@ _EndUserCompoundshopId_telegramUserIdKey = TypedDict(
     total=True
 )
 
+_EndUserCompoundshopId_webVisitorIdKeyInner = TypedDict(
+    '_EndUserCompoundshopId_webVisitorIdKeyInner',
+    {
+        'shopId': '_str',
+        'webVisitorId': '_str',
+    },
+    total=True
+)
+
+_EndUserCompoundshopId_webVisitorIdKey = TypedDict(
+    '_EndUserCompoundshopId_webVisitorIdKey',
+    {
+        'shopId_webVisitorId': '_EndUserCompoundshopId_webVisitorIdKeyInner',
+    },
+    total=True
+)
+
 EndUserWhereUniqueInput = Union[
     '_EndUserWhereUnique_id_Input',
     '_EndUserCompoundshopId_telegramUserIdKey',
+    '_EndUserCompoundshopId_webVisitorIdKey',
 ]
 
 
 class EndUserUpdateInput(TypedDict, total=False):
     """Optional arguments for updating a record"""
     id: _str
-    telegramUserId: _str
+    telegramUserId: Optional[_str]
+    webVisitorId: Optional[_str]
     firstName: Optional[_str]
     username: Optional[_str]
     createdAt: datetime.datetime
+    activeConversationId: Optional[_str]
+    weeklyInputTokens: Union[AtomicIntInput, _int]
+    weeklyResetAt: datetime.datetime
+    monthlyInputTokens: Union[AtomicIntInput, _int]
+    monthlyResetAt: datetime.datetime
     shop: 'ShopUpdateOneWithoutRelationsInput'
     conversations: 'ConversationUpdateManyWithoutRelationsInput'
     events: 'EventUpdateManyWithoutRelationsInput'
@@ -11988,10 +12120,16 @@ class EndUserUpdateInput(TypedDict, total=False):
 class EndUserUpdateManyMutationInput(TypedDict, total=False):
     """Arguments for updating many records"""
     id: _str
-    telegramUserId: _str
+    telegramUserId: Optional[_str]
+    webVisitorId: Optional[_str]
     firstName: Optional[_str]
     username: Optional[_str]
     createdAt: datetime.datetime
+    activeConversationId: Optional[_str]
+    weeklyInputTokens: Union[AtomicIntInput, _int]
+    weeklyResetAt: datetime.datetime
+    monthlyInputTokens: Union[AtomicIntInput, _int]
+    monthlyResetAt: datetime.datetime
 
 
 class EndUserUpdateManyWithoutRelationsInput(TypedDict, total=False):
@@ -12050,6 +12188,14 @@ _EndUser_telegramUserId_OrderByInput = TypedDict(
     total=True
 )
 
+_EndUser_webVisitorId_OrderByInput = TypedDict(
+    '_EndUser_webVisitorId_OrderByInput',
+    {
+        'webVisitorId': 'SortOrder',
+    },
+    total=True
+)
+
 _EndUser_firstName_OrderByInput = TypedDict(
     '_EndUser_firstName_OrderByInput',
     {
@@ -12070,6 +12216,46 @@ _EndUser_createdAt_OrderByInput = TypedDict(
     '_EndUser_createdAt_OrderByInput',
     {
         'createdAt': 'SortOrder',
+    },
+    total=True
+)
+
+_EndUser_activeConversationId_OrderByInput = TypedDict(
+    '_EndUser_activeConversationId_OrderByInput',
+    {
+        'activeConversationId': 'SortOrder',
+    },
+    total=True
+)
+
+_EndUser_weeklyInputTokens_OrderByInput = TypedDict(
+    '_EndUser_weeklyInputTokens_OrderByInput',
+    {
+        'weeklyInputTokens': 'SortOrder',
+    },
+    total=True
+)
+
+_EndUser_weeklyResetAt_OrderByInput = TypedDict(
+    '_EndUser_weeklyResetAt_OrderByInput',
+    {
+        'weeklyResetAt': 'SortOrder',
+    },
+    total=True
+)
+
+_EndUser_monthlyInputTokens_OrderByInput = TypedDict(
+    '_EndUser_monthlyInputTokens_OrderByInput',
+    {
+        'monthlyInputTokens': 'SortOrder',
+    },
+    total=True
+)
+
+_EndUser_monthlyResetAt_OrderByInput = TypedDict(
+    '_EndUser_monthlyResetAt_OrderByInput',
+    {
+        'monthlyResetAt': 'SortOrder',
     },
     total=True
 )
@@ -12096,9 +12282,15 @@ EndUserOrderByInput = Union[
     '_EndUser_id_OrderByInput',
     '_EndUser_shopId_OrderByInput',
     '_EndUser_telegramUserId_OrderByInput',
+    '_EndUser_webVisitorId_OrderByInput',
     '_EndUser_firstName_OrderByInput',
     '_EndUser_username_OrderByInput',
     '_EndUser_createdAt_OrderByInput',
+    '_EndUser_activeConversationId_OrderByInput',
+    '_EndUser_weeklyInputTokens_OrderByInput',
+    '_EndUser_weeklyResetAt_OrderByInput',
+    '_EndUser_monthlyInputTokens_OrderByInput',
+    '_EndUser_monthlyResetAt_OrderByInput',
     '_EndUser_RelevanceOrderByInput',
 ]
 
@@ -13379,10 +13571,16 @@ class EndUserWhereInput(TypedDict, total=False):
     """EndUser arguments for searching"""
     id: Union[_str, 'types.StringFilter']
     shopId: Union[_str, 'types.StringFilter']
-    telegramUserId: Union[_str, 'types.StringFilter']
+    telegramUserId: Union[None, _str, 'types.StringFilter']
+    webVisitorId: Union[None, _str, 'types.StringFilter']
     firstName: Union[None, _str, 'types.StringFilter']
     username: Union[None, _str, 'types.StringFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    activeConversationId: Union[None, _str, 'types.StringFilter']
+    weeklyInputTokens: Union[_int, 'types.IntFilter']
+    weeklyResetAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    monthlyInputTokens: Union[_int, 'types.IntFilter']
+    monthlyResetAt: Union[datetime.datetime, 'types.DateTimeFilter']
     shop: 'ShopRelationFilter'
     conversations: 'ConversationListRelationFilter'
     events: 'EventListRelationFilter'
@@ -13399,10 +13597,16 @@ class EndUserWhereInputRecursive1(TypedDict, total=False):
     """EndUser arguments for searching"""
     id: Union[_str, 'types.StringFilter']
     shopId: Union[_str, 'types.StringFilter']
-    telegramUserId: Union[_str, 'types.StringFilter']
+    telegramUserId: Union[None, _str, 'types.StringFilter']
+    webVisitorId: Union[None, _str, 'types.StringFilter']
     firstName: Union[None, _str, 'types.StringFilter']
     username: Union[None, _str, 'types.StringFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    activeConversationId: Union[None, _str, 'types.StringFilter']
+    weeklyInputTokens: Union[_int, 'types.IntFilter']
+    weeklyResetAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    monthlyInputTokens: Union[_int, 'types.IntFilter']
+    monthlyResetAt: Union[datetime.datetime, 'types.DateTimeFilter']
     shop: 'ShopRelationFilter'
     conversations: 'ConversationListRelationFilter'
     events: 'EventListRelationFilter'
@@ -13419,10 +13623,16 @@ class EndUserWhereInputRecursive2(TypedDict, total=False):
     """EndUser arguments for searching"""
     id: Union[_str, 'types.StringFilter']
     shopId: Union[_str, 'types.StringFilter']
-    telegramUserId: Union[_str, 'types.StringFilter']
+    telegramUserId: Union[None, _str, 'types.StringFilter']
+    webVisitorId: Union[None, _str, 'types.StringFilter']
     firstName: Union[None, _str, 'types.StringFilter']
     username: Union[None, _str, 'types.StringFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    activeConversationId: Union[None, _str, 'types.StringFilter']
+    weeklyInputTokens: Union[_int, 'types.IntFilter']
+    weeklyResetAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    monthlyInputTokens: Union[_int, 'types.IntFilter']
+    monthlyResetAt: Union[datetime.datetime, 'types.DateTimeFilter']
     shop: 'ShopRelationFilter'
     conversations: 'ConversationListRelationFilter'
     events: 'EventListRelationFilter'
@@ -13439,10 +13649,16 @@ class EndUserWhereInputRecursive3(TypedDict, total=False):
     """EndUser arguments for searching"""
     id: Union[_str, 'types.StringFilter']
     shopId: Union[_str, 'types.StringFilter']
-    telegramUserId: Union[_str, 'types.StringFilter']
+    telegramUserId: Union[None, _str, 'types.StringFilter']
+    webVisitorId: Union[None, _str, 'types.StringFilter']
     firstName: Union[None, _str, 'types.StringFilter']
     username: Union[None, _str, 'types.StringFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    activeConversationId: Union[None, _str, 'types.StringFilter']
+    weeklyInputTokens: Union[_int, 'types.IntFilter']
+    weeklyResetAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    monthlyInputTokens: Union[_int, 'types.IntFilter']
+    monthlyResetAt: Union[datetime.datetime, 'types.DateTimeFilter']
     shop: 'ShopRelationFilter'
     conversations: 'ConversationListRelationFilter'
     events: 'EventListRelationFilter'
@@ -13459,10 +13675,16 @@ class EndUserWhereInputRecursive4(TypedDict, total=False):
     """EndUser arguments for searching"""
     id: Union[_str, 'types.StringFilter']
     shopId: Union[_str, 'types.StringFilter']
-    telegramUserId: Union[_str, 'types.StringFilter']
+    telegramUserId: Union[None, _str, 'types.StringFilter']
+    webVisitorId: Union[None, _str, 'types.StringFilter']
     firstName: Union[None, _str, 'types.StringFilter']
     username: Union[None, _str, 'types.StringFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    activeConversationId: Union[None, _str, 'types.StringFilter']
+    weeklyInputTokens: Union[_int, 'types.IntFilter']
+    weeklyResetAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    monthlyInputTokens: Union[_int, 'types.IntFilter']
+    monthlyResetAt: Union[datetime.datetime, 'types.DateTimeFilter']
     shop: 'ShopRelationFilter'
     conversations: 'ConversationListRelationFilter'
     events: 'EventListRelationFilter'
@@ -13480,9 +13702,15 @@ class EndUserScalarWhereWithAggregatesInput(TypedDict, total=False):
     id: Union[_str, 'types.StringWithAggregatesFilter']
     shopId: Union[_str, 'types.StringWithAggregatesFilter']
     telegramUserId: Union[_str, 'types.StringWithAggregatesFilter']
+    webVisitorId: Union[_str, 'types.StringWithAggregatesFilter']
     firstName: Union[_str, 'types.StringWithAggregatesFilter']
     username: Union[_str, 'types.StringWithAggregatesFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    activeConversationId: Union[_str, 'types.StringWithAggregatesFilter']
+    weeklyInputTokens: Union[_int, 'types.IntWithAggregatesFilter']
+    weeklyResetAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    monthlyInputTokens: Union[_int, 'types.IntWithAggregatesFilter']
+    monthlyResetAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
 
     AND: List['EndUserScalarWhereWithAggregatesInputRecursive1']
     OR: List['EndUserScalarWhereWithAggregatesInputRecursive1']
@@ -13494,9 +13722,15 @@ class EndUserScalarWhereWithAggregatesInputRecursive1(TypedDict, total=False):
     id: Union[_str, 'types.StringWithAggregatesFilter']
     shopId: Union[_str, 'types.StringWithAggregatesFilter']
     telegramUserId: Union[_str, 'types.StringWithAggregatesFilter']
+    webVisitorId: Union[_str, 'types.StringWithAggregatesFilter']
     firstName: Union[_str, 'types.StringWithAggregatesFilter']
     username: Union[_str, 'types.StringWithAggregatesFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    activeConversationId: Union[_str, 'types.StringWithAggregatesFilter']
+    weeklyInputTokens: Union[_int, 'types.IntWithAggregatesFilter']
+    weeklyResetAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    monthlyInputTokens: Union[_int, 'types.IntWithAggregatesFilter']
+    monthlyResetAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
 
     AND: List['EndUserScalarWhereWithAggregatesInputRecursive2']
     OR: List['EndUserScalarWhereWithAggregatesInputRecursive2']
@@ -13508,9 +13742,15 @@ class EndUserScalarWhereWithAggregatesInputRecursive2(TypedDict, total=False):
     id: Union[_str, 'types.StringWithAggregatesFilter']
     shopId: Union[_str, 'types.StringWithAggregatesFilter']
     telegramUserId: Union[_str, 'types.StringWithAggregatesFilter']
+    webVisitorId: Union[_str, 'types.StringWithAggregatesFilter']
     firstName: Union[_str, 'types.StringWithAggregatesFilter']
     username: Union[_str, 'types.StringWithAggregatesFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    activeConversationId: Union[_str, 'types.StringWithAggregatesFilter']
+    weeklyInputTokens: Union[_int, 'types.IntWithAggregatesFilter']
+    weeklyResetAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    monthlyInputTokens: Union[_int, 'types.IntWithAggregatesFilter']
+    monthlyResetAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
 
     AND: List['EndUserScalarWhereWithAggregatesInputRecursive3']
     OR: List['EndUserScalarWhereWithAggregatesInputRecursive3']
@@ -13522,9 +13762,15 @@ class EndUserScalarWhereWithAggregatesInputRecursive3(TypedDict, total=False):
     id: Union[_str, 'types.StringWithAggregatesFilter']
     shopId: Union[_str, 'types.StringWithAggregatesFilter']
     telegramUserId: Union[_str, 'types.StringWithAggregatesFilter']
+    webVisitorId: Union[_str, 'types.StringWithAggregatesFilter']
     firstName: Union[_str, 'types.StringWithAggregatesFilter']
     username: Union[_str, 'types.StringWithAggregatesFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    activeConversationId: Union[_str, 'types.StringWithAggregatesFilter']
+    weeklyInputTokens: Union[_int, 'types.IntWithAggregatesFilter']
+    weeklyResetAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    monthlyInputTokens: Union[_int, 'types.IntWithAggregatesFilter']
+    monthlyResetAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
 
     AND: List['EndUserScalarWhereWithAggregatesInputRecursive4']
     OR: List['EndUserScalarWhereWithAggregatesInputRecursive4']
@@ -13536,9 +13782,15 @@ class EndUserScalarWhereWithAggregatesInputRecursive4(TypedDict, total=False):
     id: Union[_str, 'types.StringWithAggregatesFilter']
     shopId: Union[_str, 'types.StringWithAggregatesFilter']
     telegramUserId: Union[_str, 'types.StringWithAggregatesFilter']
+    webVisitorId: Union[_str, 'types.StringWithAggregatesFilter']
     firstName: Union[_str, 'types.StringWithAggregatesFilter']
     username: Union[_str, 'types.StringWithAggregatesFilter']
     createdAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    activeConversationId: Union[_str, 'types.StringWithAggregatesFilter']
+    weeklyInputTokens: Union[_int, 'types.IntWithAggregatesFilter']
+    weeklyResetAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    monthlyInputTokens: Union[_int, 'types.IntWithAggregatesFilter']
+    monthlyResetAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
 
 
 
@@ -13546,9 +13798,15 @@ class EndUserGroupByOutput(TypedDict, total=False):
     id: _str
     shopId: _str
     telegramUserId: _str
+    webVisitorId: _str
     firstName: _str
     username: _str
     createdAt: datetime.datetime
+    activeConversationId: _str
+    weeklyInputTokens: _int
+    weeklyResetAt: datetime.datetime
+    monthlyInputTokens: _int
+    monthlyResetAt: datetime.datetime
     _sum: 'EndUserSumAggregateOutput'
     _avg: 'EndUserAvgAggregateOutput'
     _min: 'EndUserMinAggregateOutput'
@@ -13558,10 +13816,14 @@ class EndUserGroupByOutput(TypedDict, total=False):
 
 class EndUserAvgAggregateOutput(TypedDict, total=False):
     """EndUser output for aggregating averages"""
+    weeklyInputTokens: float
+    monthlyInputTokens: float
 
 
 class EndUserSumAggregateOutput(TypedDict, total=False):
     """EndUser output for aggregating sums"""
+    weeklyInputTokens: _int
+    monthlyInputTokens: _int
 
 
 class EndUserScalarAggregateOutput(TypedDict, total=False):
@@ -13569,9 +13831,15 @@ class EndUserScalarAggregateOutput(TypedDict, total=False):
     id: _str
     shopId: _str
     telegramUserId: _str
+    webVisitorId: _str
     firstName: _str
     username: _str
     createdAt: datetime.datetime
+    activeConversationId: _str
+    weeklyInputTokens: _int
+    weeklyResetAt: datetime.datetime
+    monthlyInputTokens: _int
+    monthlyResetAt: datetime.datetime
 
 
 EndUserMinAggregateOutput = EndUserScalarAggregateOutput
@@ -13583,9 +13851,15 @@ class EndUserMaxAggregateInput(TypedDict, total=False):
     id: bool
     shopId: bool
     telegramUserId: bool
+    webVisitorId: bool
     firstName: bool
     username: bool
     createdAt: bool
+    activeConversationId: bool
+    weeklyInputTokens: bool
+    weeklyResetAt: bool
+    monthlyInputTokens: bool
+    monthlyResetAt: bool
 
 
 class EndUserMinAggregateInput(TypedDict, total=False):
@@ -13593,13 +13867,21 @@ class EndUserMinAggregateInput(TypedDict, total=False):
     id: bool
     shopId: bool
     telegramUserId: bool
+    webVisitorId: bool
     firstName: bool
     username: bool
     createdAt: bool
+    activeConversationId: bool
+    weeklyInputTokens: bool
+    weeklyResetAt: bool
+    monthlyInputTokens: bool
+    monthlyResetAt: bool
 
 
 class EndUserNumberAggregateInput(TypedDict, total=False):
     """EndUser input for aggregating numbers"""
+    weeklyInputTokens: bool
+    monthlyInputTokens: bool
 
 
 EndUserAvgAggregateInput = EndUserNumberAggregateInput
@@ -13612,9 +13894,15 @@ EndUserCountAggregateInput = TypedDict(
         'id': bool,
         'shopId': bool,
         'telegramUserId': bool,
+        'webVisitorId': bool,
         'firstName': bool,
         'username': bool,
         'createdAt': bool,
+        'activeConversationId': bool,
+        'weeklyInputTokens': bool,
+        'weeklyResetAt': bool,
+        'monthlyInputTokens': bool,
+        'monthlyResetAt': bool,
         '_all': bool,
     },
     total=False,
@@ -13626,9 +13914,15 @@ EndUserCountAggregateOutput = TypedDict(
         'id': int,
         'shopId': int,
         'telegramUserId': int,
+        'webVisitorId': int,
         'firstName': int,
         'username': int,
         'createdAt': int,
+        'activeConversationId': int,
+        'weeklyInputTokens': int,
+        'weeklyResetAt': int,
+        'monthlyInputTokens': int,
+        'monthlyResetAt': int,
         '_all': int,
     },
     total=False,
@@ -13639,9 +13933,15 @@ EndUserKeys = Literal[
     'id',
     'shopId',
     'telegramUserId',
+    'webVisitorId',
     'firstName',
     'username',
     'createdAt',
+    'activeConversationId',
+    'weeklyInputTokens',
+    'weeklyResetAt',
+    'monthlyInputTokens',
+    'monthlyResetAt',
     'shop',
     'conversations',
     'events',
@@ -13651,9 +13951,15 @@ EndUserScalarFieldKeys = Literal[
     'id',
     'shopId',
     'telegramUserId',
+    'webVisitorId',
     'firstName',
     'username',
     'createdAt',
+    'activeConversationId',
+    'weeklyInputTokens',
+    'weeklyResetAt',
+    'monthlyInputTokens',
+    'monthlyResetAt',
 ]
 EndUserScalarFieldKeysT = TypeVar('EndUserScalarFieldKeysT', bound=EndUserScalarFieldKeys)
 
@@ -13674,6 +13980,7 @@ class ConversationOptionalCreateInput(TypedDict, total=False):
     mode: _str
     productId: Optional[_str]
     startedAt: datetime.datetime
+    lastMessageAt: datetime.datetime
     shop: 'ShopCreateNestedWithoutRelationsInput'
     endUser: 'EndUserCreateNestedWithoutRelationsInput'
     product: 'ProductCreateNestedWithoutRelationsInput'
@@ -13695,6 +14002,7 @@ class ConversationOptionalCreateWithoutRelationsInput(TypedDict, total=False):
     mode: _str
     productId: Optional[_str]
     startedAt: datetime.datetime
+    lastMessageAt: datetime.datetime
 
 
 class ConversationCreateWithoutRelationsInput(ConversationOptionalCreateWithoutRelationsInput):
@@ -13731,6 +14039,7 @@ class ConversationUpdateInput(TypedDict, total=False):
     id: _str
     mode: _str
     startedAt: datetime.datetime
+    lastMessageAt: datetime.datetime
     shop: 'ShopUpdateOneWithoutRelationsInput'
     endUser: 'EndUserUpdateOneWithoutRelationsInput'
     product: 'ProductUpdateOneWithoutRelationsInput'
@@ -13742,6 +14051,7 @@ class ConversationUpdateManyMutationInput(TypedDict, total=False):
     id: _str
     mode: _str
     startedAt: datetime.datetime
+    lastMessageAt: datetime.datetime
 
 
 class ConversationUpdateManyWithoutRelationsInput(TypedDict, total=False):
@@ -13824,6 +14134,14 @@ _Conversation_startedAt_OrderByInput = TypedDict(
     total=True
 )
 
+_Conversation_lastMessageAt_OrderByInput = TypedDict(
+    '_Conversation_lastMessageAt_OrderByInput',
+    {
+        'lastMessageAt': 'SortOrder',
+    },
+    total=True
+)
+
 _Conversation_RelevanceInner = TypedDict(
     '_Conversation_RelevanceInner',
     {
@@ -13849,6 +14167,7 @@ ConversationOrderByInput = Union[
     '_Conversation_mode_OrderByInput',
     '_Conversation_productId_OrderByInput',
     '_Conversation_startedAt_OrderByInput',
+    '_Conversation_lastMessageAt_OrderByInput',
     '_Conversation_RelevanceOrderByInput',
 ]
 
@@ -15133,6 +15452,7 @@ class ConversationWhereInput(TypedDict, total=False):
     mode: Union[_str, 'types.StringFilter']
     productId: Union[None, _str, 'types.StringFilter']
     startedAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    lastMessageAt: Union[datetime.datetime, 'types.DateTimeFilter']
     shop: 'ShopRelationFilter'
     endUser: 'EndUserRelationFilter'
     product: 'ProductRelationFilter'
@@ -15153,6 +15473,7 @@ class ConversationWhereInputRecursive1(TypedDict, total=False):
     mode: Union[_str, 'types.StringFilter']
     productId: Union[None, _str, 'types.StringFilter']
     startedAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    lastMessageAt: Union[datetime.datetime, 'types.DateTimeFilter']
     shop: 'ShopRelationFilter'
     endUser: 'EndUserRelationFilter'
     product: 'ProductRelationFilter'
@@ -15173,6 +15494,7 @@ class ConversationWhereInputRecursive2(TypedDict, total=False):
     mode: Union[_str, 'types.StringFilter']
     productId: Union[None, _str, 'types.StringFilter']
     startedAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    lastMessageAt: Union[datetime.datetime, 'types.DateTimeFilter']
     shop: 'ShopRelationFilter'
     endUser: 'EndUserRelationFilter'
     product: 'ProductRelationFilter'
@@ -15193,6 +15515,7 @@ class ConversationWhereInputRecursive3(TypedDict, total=False):
     mode: Union[_str, 'types.StringFilter']
     productId: Union[None, _str, 'types.StringFilter']
     startedAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    lastMessageAt: Union[datetime.datetime, 'types.DateTimeFilter']
     shop: 'ShopRelationFilter'
     endUser: 'EndUserRelationFilter'
     product: 'ProductRelationFilter'
@@ -15213,6 +15536,7 @@ class ConversationWhereInputRecursive4(TypedDict, total=False):
     mode: Union[_str, 'types.StringFilter']
     productId: Union[None, _str, 'types.StringFilter']
     startedAt: Union[datetime.datetime, 'types.DateTimeFilter']
+    lastMessageAt: Union[datetime.datetime, 'types.DateTimeFilter']
     shop: 'ShopRelationFilter'
     endUser: 'EndUserRelationFilter'
     product: 'ProductRelationFilter'
@@ -15233,6 +15557,7 @@ class ConversationScalarWhereWithAggregatesInput(TypedDict, total=False):
     mode: Union[_str, 'types.StringWithAggregatesFilter']
     productId: Union[_str, 'types.StringWithAggregatesFilter']
     startedAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    lastMessageAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
 
     AND: List['ConversationScalarWhereWithAggregatesInputRecursive1']
     OR: List['ConversationScalarWhereWithAggregatesInputRecursive1']
@@ -15247,6 +15572,7 @@ class ConversationScalarWhereWithAggregatesInputRecursive1(TypedDict, total=Fals
     mode: Union[_str, 'types.StringWithAggregatesFilter']
     productId: Union[_str, 'types.StringWithAggregatesFilter']
     startedAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    lastMessageAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
 
     AND: List['ConversationScalarWhereWithAggregatesInputRecursive2']
     OR: List['ConversationScalarWhereWithAggregatesInputRecursive2']
@@ -15261,6 +15587,7 @@ class ConversationScalarWhereWithAggregatesInputRecursive2(TypedDict, total=Fals
     mode: Union[_str, 'types.StringWithAggregatesFilter']
     productId: Union[_str, 'types.StringWithAggregatesFilter']
     startedAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    lastMessageAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
 
     AND: List['ConversationScalarWhereWithAggregatesInputRecursive3']
     OR: List['ConversationScalarWhereWithAggregatesInputRecursive3']
@@ -15275,6 +15602,7 @@ class ConversationScalarWhereWithAggregatesInputRecursive3(TypedDict, total=Fals
     mode: Union[_str, 'types.StringWithAggregatesFilter']
     productId: Union[_str, 'types.StringWithAggregatesFilter']
     startedAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    lastMessageAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
 
     AND: List['ConversationScalarWhereWithAggregatesInputRecursive4']
     OR: List['ConversationScalarWhereWithAggregatesInputRecursive4']
@@ -15289,6 +15617,7 @@ class ConversationScalarWhereWithAggregatesInputRecursive4(TypedDict, total=Fals
     mode: Union[_str, 'types.StringWithAggregatesFilter']
     productId: Union[_str, 'types.StringWithAggregatesFilter']
     startedAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
+    lastMessageAt: Union[datetime.datetime, 'types.DateTimeWithAggregatesFilter']
 
 
 
@@ -15299,6 +15628,7 @@ class ConversationGroupByOutput(TypedDict, total=False):
     mode: _str
     productId: _str
     startedAt: datetime.datetime
+    lastMessageAt: datetime.datetime
     _sum: 'ConversationSumAggregateOutput'
     _avg: 'ConversationAvgAggregateOutput'
     _min: 'ConversationMinAggregateOutput'
@@ -15322,6 +15652,7 @@ class ConversationScalarAggregateOutput(TypedDict, total=False):
     mode: _str
     productId: _str
     startedAt: datetime.datetime
+    lastMessageAt: datetime.datetime
 
 
 ConversationMinAggregateOutput = ConversationScalarAggregateOutput
@@ -15336,6 +15667,7 @@ class ConversationMaxAggregateInput(TypedDict, total=False):
     mode: bool
     productId: bool
     startedAt: bool
+    lastMessageAt: bool
 
 
 class ConversationMinAggregateInput(TypedDict, total=False):
@@ -15346,6 +15678,7 @@ class ConversationMinAggregateInput(TypedDict, total=False):
     mode: bool
     productId: bool
     startedAt: bool
+    lastMessageAt: bool
 
 
 class ConversationNumberAggregateInput(TypedDict, total=False):
@@ -15365,6 +15698,7 @@ ConversationCountAggregateInput = TypedDict(
         'mode': bool,
         'productId': bool,
         'startedAt': bool,
+        'lastMessageAt': bool,
         '_all': bool,
     },
     total=False,
@@ -15379,6 +15713,7 @@ ConversationCountAggregateOutput = TypedDict(
         'mode': int,
         'productId': int,
         'startedAt': int,
+        'lastMessageAt': int,
         '_all': int,
     },
     total=False,
@@ -15392,6 +15727,7 @@ ConversationKeys = Literal[
     'mode',
     'productId',
     'startedAt',
+    'lastMessageAt',
     'shop',
     'endUser',
     'product',
@@ -15404,6 +15740,7 @@ ConversationScalarFieldKeys = Literal[
     'mode',
     'productId',
     'startedAt',
+    'lastMessageAt',
 ]
 ConversationScalarFieldKeysT = TypeVar('ConversationScalarFieldKeysT', bound=ConversationScalarFieldKeys)
 

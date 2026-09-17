@@ -63,6 +63,7 @@ class User(bases.BaseUser):
     mobile: _str
     otp: Optional[_str] = None
     otpExpiry: Optional[datetime.datetime] = None
+    password: Optional[_str] = None
     fullName: Optional[_str] = None
     isVerified: _bool
     onboardingCompleted: _bool
@@ -208,6 +209,8 @@ class Shop(bases.BaseShop):
     systemPromptExtra: Optional[_str] = None
     ownerId: _str
     createdAt: datetime.datetime
+    monthlyProductUploads: _int
+    monthlyUploadsResetAt: datetime.datetime
     owner: Optional['models.User'] = None
     products: Optional[List['models.Product']] = None
     faqItems: Optional[List['models.FaqItem']] = None
@@ -897,10 +900,16 @@ class EndUser(bases.BaseEndUser):
 
     id: _str
     shopId: _str
-    telegramUserId: _str
+    telegramUserId: Optional[_str] = None
+    webVisitorId: Optional[_str] = None
     firstName: Optional[_str] = None
     username: Optional[_str] = None
     createdAt: datetime.datetime
+    activeConversationId: Optional[_str] = None
+    weeklyInputTokens: _int
+    weeklyResetAt: datetime.datetime
+    monthlyInputTokens: _int
+    monthlyResetAt: datetime.datetime
     shop: Optional['models.Shop'] = None
     conversations: Optional[List['models.Conversation']] = None
     events: Optional[List['models.Event']] = None
@@ -1038,6 +1047,7 @@ class Conversation(bases.BaseConversation):
     mode: _str
     productId: Optional[_str] = None
     startedAt: datetime.datetime
+    lastMessageAt: datetime.datetime
     shop: Optional['models.Shop'] = None
     endUser: Optional['models.EndUser'] = None
     product: Optional['models.Product'] = None
@@ -1609,6 +1619,14 @@ _User_fields: Dict['types.UserKeys', PartialModelField] = OrderedDict(
             'is_relational': False,
             'documentation': None,
         }),
+        ('password', {
+            'name': 'password',
+            'is_list': False,
+            'optional': True,
+            'type': '_str',
+            'is_relational': False,
+            'documentation': None,
+        }),
         ('fullName', {
             'name': 'fullName',
             'is_list': False,
@@ -1763,6 +1781,22 @@ _Shop_fields: Dict['types.ShopKeys', PartialModelField] = OrderedDict(
         }),
         ('createdAt', {
             'name': 'createdAt',
+            'is_list': False,
+            'optional': False,
+            'type': 'datetime.datetime',
+            'is_relational': False,
+            'documentation': None,
+        }),
+        ('monthlyProductUploads', {
+            'name': 'monthlyProductUploads',
+            'is_list': False,
+            'optional': False,
+            'type': '_int',
+            'is_relational': False,
+            'documentation': None,
+        }),
+        ('monthlyUploadsResetAt', {
+            'name': 'monthlyUploadsResetAt',
             'is_list': False,
             'optional': False,
             'type': 'datetime.datetime',
@@ -2145,7 +2179,15 @@ _EndUser_fields: Dict['types.EndUserKeys', PartialModelField] = OrderedDict(
         ('telegramUserId', {
             'name': 'telegramUserId',
             'is_list': False,
-            'optional': False,
+            'optional': True,
+            'type': '_str',
+            'is_relational': False,
+            'documentation': None,
+        }),
+        ('webVisitorId', {
+            'name': 'webVisitorId',
+            'is_list': False,
+            'optional': True,
             'type': '_str',
             'is_relational': False,
             'documentation': None,
@@ -2168,6 +2210,46 @@ _EndUser_fields: Dict['types.EndUserKeys', PartialModelField] = OrderedDict(
         }),
         ('createdAt', {
             'name': 'createdAt',
+            'is_list': False,
+            'optional': False,
+            'type': 'datetime.datetime',
+            'is_relational': False,
+            'documentation': None,
+        }),
+        ('activeConversationId', {
+            'name': 'activeConversationId',
+            'is_list': False,
+            'optional': True,
+            'type': '_str',
+            'is_relational': False,
+            'documentation': None,
+        }),
+        ('weeklyInputTokens', {
+            'name': 'weeklyInputTokens',
+            'is_list': False,
+            'optional': False,
+            'type': '_int',
+            'is_relational': False,
+            'documentation': None,
+        }),
+        ('weeklyResetAt', {
+            'name': 'weeklyResetAt',
+            'is_list': False,
+            'optional': False,
+            'type': 'datetime.datetime',
+            'is_relational': False,
+            'documentation': None,
+        }),
+        ('monthlyInputTokens', {
+            'name': 'monthlyInputTokens',
+            'is_list': False,
+            'optional': False,
+            'type': '_int',
+            'is_relational': False,
+            'documentation': None,
+        }),
+        ('monthlyResetAt', {
+            'name': 'monthlyResetAt',
             'is_list': False,
             'optional': False,
             'type': 'datetime.datetime',
@@ -2259,6 +2341,14 @@ _Conversation_fields: Dict['types.ConversationKeys', PartialModelField] = Ordere
         }),
         ('startedAt', {
             'name': 'startedAt',
+            'is_list': False,
+            'optional': False,
+            'type': 'datetime.datetime',
+            'is_relational': False,
+            'documentation': None,
+        }),
+        ('lastMessageAt', {
+            'name': 'lastMessageAt',
             'is_list': False,
             'optional': False,
             'type': 'datetime.datetime',
