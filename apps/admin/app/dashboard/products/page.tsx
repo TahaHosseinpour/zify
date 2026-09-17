@@ -74,7 +74,14 @@ export default function ProductsPage() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    fetch("/api/products")
+      .then((res) => res.json())
+      .then((data) => {
+        setProducts(data)
+        setLoading(false)
+      })
+  }, [])
 
   function openNew() {
     setForm(emptyForm)

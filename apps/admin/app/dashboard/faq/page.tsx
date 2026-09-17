@@ -41,7 +41,14 @@ export default function FaqPage() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    fetch("/api/faq")
+      .then((res) => res.json())
+      .then((data) => {
+        setItems(data)
+        setLoading(false)
+      })
+  }, [])
 
   function openNew() { setForm(emptyForm); setEditId(null); setDialogOpen(true) }
   function openEdit(item: FaqItem) {

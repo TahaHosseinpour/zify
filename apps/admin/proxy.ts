@@ -6,7 +6,6 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || "fallback-secret-change-in-production"
 )
 
-const PUBLIC_PATHS = ["/", "/login"]
 const PROTECTED_PREFIXES = ["/dashboard", "/onboarding"]
 
 export async function proxy(request: NextRequest) {
@@ -14,7 +13,6 @@ export async function proxy(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value
 
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p))
-  const isPublic = PUBLIC_PATHS.includes(pathname)
 
   let isAuthenticated = false
   if (token) {

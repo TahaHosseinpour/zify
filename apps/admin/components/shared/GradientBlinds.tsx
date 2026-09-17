@@ -286,7 +286,7 @@ void main(){
         lastTimeRef.current = t;
       }
       if (!paused && programRef.current && meshRef.current) {
-        try { renderer.render({ scene: meshRef.current }); } catch (_) {}
+        try { renderer.render({ scene: meshRef.current }); } catch {}
       }
     };
     rafRef.current = requestAnimationFrame(loop);
@@ -297,7 +297,6 @@ void main(){
       ro.disconnect();
       if (canvas.parentElement === container) container.removeChild(canvas);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [color1, color2, gradientColors, angle, noise, blindCount, blindMinWidth, mouseDampening, mirrorGradient, spotlightRadius, spotlightSoftness, spotlightOpacity, distortAmount, shineDirection, dpr, paused]);
 
   return (

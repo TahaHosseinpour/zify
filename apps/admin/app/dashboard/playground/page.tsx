@@ -33,7 +33,7 @@ interface Turn {
 const newSessionId = () => Math.random().toString(36).slice(2, 10)
 
 export default function PlaygroundPage() {
-  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [sessionId, setSessionId] = useState(() => newSessionId())
   const [turns, setTurns] = useState<Turn[]>([])
   const [draft, setDraft] = useState("")
   const [sending, setSending] = useState(false)
@@ -44,10 +44,6 @@ export default function PlaygroundPage() {
   const [mode, setMode] = useState<"explore" | "product">("explore")
   const [productId, setProductId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
-
-  // Generated on the client so a reload always starts a clean thread; the
-  // agent keys its memory off it, so nothing leaks between test runs.
-  useEffect(() => setSessionId(newSessionId()), [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })

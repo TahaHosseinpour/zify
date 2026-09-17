@@ -80,7 +80,7 @@ export function ShopChatClient({ slug, shopName, initialMessage }: {
   shopName: string
   initialMessage: string
 }) {
-  const [webVisitorId, setWebVisitorId] = useState("")
+  const [webVisitorId] = useState(() => getOrCreateVisitorId())
   const [usageOpen, setUsageOpen] = useState(false)
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -89,12 +89,18 @@ export function ShopChatClient({ slug, shopName, initialMessage }: {
   const { messages, isStreaming, lastResult, conversationId, send, startFresh, loadConversation } =
     useChatStream({ slug, webVisitorId })
 
-  useEffect(() => {
-    setWebVisitorId(getOrCreateVisitorId())
-  }, [])
+  // A new "done" event with a fresh set of suggested products is worth
+  // reflecting in the history list's preview text right away. Bumped during
+  // render (rather than an effect) by comparing against the previous
+  // render's lastResult, per https://react.dev/learn/you-might-not-need-an-effect.
+  const [prevLastResult, setPrevLastResult] = useState(lastResult)
+  if (lastResult !== prevLastResult) {
+    setPrevLastResult(lastResult)
+    if (lastResult) setHistoryRefreshKey((k) => k + 1)
+  }
 
   useEffect(() => {
-    if (!webVisitorId || sentInitialMessage.current || !initialMessage) return
+    if (sentInitialMessage.current || !initialMessage) return
     sentInitialMessage.current = true
     send(initialMessage)
   }, [webVisitorId, initialMessage, send])
@@ -102,12 +108,6 @@ export function ShopChatClient({ slug, shopName, initialMessage }: {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
   }, [messages])
-
-  // A new "done" event with a fresh set of suggested products is worth
-  // reflecting in the history list's preview text right away.
-  useEffect(() => {
-    if (lastResult) setHistoryRefreshKey((k) => k + 1)
-  }, [lastResult])
 
   async function handleNewChat() {
     const res = await fetch("/api/shop-chat/new", {
