@@ -70,3 +70,15 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json(product)
 }
+
+export async function DELETE() {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: "احراز هویت لازم است" }, { status: 401 })
+
+  const shop = await getShop(session.userId)
+  if (!shop) return NextResponse.json({ error: "فروشگاه یافت نشد" }, { status: 404 })
+
+  const { count } = await prisma.product.deleteMany({ where: { shopId: shop.id } })
+
+  return NextResponse.json({ ok: true, count })
+}

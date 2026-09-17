@@ -57,6 +57,8 @@ export default function ProductsPage() {
   const [bulkOpen, setBulkOpen] = useState(false)
   const [importing, setImporting] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false)
+  const [deletingAll, setDeletingAll] = useState(false)
   const bulkFileRef = useRef<HTMLInputElement>(null)
 
   // Offered as autocomplete so the same category keeps the same spelling. The
@@ -113,12 +115,13 @@ export default function ProductsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
-      if (!res.ok) throw new Error()
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error)
       toast.success(editId ? "محصول ویرایش شد" : "محصول اضافه شد")
       setDialogOpen(false)
       load()
-    } catch {
-      toast.error("خطا در ذخیره محصول")
+    } catch (err: unknown) {
+      toast.error(err instanceof Error && err.message ? err.message : "خطا در ذخیره محصول")
     } finally {
       setSaving(false)
     }
@@ -128,6 +131,21 @@ export default function ProductsPage() {
     await fetch(`/api/products/${id}`, { method: "DELETE" })
     toast.success("محصول حذف شد")
     load()
+  }
+
+  async function handleDeleteAll() {
+    setDeletingAll(true)
+    try {
+      const res = await fetch("/api/products", { method: "DELETE" })
+      if (!res.ok) throw new Error()
+      toast.success("همه محصولات حذف شدند")
+      load()
+    } catch {
+      toast.error("خطا در حذف محصولات")
+    } finally {
+      setDeletingAll(false)
+      setDeleteAllOpen(false)
+    }
   }
 
   function downloadSample() {
@@ -145,6 +163,25 @@ export default function ProductsPage() {
     URL.revokeObjectURL(url)
   }
 
+  // A pasted/re-saved header ("لینک تصویر" edited in Excel, copied from
+  // elsewhere, ...) very easily picks up a leading BOM, stray zero-width
+  // joiners/non-joiners, or extra whitespace that's invisible in the sheet
+  // but breaks an exact `row["لینک تصویر"]` lookup outright - the column
+  // then silently imports as empty. Normalize both sides before matching so
+  // only the visible text has to line up.
+  function normalizeHeader(key: string): string {
+    return key.replace(/[​‌‍‎‏﻿]/g, "").trim().toLowerCase()
+  }
+
+  function getField(row: Record<string, string>, aliases: string[]): string {
+    const normalized = new Map(Object.entries(row).map(([k, v]) => [normalizeHeader(k), v]))
+    for (const alias of aliases) {
+      const value = normalized.get(normalizeHeader(alias))
+      if (value !== undefined && value !== "") return value
+    }
+    return ""
+  }
+
   async function importRows(rows: Record<string, string>[]) {
     setImporting(true)
     let ok = 0
@@ -154,13 +191,13 @@ export default function ProductsPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name: row.name || row["نام"],
-            price: Number(row.price || row["قیمت"] || 0),
-            description: row.description || row["توضیحات"] || "",
-            productUrl: row.url || row["لینک محصول"] || row["لینک"] || "",
-            imageUrl: row.image || row["لینک تصویر"] || row["تصویر"] || "",
-            category: row.category || row["دسته"] || row["دسته‌بندی"] || "",
-            brand: row.brand || row["برند"] || "",
+            name: getField(row, ["name", "نام"]),
+            price: Number(getField(row, ["price", "قیمت"]) || 0),
+            description: getField(row, ["description", "توضیحات"]),
+            productUrl: getField(row, ["url", "لینک محصول", "لینک"]),
+            imageUrl: getField(row, ["image", "لینک تصویر", "تصویر"]),
+            category: getField(row, ["category", "دسته", "دسته‌بندی"]),
+            brand: getField(row, ["brand", "برند"]),
           }),
         })
         if (res.ok) ok++
@@ -198,6 +235,12 @@ export default function ProductsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-end">
         <div className="flex gap-2">
+          {products.length > 0 && (
+            <Button variant="outline" size="sm" className="text-destructive" onClick={() => setDeleteAllOpen(true)}>
+              <HugeiconsIcon icon={Delete01Icon} data-icon="inline-start" />
+              حذف همه محصولات
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => setBulkOpen(true)}>
             <HugeiconsIcon icon={FileImportIcon} data-icon="inline-start" />
             وارد کردن گروهی
@@ -341,6 +384,23 @@ export default function ProductsPage() {
               onClick={() => { if (deleteId) handleDelete(deleteId); setDeleteId(null) }}
             >
               حذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteAllOpen} onOpenChange={setDeleteAllOpen}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف همه محصولات</AlertDialogTitle>
+            <AlertDialogDescription>
+              همه‌ی {products.length.toLocaleString("fa-IR")} محصول این فروشگاه برای همیشه حذف می‌شوند و قابل بازگشت نیستند.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>انصراف</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" disabled={deletingAll} onClick={handleDeleteAll}>
+              {deletingAll ? "در حال حذف..." : "حذف همه"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

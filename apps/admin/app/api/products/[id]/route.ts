@@ -2,12 +2,35 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { prisma } from "@zify/db"
 import { embedProduct } from "@/lib/embeddings"
+import { MAX_MONTHLY_PRODUCT_UPLOADS, checkAndRecordProductEdit } from "@/lib/product-limits"
+
+async function getShop(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { shops: true },
+  })
+  return user?.shops[0] ?? null
+}
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: "احراز هویت لازم است" }, { status: 401 })
 
+  const shop = await getShop(session.userId)
+  if (!shop) return NextResponse.json({ error: "فروشگاه یافت نشد" }, { status: 404 })
+
   const { id } = await params
+  const existing = await prisma.product.findUnique({ where: { id } })
+  if (!existing || existing.shopId !== shop.id) {
+    return NextResponse.json({ error: "محصول یافت نشد" }, { status: 404 })
+  }
+
+  const limitCheck = await checkAndRecordProductEdit(shop.id)
+  if (!limitCheck.ok) {
+    const message = `سقف ماهانه افزودن/ویرایش محصول (${MAX_MONTHLY_PRODUCT_UPLOADS.toLocaleString("fa-IR")} مورد) پر شده است. ماه بعد دوباره امکان‌پذیر خواهد بود.`
+    return NextResponse.json({ error: message }, { status: 429 })
+  }
+
   const body = await req.json()
   const { name, price, description, productUrl, imageUrl, isActive, category, brand } = body
 
@@ -37,7 +60,15 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const session = await getSession()
   if (!session) return NextResponse.json({ error: "احراز هویت لازم است" }, { status: 401 })
 
+  const shop = await getShop(session.userId)
+  if (!shop) return NextResponse.json({ error: "فروشگاه یافت نشد" }, { status: 404 })
+
   const { id } = await params
+  const existing = await prisma.product.findUnique({ where: { id } })
+  if (!existing || existing.shopId !== shop.id) {
+    return NextResponse.json({ error: "محصول یافت نشد" }, { status: 404 })
+  }
+
   await prisma.product.delete({ where: { id } })
 
   return NextResponse.json({ ok: true })
