@@ -8,7 +8,11 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogBody } from "@/components/ui/dialog"
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Add01Icon, Edit01Icon, Delete01Icon } from "@hugeicons/core-free-icons"
@@ -28,6 +32,7 @@ export default function FaqPage() {
   const [form, setForm] = useState(emptyForm)
   const [editId, setEditId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
@@ -62,7 +67,6 @@ export default function FaqPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("حذف شود؟")) return
     await fetch(`/api/faq/${id}`, { method: "DELETE" })
     toast.success("حذف شد")
     load()
@@ -97,7 +101,7 @@ export default function FaqPage() {
                     <Button size="icon-sm" variant="ghost" onClick={() => openEdit(item)}>
                       <HugeiconsIcon icon={Edit01Icon} />
                     </Button>
-                    <Button size="icon-sm" variant="ghost" onClick={() => handleDelete(item.id)}>
+                    <Button size="icon-sm" variant="ghost" onClick={() => setDeleteId(item.id)}>
                       <HugeiconsIcon icon={Delete01Icon} className="text-destructive" />
                     </Button>
                   </div>
@@ -113,7 +117,7 @@ export default function FaqPage() {
           <DialogHeader>
             <DialogTitle>{editId ? "ویرایش سوال" : "سوال جدید"}</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col gap-3">
+          <DialogBody className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
               <Label>سوال *</Label>
               <Input value={form.question} onChange={(e) => setForm(f => ({ ...f, question: e.target.value }))} placeholder="مثال: روش ارسال چیست؟" />
@@ -122,13 +126,33 @@ export default function FaqPage() {
               <Label>پاسخ *</Label>
               <Textarea value={form.answer} onChange={(e) => setForm(f => ({ ...f, answer: e.target.value }))} rows={4} placeholder="پاسخ کامل را بنویسید..." />
             </div>
-          </div>
+          </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>انصراف</Button>
             <Button onClick={handleSave} disabled={saving}>{saving ? "ذخیره..." : "ذخیره"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف سوال</AlertDialogTitle>
+            <AlertDialogDescription>
+              این سوال متداول برای همیشه حذف می‌شود و قابل بازگشت نیست.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>انصراف</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => { if (deleteId) handleDelete(deleteId); setDeleteId(null) }}
+            >
+              حذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

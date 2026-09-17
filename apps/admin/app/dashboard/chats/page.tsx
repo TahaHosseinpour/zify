@@ -5,8 +5,7 @@ import { motion } from "framer-motion"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody } from "@/components/ui/dialog"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { MessageMultiple01Icon } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
@@ -91,7 +90,7 @@ export default function ChatsPage() {
           <DialogHeader>
             <DialogTitle>گفت‌وگو</DialogTitle>
           </DialogHeader>
-          <ScrollArea className="h-96" dir="rtl">
+          <DialogBody dir="rtl">
             {msgLoading ? (
               <div className="flex flex-col gap-2 p-2">
                 {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12" />)}
@@ -117,7 +116,7 @@ export default function ChatsPage() {
                 ))}
               </div>
             )}
-          </ScrollArea>
+          </DialogBody>
         </DialogContent>
       </Dialog>
     </div>

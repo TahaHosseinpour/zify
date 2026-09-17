@@ -1,0 +1,111 @@
+name: CI & Deploy
+
+# Runs on every push to main: lint + unit/integration tests for the admin
+# panel and the telegram bot (apps/agent's Python test suite is intentionally
+# left out here), then - only if all of that passes - ships to production the
+# same way `npm run deploy` does locally.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A second push while a deploy is still running would race it on the same
+# server/release directory, so queue instead of overlapping. Never cancel a
+# deploy mid-flight - the build is resumable (see .build-complete in
+# deploy/tasks/website.py) but killing pyinfra mid-SSH-command is not.
+concurrency:
+  group: zify-deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Lint & test (admin + telegram-bot)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Prisma's JS client has to exist before admin/db code can even be
+      # imported. Only the JS generator is needed here - the Python generator
+      # (apps/agent/prisma_client) belongs to the agent, which this job skips.
+      # `prisma generate` just needs DATABASE_URL to resolve, not a live DB.
+      - name: Generate Prisma client
+        working-directory: packages/db
+        env:
+          DATABASE_URL: postgresql://user:password@localhost:5432/db
+        run: bunx prisma generate --generator client
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Unit tests
+        run: |
+          bun run --cwd apps/admin test:unit
+          bun run --cwd apps/telegram-bot test:unit
+
+      - name: Integration tests
+        run: |
+          bun run --cwd apps/admin test:integration
+          bun run --cwd apps/telegram-bot test:integration
+
+  deploy:
+    name: Deploy to production
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pyinfra
+        run: pip install -r deploy/requirements.txt
+
+      # The server's SSH host key, keyed off the fixed IP in inventory.py -
+      # avoids the interactive host-key prompt pyinfra would otherwise hit on
+      # a runner that has never talked to this server before.
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p 22 -H 181.41.194.141 >> ~/.ssh/known_hosts 2>/dev/null
+
+      # deploy/deploy_secrets.py is gitignored on purpose (see its own
+      # example file) and has to exist for group_data/production.py to import
+      # - write it here from repo secrets instead of committing real values.
+      - name: Write deploy secrets
+        env:
+          OPENAI_API_KEY: ${{ secrets.DEPLOY_OPENAI_API_KEY }}
+          LANGSMITH_API_KEY: ${{ secrets.DEPLOY_LANGSMITH_API_KEY }}
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.DEPLOY_LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.DEPLOY_LANGFUSE_SECRET_KEY }}
+          SMSIR_API_KEY: ${{ secrets.DEPLOY_SMSIR_API_KEY }}
+          SMSIR_TEMPLATE_ID: ${{ secrets.DEPLOY_SMSIR_TEMPLATE_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.DEPLOY_TELEGRAM_BOT_TOKEN }}
+          ADMIN_USERS: ${{ secrets.DEPLOY_ADMIN_USERS }}
+        run: python deploy/write_ci_secrets.py
+
+      # Same script as local `npm run deploy`, with `-y` so pyinfra doesn't
+      # sit at its "Detected changes" confirmation prompt on a non-interactive
+      # runner (see deploy/README.md's troubleshooting section). Release
+      # pruning (keep_releases in deploy/group_data/production.py) already
+      # runs as the first step of every deploy via prepare_release() in
+      # deploy/deploy.py, so old releases never pile up on the server.
+      - name: Deploy
+        run: npm run deploy -- -y

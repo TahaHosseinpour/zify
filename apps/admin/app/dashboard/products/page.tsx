@@ -10,8 +10,12 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogBody,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog"
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
@@ -52,6 +56,7 @@ export default function ProductsPage() {
   const [saving, setSaving] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
   const bulkFileRef = useRef<HTMLInputElement>(null)
 
   // Offered as autocomplete so the same category keeps the same spelling. The
@@ -113,7 +118,6 @@ export default function ProductsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("آیا مطمئنید؟")) return
     await fetch(`/api/products/${id}`, { method: "DELETE" })
     toast.success("محصول حذف شد")
     load()
@@ -248,7 +252,7 @@ export default function ProductsPage() {
                         <Button size="icon-sm" variant="ghost" onClick={() => openEdit(p)}>
                           <HugeiconsIcon icon={Edit01Icon} />
                         </Button>
-                        <Button size="icon-sm" variant="ghost" onClick={() => handleDelete(p.id)}>
+                        <Button size="icon-sm" variant="ghost" onClick={() => setDeleteId(p.id)}>
                           <HugeiconsIcon icon={Delete01Icon} className="text-destructive" />
                         </Button>
                       </div>
@@ -266,7 +270,7 @@ export default function ProductsPage() {
           <DialogHeader>
             <DialogTitle>{editId ? "ویرایش محصول" : "محصول جدید"}</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col gap-3">
+          <DialogBody className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
               <Label>نام محصول *</Label>
               <Input value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} placeholder="مثال: کفش ورزشی نایک" />
@@ -307,7 +311,7 @@ export default function ProductsPage() {
               <Label>توضیحات</Label>
               <Textarea value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} rows={3} />
             </div>
-          </div>
+          </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>انصراف</Button>
             <Button onClick={handleSave} disabled={saving}>{saving ? "در حال ذخیره..." : "ذخیره"}</Button>
@@ -315,12 +319,32 @@ export default function ProductsPage() {
         </DialogContent>
       </Dialog>
 
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف محصول</AlertDialogTitle>
+            <AlertDialogDescription>
+              این محصول برای همیشه حذف می‌شود و قابل بازگشت نیست.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>انصراف</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => { if (deleteId) handleDelete(deleteId); setDeleteId(null) }}
+            >
+              حذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
         <DialogContent dir="rtl">
           <DialogHeader>
             <DialogTitle>وارد کردن گروهی محصولات</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col gap-3">
+          <DialogBody className="flex flex-col gap-3">
             <button
               type="button"
               onClick={downloadSample}
@@ -347,7 +371,7 @@ export default function ProductsPage() {
                 {importing ? "در حال وارد کردن محصولات..." : "فایل .csv یا .xlsx با ستون‌های نام، قیمت، دسته، برند، توضیحات، لینک تصویر و لینک محصول"}
               </p>
             </div>
-          </div>
+          </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkOpen(false)} disabled={importing}>بستن</Button>
           </DialogFooter>

@@ -9,6 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
 
 export default function SettingsPage() {
@@ -16,6 +20,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [resetting, setResetting] = useState(false)
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
 
   const [hasPassword, setHasPassword] = useState(false)
   const [pwForm, setPwForm] = useState({ password: "", confirm: "" })
@@ -50,7 +55,6 @@ export default function SettingsPage() {
   }
 
   async function handleResetAgent() {
-    if (!confirm("همه محصولات، سوالات متداول و اطلاعات فروشگاه دوباره ایندکس می‌شوند و حافظه گفتگوهای دستیار پاک می‌شود. ادامه می‌دهید؟")) return
     setResetting(true)
     try {
       const res = await fetch("/api/agent/reset", { method: "POST" })
@@ -154,7 +158,7 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button type="button" variant="outline" onClick={handleResetAgent} disabled={resetting}>
+          <Button type="button" variant="outline" onClick={() => setResetConfirmOpen(true)} disabled={resetting}>
             {resetting ? "در حال ریست..." : "ریست حافظه دستیار"}
           </Button>
         </CardContent>
@@ -219,6 +223,27 @@ export default function SettingsPage() {
       <Button type="submit" disabled={saving}>
         {saving ? "در حال ذخیره..." : "ذخیره تنظیمات"}
       </Button>
+
+      <AlertDialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>ریست حافظه دستیار</AlertDialogTitle>
+            <AlertDialogDescription>
+              همه محصولات، سوالات متداول و اطلاعات فروشگاه دوباره ایندکس می‌شوند و حافظه
+              گفتگوهای دستیار پاک می‌شود. ادامه می‌دهید؟
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>انصراف</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => { setResetConfirmOpen(false); handleResetAgent() }}
+            >
+              ادامه
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </form>
   )
 }

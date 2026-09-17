@@ -4,7 +4,7 @@ import { useState, type KeyboardEvent } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { SentIcon } from "@hugeicons/core-free-icons"
+import { ArrowUp01Icon } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
 
 interface ChatInputProps {
@@ -18,10 +18,14 @@ interface ChatInputProps {
 
 /** The message composer, shared by the storefront hero (which navigates to
  * the chat page on submit) and the chat page itself (which streams a
- * reply) - both just pass a different `onSend`. Plain textarea, not a rich
- * editor: this is a sales conversation, not a document. */
+ * reply) - both just pass a different `onSend`. Modeled on oostaai's
+ * chat-input/input.tsx: a floating rounded card with the editor on top and
+ * a thin dashed-border toolbar row underneath (hint text + send button),
+ * rather than a single-row textarea-and-button bar. Plain textarea, not a
+ * rich editor: this is a sales conversation, not a document. */
 export function ChatInput({ onSend, onFocus, disabled, placeholder, autoFocus, className }: ChatInputProps) {
   const [value, setValue] = useState("")
+  const hasText = value.trim().length > 0
 
   function submit() {
     const trimmed = value.trim()
@@ -40,8 +44,8 @@ export function ChatInput({ onSend, onFocus, disabled, placeholder, autoFocus, c
   return (
     <div
       className={cn(
-        "flex items-end gap-2 rounded-2xl border border-border bg-card p-2 shadow-sm",
-        "focus-within:ring-2 focus-within:ring-primary/30",
+        "w-full rounded-xl border border-border bg-background shadow-sm",
+        "focus-within:ring-2 focus-within:ring-primary/20",
         className,
       )}
     >
@@ -54,17 +58,23 @@ export function ChatInput({ onSend, onFocus, disabled, placeholder, autoFocus, c
         autoFocus={autoFocus}
         rows={1}
         disabled={disabled}
-        className="min-h-10 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
+        className="min-h-10 resize-none border-0 bg-transparent px-3 pt-3 pb-1 shadow-none focus-visible:ring-0"
       />
-      <Button
-        size="icon"
-        className="size-10 shrink-0 rounded-xl"
-        disabled={disabled || !value.trim()}
-        onClick={submit}
-        aria-label="ارسال"
-      >
-        <HugeiconsIcon icon={SentIcon} className="size-5" />
-      </Button>
+      <div className="flex w-full items-center justify-between gap-2 border-t border-dashed border-border px-2 py-2">
+        <p className="px-1 text-xs text-muted-foreground">
+          {hasText ? "برای خط جدید Shift+Enter" : " "}
+        </p>
+        <Button
+          size="icon"
+          className="size-8 shrink-0 rounded-full"
+          variant={hasText ? "default" : "secondary"}
+          disabled={disabled || !hasText}
+          onClick={submit}
+          aria-label="ارسال"
+        >
+          <HugeiconsIcon icon={ArrowUp01Icon} className="size-4" />
+        </Button>
+      </div>
     </div>
   )
 }

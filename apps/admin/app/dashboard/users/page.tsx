@@ -7,8 +7,18 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Progress } from "@/components/ui/progress"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter,
+} from "@/components/ui/dialog"
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog"
+import { toast } from "sonner"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { UserMultiple02Icon } from "@hugeicons/core-free-icons"
+import { UserMultiple02Icon, Megaphone01Icon } from "@hugeicons/core-free-icons"
 
 // Mirrors apps/agent/app/usage.py / packages/db/src/usage.ts - shown as a
 // plain percentage of the stored counters. Not lazy-reset-adjusted here (that
@@ -38,6 +48,12 @@ function usagePct(used: number, limit: number): number {
 export default function UsersPage() {
   const [users, setUsers] = useState<EndUser[]>([])
   const [loading, setLoading] = useState(true)
+  const [broadcastOpen, setBroadcastOpen] = useState(false)
+  const [broadcastConfirmOpen, setBroadcastConfirmOpen] = useState(false)
+  const [broadcastMessage, setBroadcastMessage] = useState("")
+  const [sending, setSending] = useState(false)
+
+  const telegramUserCount = users.filter((u) => u.telegramUserId).length
 
   useEffect(() => {
     fetch("/api/users")
@@ -46,9 +62,33 @@ export default function UsersPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  async function handleBroadcast() {
+    setSending(true)
+    try {
+      const res = await fetch("/api/broadcast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: broadcastMessage }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      toast.success(`پیام برای ${data.sent.toLocaleString("fa-IR")} از ${data.total.toLocaleString("fa-IR")} کاربر ارسال شد`)
+      setBroadcastMessage("")
+      setBroadcastOpen(false)
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : "خطا در ارسال پیام")
+    } finally {
+      setSending(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between">
+        <Button size="sm" onClick={() => setBroadcastOpen(true)} disabled={telegramUserCount === 0}>
+          <HugeiconsIcon icon={Megaphone01Icon} data-icon="inline-start" />
+          ارسال پیام گروهی
+        </Button>
         <span className="text-sm text-muted-foreground">
           {users.length.toLocaleString("fa-IR")} کاربر
         </span>
@@ -105,7 +145,7 @@ export default function UsersPage() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell dir="ltr" className="text-sm text-muted-foreground">{u.telegramUserId}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{u.telegramUserId}</TableCell>
                       <TableCell>{u._count.conversations.toLocaleString("fa-IR")}</TableCell>
                       <TableCell className="w-32">
                         <div className="flex flex-col gap-1">
@@ -134,6 +174,54 @@ export default function UsersPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={broadcastOpen} onOpenChange={(open) => !sending && setBroadcastOpen(open)}>
+        <DialogContent dir="rtl">
+          <DialogHeader>
+            <DialogTitle>ارسال پیام گروهی</DialogTitle>
+            <DialogDescription>
+              این پیام برای همه کاربران بات تلگرام شما ({telegramUserCount.toLocaleString("fa-IR")} نفر) ارسال می‌شود.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <Textarea
+              value={broadcastMessage}
+              onChange={(e) => setBroadcastMessage(e.target.value)}
+              rows={6}
+              placeholder="متن پیام را بنویسید..."
+              disabled={sending}
+            />
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBroadcastOpen(false)} disabled={sending}>انصراف</Button>
+            <Button
+              onClick={() => setBroadcastConfirmOpen(true)}
+              disabled={sending || !broadcastMessage.trim()}
+            >
+              {sending ? "در حال ارسال..." : "ارسال"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={broadcastConfirmOpen} onOpenChange={setBroadcastConfirmOpen}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>ارسال پیام برای {telegramUserCount.toLocaleString("fa-IR")} کاربر؟</AlertDialogTitle>
+            <AlertDialogDescription>
+              این پیام بلافاصله و بدون امکان لغو برای همه کاربران تلگرام فروشگاه ارسال می‌شود.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>انصراف</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { setBroadcastConfirmOpen(false); handleBroadcast() }}
+            >
+              ارسال کن
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
