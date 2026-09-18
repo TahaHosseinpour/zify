@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from . import tracing
 from .db import db
 from .prompts import (
+    OBJECTION_MOVES,
     build_explore_prompt,
     build_intent_analysis_prompt,
     build_product_prompt,
@@ -1457,8 +1458,9 @@ async def ask_question(state: SalesAgentState) -> dict:
     # actually ambiguous; a clear question should just be answered.
     clarify_instruction = (
         "درخواست مشتری ناقص یا مبهم است. به‌جای پاسخ کامل، فقط یک سوال کوتاه و مشخص بپرس "
-        "تا نیازش روشن شود (مثلاً نوع، کاربرد، بودجه یا سایز). از اطلاعات بالا فقط برای هدفمندتر "
-        "کردن سوالت استفاده کن، نه برای دادن پاسخ کامل."
+        "تا نیازش روشن شود (مثلاً برای چه کسی، چه کاربردی، چه بودجه‌ای یا چه سایزی). "
+        "⚠️ هیچ محصول یا دسته‌بندی‌ای را نام نبر و هیچ فهرستی نساز — حتی به‌عنوان مثال یا "
+        "گزینه‌های پیش رو. خروجی تو فقط همان یک سوال است."
     )
     out_of_catalog = bool(state.get("out_of_catalog"))
     if out_of_catalog:
@@ -1481,9 +1483,10 @@ async def ask_question(state: SalesAgentState) -> dict:
         categories = state.get("shop_categories") or await shop_categories(state["shop_id"])
         available = "، ".join(categories) if categories else ""
         extra = (
-            "فروشگاه این نوع محصول را ندارد. صریح و کوتاه بگو که موجود نیست و "
-            "هیچ سوال تکمیلی درباره همان محصول نپرس."
-            + (f" دسته‌های موجود فروشگاه: {available}. یکی از این‌ها را پیشنهاد بده."
+            "فروشگاه این نوع محصول را ندارد. در یک جمله صریح بگو که موجود نیست.\n"
+            "⚠️ هیچ سوالی از مشتری نپرس — نه درباره همان محصول، نه درباره گزینه‌های دیگر. "
+            "جمله آخرت نباید علامت سوال داشته باشد."
+            + (f" فقط خبر بده که در عوض این دسته‌ها را داریم: {available}."
                if available else "")
         )
     elif state.get("intent") == "needs_clarification":
@@ -1525,21 +1528,28 @@ CLOSING_MOVES = {
         "مشتری آماده خرید است. لینک خرید را بده و او را تشویق کن."
     ),
     "compare": (
-        "مشتری می‌خواهد بین همین گزینه‌ها انتخاب کند. تفاوت‌های واقعی آن‌ها را فقط بر اساس "
-        "همین اطلاعات کوتاه و روشن بگو و با توجه به نیازی که تا حالا گفته یکی را پیشنهاد کن. "
-        "لینک خرید را فقط وقتی بده که خودش خواسته باشد."
+        "مشتری می‌خواهد بین همین گزینه‌ها انتخاب کند. قیمت هر کدام را عیناً همان‌طور که در فهرست "
+        "بالا آمده بنویس و تفاوت واقعی‌شان را فقط از روی همین توضیح‌ها کوتاه و روشن بگو. در پایان "
+        "حتماً یکی را به‌طور مشخص توصیه کن — حتی اگر مشتری ترجیح خاصی نگفته، خودت بر اساس همین "
+        "اطلاعات یکی را انتخاب کن؛ به‌جای اینکه بپرسی کدام ویژگی برایش مهم‌تر است، خودت تصمیم را "
+        "جمع‌بندی کن. لینک خرید را فقط وقتی بده که خودش خواسته باشد."
     ),
-    "price": (
-        "مشتری قیمت را بالا می‌داند. اول ارزش همین محصول را با دلیل مشخص توضیح بده. "
-        "محصول دیگری پیشنهاد نده مگر خودش بخواهد، و برای فروش فشار نیاور."
+    # Same intent, one product: the customer is weighing what we have against
+    # something we can't see (another shop). There is nothing here to compare it
+    # *with*, so the "pick one for them" push above turns into closing pressure
+    # on the only thing on the table.
+    "compare_one": (
+        "مشتری همین یک گزینه را با جاهای دیگر مقایسه می‌کند. یک دلیل مشخص و ملموس از توضیح همین "
+        "محصول بیاور که چرا انتخاب خوبی است. آرام و بدون فشار بنویس: نگو «همین را انتخاب کنید» یا "
+        "«همین حالا بخرید»، لینک خرید را پیش نکش مگر خودش بخواهد، و محصول دیگری پیشنهاد نده. "
+        "چیزی بیرون از همین توضیح به محصول نسبت نده."
     ),
-    "uncertainty": (
-        "مشتری مطمئن نیست این گزینه مناسبش است. فقط بر اساس همین اطلاعات به تردیدش پاسخ بده. "
-        "اگر چیزی لازم است که در اطلاعات بالا نیست، از خودت نساز و کوتاه بپرس."
-    ),
+    "price": "مشتری قیمت را بالا می‌داند. " + OBJECTION_MOVES["price"],
+    "uncertainty": "مشتری مطمئن نیست این گزینه مناسبش است. " + OBJECTION_MOVES["uncertainty"],
     "delay": (
-        "مشتری می‌خواهد فکر کند. به او فرصت بده، هیچ فشاری برای خرید نیاور و محصول جدیدی "
-        "پیشنهاد نده. کوتاه بگو برای هر سوالی در خدمتی."
+        "مشتری می‌خواهد فکر کند. "
+        + OBJECTION_MOVES["delay"]
+        + " کوتاه بگو برای هر سوالی در خدمتی."
     ),
 }
 
@@ -1592,6 +1602,10 @@ async def handle_purchase(state: SalesAgentState) -> dict:
     pinned = await _pinned_product(state)
     items = [pinned] if pinned else list(state.get("shown_products") or [])
     move = _closing_move(state)
+    # "Which of these is better?" with only one product on the table is not a
+    # comparison between our options — see CLOSING_MOVES["compare_one"].
+    if move == "compare" and len(items) < 2:
+        move = "compare_one"
 
     if items:
         context_prompt = (
@@ -1599,7 +1613,8 @@ async def handle_purchase(state: SalesAgentState) -> dict:
             "محصولاتی که مشتری درباره‌شان صحبت می‌کند:\n"
             f"{_product_listing(items)}\n\n"
             "⚠️ هیچ محصول یا لینک دیگری ننویس — حتی محصولی که قبلاً در گفتگو نام برده شده "
-            "ولی اینجا نیست. اگر مطمئن نیستی مشتری کدام‌یک را می‌خواهد، کوتاه بپرس."
+            "ولی اینجا نیست. اگر مطمئن نیستی مشتری کدام‌یک را می‌خواهد، کوتاه بپرس.\n"
+            "⚠️ هر قیمتی را که می‌نویسی عیناً با همان ارقامی بنویس که بالا آمده است."
         )
     else:
         # Nothing on the table yet — ask instead of guessing.

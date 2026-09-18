@@ -106,15 +106,36 @@ def stub_ask_question_retrieval(monkeypatch, faq: list | None = None, shop_info:
     monkeypatch.setattr(G, "vector_search_shop_info", fake_vector_search_shop_info)
 
 
-async def assert_jury_passes(rubric: str, ideal: str, transcript_text: str, reply: str) -> None:
+def grounding(*item_lists: list | None) -> str:
+    """Render the rows a turn was given - products, FAQ entries, shop info -
+    as the judge's record of what the agent was allowed to say.
+
+    Each row's `content` is the exact text the node put in its prompt (see
+    cases/catalog.py), so this is the agent's evidence, verbatim. Without it a
+    judge only sees the visible transcript and reads every correctly-quoted
+    price as a hallucination; see judge/jury.py's `_judge_prompt`.
+    """
+    seen: dict[str, str] = {}
+    for items in item_lists:
+        for row in items or []:
+            content = row.get("content")
+            if content:
+                seen.setdefault(row.get("id", content), content)
+    return "\n".join(f"- {content}" for content in seen.values())
+
+
+async def assert_jury_passes(
+    rubric: str, ideal: str, transcript_text: str, reply: str, context: str = ""
+) -> None:
     """Put `reply` to the configured jury (judge/config.py) and fail loudly -
     with every judge's reasoning attached - if it doesn't pass. `ideal` is a
     concrete description of what a great reply looks like here, given to
     every judge alongside the rubric checklist so it has a standard to
-    compare against. Skips (rather than fails) if every judge in the jury
-    errored out, since that means the jury itself is unavailable, not that
-    the reply is bad."""
-    verdict = await deliberate(rubric, ideal, transcript_text, reply)
+    compare against, and `context` is what the agent was handed to answer
+    from (see `grounding`). Skips (rather than fails) if every judge in the
+    jury errored out, since that means the jury itself is unavailable, not
+    that the reply is bad."""
+    verdict = await deliberate(rubric, ideal, transcript_text, reply, context)
     if verdict.all_errored:
         pytest.skip(f"every judge errored:\n{verdict.explain()}")
     assert verdict.passed, f"jury rejected the reply:\n{verdict.explain()}\n\n--- reply ---\n{reply}"

@@ -21,16 +21,21 @@ from . import config
 
 JUDGE_SYSTEM_PROMPT = (
     "You are a strict, impartial judge for a Persian-language sales chatbot. "
-    "You will be given the conversation so far, one reply from the agent, a "
-    "rubric, and a description of what an ideal reply looks like. Decide "
-    "whether the reply satisfies every criterion in the rubric, using the "
-    "ideal-reply description as your standard of comparison - the actual "
-    "reply doesn't need to match it word for word, but it must accomplish "
-    "the same thing. Be skeptical of hallucinated products, prices, links or "
-    "claims not grounded in the conversation - inventing any of these is "
-    "always a fail, even if the rubric doesn't say so explicitly. Judge only "
-    "the given criteria, not writing style you personally would have "
-    "preferred."
+    "You will be given the conversation so far, the catalog and FAQ facts the "
+    "agent was handed for this turn, one reply from the agent, a rubric, and "
+    "a description of what an ideal reply looks like. Decide whether the "
+    "reply satisfies every criterion in the rubric, using the ideal-reply "
+    "description as your standard of comparison - the actual reply doesn't "
+    "need to match it word for word, but it must accomplish the same thing. "
+    "A product, price, link or spec is GROUNDED when it appears in the "
+    "conversation or in the given facts. Those facts are true and were handed "
+    "to the agent by retrieval, so quoting or paraphrasing them is correct "
+    "behaviour and never counts as invention - not even when the customer "
+    "has not been shown them earlier in the visible transcript. Be skeptical "
+    "of anything grounded in neither: a product, price, link or claim that "
+    "appears in neither place, or that contradicts the given facts, is always "
+    "a fail, even if the rubric doesn't say so explicitly. Judge only the "
+    "given criteria, not writing style you personally would have preferred."
 )
 
 
@@ -75,16 +80,27 @@ class JuryVerdict:
         return "\n".join(f"[{label(v)}] {v.model}: {v.reasoning}" for v in self.votes)
 
 
-def _judge_prompt(rubric: str, ideal: str, transcript: str, reply: str) -> str:
+def _judge_prompt(rubric: str, ideal: str, transcript: str, reply: str, context: str) -> str:
+    # The facts block is not optional decoration: without it a judge sees only
+    # the visible transcript, so every truthful product name, price and
+    # description the agent read out of its retrieved context looked invented,
+    # and the "never hallucinate" rule above failed replies that were in fact
+    # perfectly grounded. It cuts the other way too - a judge that cannot see
+    # the real ۱٬۴۵۰٬۰۰۰ price has no way to catch an agent quoting a wrong
+    # one, so the rule was unenforceable in both directions.
     return (
         f"### Conversation so far\n{transcript or '(nothing yet)'}\n\n"
+        f"### Facts the agent was given for this turn\n"
+        f"{context or '(none - the agent was handed no catalog or FAQ rows)'}\n\n"
         f"### Reply being judged\n{reply}\n\n"
         f"### What an ideal reply looks like here\n{ideal}\n\n"
         f"### Rubric - the reply must satisfy ALL of these to pass\n{rubric}\n"
     )
 
 
-async def _ask_one_judge(model: str, rubric: str, ideal: str, transcript: str, reply: str) -> JudgeVote:
+async def _ask_one_judge(
+    model: str, rubric: str, ideal: str, transcript: str, reply: str, context: str
+) -> JudgeVote:
     try:
         judge_llm = ChatOpenAI(
             model=model,
@@ -95,7 +111,7 @@ async def _ask_one_judge(model: str, rubric: str, ideal: str, transcript: str, r
         verdict: Verdict = await judge_llm.ainvoke(
             [
                 SystemMessage(content=JUDGE_SYSTEM_PROMPT),
-                HumanMessage(content=_judge_prompt(rubric, ideal, transcript, reply)),
+                HumanMessage(content=_judge_prompt(rubric, ideal, transcript, reply, context)),
             ]
         )
         return JudgeVote(model=model, passed=verdict.passed, reasoning=verdict.reasoning)
@@ -103,9 +119,18 @@ async def _ask_one_judge(model: str, rubric: str, ideal: str, transcript: str, r
         return JudgeVote(model=model, passed=None, reasoning=f"judge errored: {type(exc).__name__}: {exc}")
 
 
-async def deliberate(rubric: str, ideal: str, transcript: str, reply: str) -> JuryVerdict:
-    """Put one reply to the whole configured jury and collect their votes."""
+async def deliberate(
+    rubric: str, ideal: str, transcript: str, reply: str, context: str = ""
+) -> JuryVerdict:
+    """Put one reply to the whole configured jury and collect their votes.
+
+    `context` is the catalog/FAQ text the agent was actually handed for this
+    turn - what makes "is this grounded?" a question the jury can answer.
+    """
     votes = await asyncio.gather(
-        *[_ask_one_judge(model, rubric, ideal, transcript, reply) for model in config.JUDGE_MODELS]
+        *[
+            _ask_one_judge(model, rubric, ideal, transcript, reply, context)
+            for model in config.JUDGE_MODELS
+        ]
     )
     return JuryVerdict(votes=list(votes))

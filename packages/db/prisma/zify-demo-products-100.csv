@@ -1,0 +1,101 @@
+﻿name,price,category,brand,description,imageUrl,productUrl,stock,isActive
+گوشی هوشمند سامسونگ,15500000,الکترونیک,سامسونگ,گوشی هوشمند سامسونگ با صفحه‌نمایش ۶.۵ اینچی، دوربین ۵۰ مگاپیکسلی و باتری ۵۰۰۰ میلی‌آمپرساعتی.,https://picsum.photos/seed/1/600/600,https://demo-shop.zify.example.com/products/1,40,true
+گوشی هوشمند اپل پرو,42000000,الکترونیک,اپل,آیفون اپل با تراشه نسل جدید، دوربین سه‌گانه و صفحه‌نمایش OLED.,https://picsum.photos/seed/2/600/600,https://demo-shop.zify.example.com/products/2,3,true
+هدفون بی‌سیم اپل,5200000,الکترونیک,اپل,هدفون بی‌سیم اپل با حذف نویز فعال و تا ۳۰ ساعت پخش موسیقی با کیس شارژ.,https://picsum.photos/seed/3/600/600,https://demo-shop.zify.example.com/products/3,0,true
+هدفون بی‌سیم انکر پلاس,1450000,الکترونیک,انکر,هدفون بی‌سیم انکر با کیفیت صدای باس‌دار و اتصال بلوتوث ۵.۳.,https://picsum.photos/seed/4/600/600,https://demo-shop.zify.example.com/products/4,50,true
+پاوربانک انکر,1100000,الکترونیک,انکر,پاوربانک انکر با ظرفیت ۲۰۰۰۰ میلی‌آمپرساعت و پورت شارژ سریع.,https://picsum.photos/seed/5/600/600,https://demo-shop.zify.example.com/products/5,10,true
+پاوربانک شیائومی لایت,650000,الکترونیک,شیائومی,پاوربانک شیائومی با ظرفیت ۱۰۰۰۰ میلی‌آمپرساعت و طراحی جمع‌وجور.,https://picsum.photos/seed/6/600/600,https://demo-shop.zify.example.com/products/6,8,true
+اسپیکر بلوتوثی جی‌بی‌ال,3400000,الکترونیک,جی‌بی‌ال,اسپیکر بلوتوثی جی‌بی‌ال با صدای استریو قدرتمند و مقاومت در برابر آب (IP67).,https://picsum.photos/seed/7/600/600,https://demo-shop.zify.example.com/products/7,8,true
+اسپیکر بلوتوثی سونی مکس,4600000,الکترونیک,سونی,اسپیکر سونی با باس تقویت‌شده و باتری ۲۴ ساعته.,https://picsum.photos/seed/8/600/600,https://demo-shop.zify.example.com/products/8,5,true
+ساعت هوشمند سامسونگ,9800000,الکترونیک,سامسونگ,ساعت هوشمند سامسونگ با سنجش ضربان قلب، اکسیژن خون و ردیابی خواب.,https://picsum.photos/seed/9/600/600,https://demo-shop.zify.example.com/products/9,50,true
+ساعت هوشمند شیائومی اسپرت,3200000,الکترونیک,شیائومی,ساعت هوشمند شیائومی با بیش از ۱۰۰ حالت ورزشی و باتری دو هفته‌ای.,https://picsum.photos/seed/10/600/600,https://demo-shop.zify.example.com/products/10,3,true
+تبلت اپل,28000000,الکترونیک,اپل,آیپد اپل با صفحه ۱۰.۹ اینچی و پشتیبانی از قلم دیجیتال.,https://picsum.photos/seed/11/600/600,https://demo-shop.zify.example.com/products/11,40,true
+تبلت سامسونگ لایت,14500000,الکترونیک,سامسونگ,تبلت سامسونگ گلکسی با صفحه بزرگ، مناسب مطالعه و سرگرمی.,https://picsum.photos/seed/12/600/600,https://demo-shop.zify.example.com/products/12,50,true
+لپ‌تاپ ال‌جی,48000000,الکترونیک,ال‌جی,لپ‌تاپ ال‌جی گرم با وزن ۱ کیلوگرم و باتری ۲۰ ساعته.,https://picsum.photos/seed/13/600/600,https://demo-shop.zify.example.com/products/13,25,true
+لپ‌تاپ اپل پرو,89000000,الکترونیک,اپل,مک‌بوک پرو اپل با تراشه M-سری و نمایشگر Retina.,https://picsum.photos/seed/14/600/600,https://demo-shop.zify.example.com/products/14,3,true
+مانیتور ال‌جی,8900000,الکترونیک,ال‌جی,مانیتور ال‌جی ۲۷ اینچی با رزولوشن 2K و نرخ تازه‌سازی ۱۴۴ هرتز.,https://picsum.photos/seed/15/600/600,https://demo-shop.zify.example.com/products/15,30,true
+مانیتور سامسونگ کرو,12500000,الکترونیک,سامسونگ,مانیتور خمیده سامسونگ ۳۲ اینچی، مناسب گیمینگ و طراحی.,https://picsum.photos/seed/16/600/600,https://demo-shop.zify.example.com/products/16,15,true
+کیبورد بی‌سیم لاجیتک استایل,950000,الکترونیک,لاجیتک استایل,کیبورد بی‌سیم با طراحی ارگونومیک و باتری تا ۶ ماه.,https://picsum.photos/seed/17/600/600,https://demo-shop.zify.example.com/products/17,0,true
+کیبورد بی‌سیم انکر کامپکت,720000,الکترونیک,انکر,کیبورد کامپکت انکر، مناسب حمل و استفاده در سفر.,https://picsum.photos/seed/18/600/600,https://demo-shop.zify.example.com/products/18,0,true
+هارد اکسترنال سامسونگ,3100000,الکترونیک,سامسونگ,هارد اکسترنال SSD سامسونگ با ظرفیت ۱ ترابایت و سرعت انتقال بالا.,https://picsum.photos/seed/19/600/600,https://demo-shop.zify.example.com/products/19,3,true
+هارد اکسترنال وسترن دیجیتال استایل پرتابل,2400000,الکترونیک,وسترن دیجیتال استایل,هارد اکسترنال ۱ ترابایتی با اتصال USB 3.0 و بدنه مقاوم.,https://picsum.photos/seed/20/600/600,https://demo-shop.zify.example.com/products/20,8,true
+تیشرت نخی نایک,650000,پوشاک,نایک,تیشرت نخی نایک با پارچه نرم و تنفس‌پذیر، مناسب پوشش روزمره.,https://picsum.photos/seed/21/600/600,https://demo-shop.zify.example.com/products/21,8,true
+تیشرت نخی آدیداس اسپرت,590000,پوشاک,آدیداس,تیشرت ورزشی آدیداس با فناوری جذب رطوبت.,https://picsum.photos/seed/22/600/600,https://demo-shop.zify.example.com/products/22,25,true
+شلوار جین لیوایز,1450000,پوشاک,لیوایز,شلوار جین لیوایز با برش کلاسیک و دوام بالا.,https://picsum.photos/seed/23/600/600,https://demo-shop.zify.example.com/products/23,30,true
+شلوار جین زارا استایل اسلیم,980000,پوشاک,زارا استایل,شلوار جین اسلیم‌فیت با پارچه کشدار و راحت.,https://picsum.photos/seed/24/600/600,https://demo-shop.zify.example.com/products/24,0,true
+کاپشن زمستانی نورث‌فیس استایل,3200000,پوشاک,نورث‌فیس استایل,کاپشن زمستانی ضدآب با پوشش داخلی گرم، مناسب هوای بسیار سرد.,https://picsum.photos/seed/25/600/600,https://demo-shop.zify.example.com/products/25,25,true
+کاپشن زمستانی آدیداس لایت,1800000,پوشاک,آدیداس,کاپشن سبک آدیداس، مناسب فصل پاییز و اوایل زمستان.,https://picsum.photos/seed/26/600/600,https://demo-shop.zify.example.com/products/26,8,true
+کفش ورزشی نایک,3400000,پوشاک,نایک,کفش دویدن نایک با کفی طبی و زیره ضدلغزش.,https://picsum.photos/seed/27/600/600,https://demo-shop.zify.example.com/products/27,50,true
+کفش ورزشی آدیداس بوست,4100000,پوشاک,آدیداس,کفش آدیداس بوست با بازگشت انرژی بالا، مناسب دویدن حرفه‌ای.,https://picsum.photos/seed/28/600/600,https://demo-shop.zify.example.com/products/28,40,true
+کتانی روزمره پوما,2100000,پوشاک,پوما,کتانی روزمره پوما با طراحی مدرن و وزن سبک.,https://picsum.photos/seed/29/600/600,https://demo-shop.zify.example.com/products/29,50,true
+کتانی روزمره ریباک کلاسیک,1750000,پوشاک,ریباک,کتانی کلاسیک ریباک، مناسب استفاده روزانه.,https://picsum.photos/seed/30/600/600,https://demo-shop.zify.example.com/products/30,25,true
+پیراهن مردانه زارا استایل,890000,پوشاک,زارا استایل,پیراهن مردانه با پارچه باکیفیت و دوخت مرتب، مناسب محیط کار.,https://picsum.photos/seed/31/600/600,https://demo-shop.zify.example.com/products/31,15,true
+پیراهن مردانه اچ‌اند‌ام استایل اسلیم,720000,پوشاک,اچ‌اند‌ام استایل,پیراهن اسلیم‌فیت با طرح ساده و رنگ‌بندی متنوع.,https://picsum.photos/seed/32/600/600,https://demo-shop.zify.example.com/products/32,8,true
+هودی نایک,1350000,پوشاک,نایک,هودی نایک با پارچه گرم و کلاه‌دار، مناسب فصل سرد.,https://picsum.photos/seed/33/600/600,https://demo-shop.zify.example.com/products/33,20,true
+هودی پوما اوورسایز,1150000,پوشاک,پوما,هودی اوورسایز پوما با طراحی راحت و جوان‌پسند.,https://picsum.photos/seed/34/600/600,https://demo-shop.zify.example.com/products/34,30,true
+شومیز زنانه زارا استایل,680000,پوشاک,زارا استایل,شومیز زنانه با پارچه سبک و طرح ساده، مناسب استفاده روزمره.,https://picsum.photos/seed/35/600/600,https://demo-shop.zify.example.com/products/35,10,true
+شومیز زنانه اچ‌اند‌ام استایل پرینت,590000,پوشاک,اچ‌اند‌ام استایل,شومیز طرح‌دار با آستین بلند، مناسب فصل بهار.,https://picsum.photos/seed/36/600/600,https://demo-shop.zify.example.com/products/36,0,true
+کیف دستی زنانه کیپلینگ,1900000,پوشاک,کیپلینگ,کیف دستی زنانه با چرم مصنوعی باکیفیت و طراحی شیک.,https://picsum.photos/seed/37/600/600,https://demo-shop.zify.example.com/products/37,5,true
+کیف دستی زنانه زارا استایل مینی,1200000,پوشاک,زارا استایل,کیف دستی کوچک، مناسب مهمانی و بیرون‌رفت.,https://picsum.photos/seed/38/600/600,https://demo-shop.zify.example.com/products/38,50,true
+کلاه بافت آدیداس,350000,پوشاک,آدیداس,کلاه بافت آدیداس، گرم و مناسب هوای سرد.,https://picsum.photos/seed/39/600/600,https://demo-shop.zify.example.com/products/39,15,true
+کلاه بافت نایک اسپرت,320000,پوشاک,نایک,کلاه بافت ورزشی نایک با لوگوی برجسته.,https://picsum.photos/seed/40/600/600,https://demo-shop.zify.example.com/products/40,12,true
+سرخ‌کن بدون روغن فیلیپس,4800000,لوازم خانه و آشپزخانه,فیلیپس,سرخ‌کن بدون روغن فیلیپس با ظرفیت ۴.۲ لیتر و پخت سالم و سریع.,https://picsum.photos/seed/41/600/600,https://demo-shop.zify.example.com/products/41,10,true
+سرخ‌کن بدون روغن تفال کامپکت,3600000,لوازم خانه و آشپزخانه,تفال,سرخ‌کن بدون روغن تفال با ظرفیت ۳ لیتر، مناسب خانواده‌های کوچک.,https://picsum.photos/seed/42/600/600,https://demo-shop.zify.example.com/products/42,5,true
+چای‌ساز پارس خزر,1600000,لوازم خانه و آشپزخانه,پارس خزر,چای‌ساز پارس خزر با دم‌کش استیل و کنترل دمای دقیق.,https://picsum.photos/seed/43/600/600,https://demo-shop.zify.example.com/products/43,8,true
+چای‌ساز بوش دوکاره,2400000,لوازم خانه و آشپزخانه,بوش,چای‌ساز بوش با قابلیت دم‌آوری و جوش سریع.,https://picsum.photos/seed/44/600/600,https://demo-shop.zify.example.com/products/44,12,true
+اتو بخار فیلیپس,1500000,لوازم خانه و آشپزخانه,فیلیپس,اتو بخار فیلیپس با کف سرامیکی و بخار قدرتمند.,https://picsum.photos/seed/45/600/600,https://demo-shop.zify.example.com/products/45,3,true
+اتو بخار تفال پرو,1900000,لوازم خانه و آشپزخانه,تفال,اتو بخار تفال با سیستم ضدرسوب و بخار پیوسته.,https://picsum.photos/seed/46/600/600,https://demo-shop.zify.example.com/products/46,3,true
+جاروبرقی بوش,5900000,لوازم خانه و آشپزخانه,بوش,جاروبرقی بوش با قدرت مکش بالا و فیلتر HEPA.,https://picsum.photos/seed/47/600/600,https://demo-shop.zify.example.com/products/47,15,true
+جاروبرقی فیلیپس بدون کیسه,4200000,لوازم خانه و آشپزخانه,فیلیپس,جاروبرقی بدون کیسه فیلیپس، تمیزکاری راحت و سریع.,https://picsum.photos/seed/48/600/600,https://demo-shop.zify.example.com/products/48,3,true
+همزن برقی مولینکس,1200000,لوازم خانه و آشپزخانه,مولینکس,همزن برقی مولینکس با چند سرعت و کاسه استیل.,https://picsum.photos/seed/49/600/600,https://demo-shop.zify.example.com/products/49,12,true
+همزن برقی بوش کامپکت,950000,لوازم خانه و آشپزخانه,بوش,همزن دستی بوش، سبک و مناسب استفاده روزمره.,https://picsum.photos/seed/50/600/600,https://demo-shop.zify.example.com/products/50,12,true
+قهوه‌ساز دلونگی,5500000,لوازم خانه و آشپزخانه,دلونگی,قهوه‌ساز دلونگی مناسب تهیه اسپرسو در منزل.,https://picsum.photos/seed/51/600/600,https://demo-shop.zify.example.com/products/51,30,true
+قهوه‌ساز فیلیپس دمی,3200000,لوازم خانه و آشپزخانه,فیلیپس,قهوه‌ساز قطره‌ای فیلیپس با ظرفیت ۱۰ فنجان.,https://picsum.photos/seed/52/600/600,https://demo-shop.zify.example.com/products/52,10,true
+توستر پارس خزر,850000,لوازم خانه و آشپزخانه,پارس خزر,توستر پارس خزر با دو اسلات و تنظیم درجه برشتگی.,https://picsum.photos/seed/53/600/600,https://demo-shop.zify.example.com/products/53,0,true
+توستر تفال دیجیتال,1300000,لوازم خانه و آشپزخانه,تفال,توستر دیجیتال تفال با نمایشگر زمان‌سنج.,https://picsum.photos/seed/54/600/600,https://demo-shop.zify.example.com/products/54,50,true
+پلوپز پارس خزر,2800000,لوازم خانه و آشپزخانه,پارس خزر,پلوپز پارس خزر با ظرفیت ۸ نفره و پخت یکنواخت.,https://picsum.photos/seed/55/600/600,https://demo-shop.zify.example.com/products/55,20,true
+پلوپز بوش دیجیتال,3900000,لوازم خانه و آشپزخانه,بوش,پلوپز دیجیتال بوش با برنامه‌های پخت متنوع.,https://picsum.photos/seed/56/600/600,https://demo-shop.zify.example.com/products/56,25,true
+آبمیوه‌گیری مولینکس,1900000,لوازم خانه و آشپزخانه,مولینکس,آبمیوه‌گیری مولینکس با موتور قدرتمند و بدنه استیل.,https://picsum.photos/seed/57/600/600,https://demo-shop.zify.example.com/products/57,3,true
+آبمیوه‌گیری فیلیپس کامپکت,1500000,لوازم خانه و آشپزخانه,فیلیپس,آبمیوه‌گیری فیلیپس، جمع‌وجور و مناسب استفاده روزانه.,https://picsum.photos/seed/58/600/600,https://demo-shop.zify.example.com/products/58,15,true
+بلندر تفال,1400000,لوازم خانه و آشپزخانه,تفال,بلندر تفال با چند سرعت، مناسب اسموتی و سوپ.,https://picsum.photos/seed/59/600/600,https://demo-shop.zify.example.com/products/59,3,true
+بلندر مولینکس پاورمیکس,1800000,لوازم خانه و آشپزخانه,مولینکس,بلندر قدرتمند مولینکس با تیغه استیل ضدزنگ.,https://picsum.photos/seed/60/600/600,https://demo-shop.zify.example.com/products/60,25,true
+کرم مرطوب‌کننده نیوآ,420000,زیبایی و مراقبت شخصی,نیوآ,کرم مرطوب‌کننده نیوآ مناسب پوست خشک و حساس.,https://picsum.photos/seed/61/600/600,https://demo-shop.zify.example.com/products/61,10,true
+کرم مرطوب‌کننده لورآل شبانه,580000,زیبایی و مراقبت شخصی,لورآل,کرم شبانه لورآل با فرمول ضدچروک و مرطوب‌کننده.,https://picsum.photos/seed/62/600/600,https://demo-shop.zify.example.com/products/62,40,true
+شامپو تقویتی گارنیه,280000,زیبایی و مراقبت شخصی,گارنیه,شامپو تقویتی گارنیه برای کاهش ریزش مو.,https://picsum.photos/seed/63/600/600,https://demo-shop.zify.example.com/products/63,30,true
+شامپو تقویتی لورآل ترمیمی,350000,زیبایی و مراقبت شخصی,لورآل,شامپو ترمیمی لورآل مناسب موهای آسیب‌دیده.,https://picsum.photos/seed/64/600/600,https://demo-shop.zify.example.com/products/64,12,true
+ماشین اصلاح صورت براون,2100000,زیبایی و مراقبت شخصی,براون,ماشین اصلاح براون با تیغه‌های تیز و بدنه ضدآب.,https://picsum.photos/seed/65/600/600,https://demo-shop.zify.example.com/products/65,30,true
+ماشین اصلاح صورت فیلیپس شارژی,1700000,زیبایی و مراقبت شخصی,فیلیپس,ماشین اصلاح شارژی فیلیپس با تیغه خودتیزشونده.,https://picsum.photos/seed/66/600/600,https://demo-shop.zify.example.com/products/66,8,true
+اتو مو فیلیپس,1500000,زیبایی و مراقبت شخصی,فیلیپس,اتو مو فیلیپس با صفحات سرامیکی و کنترل دمای دقیق.,https://picsum.photos/seed/67/600/600,https://demo-shop.zify.example.com/products/67,50,true
+اتو مو براون سرامیک,1800000,زیبایی و مراقبت شخصی,براون,اتو مو براون با پوشش سرامیکی برای حفاظت از مو.,https://picsum.photos/seed/68/600/600,https://demo-shop.zify.example.com/products/68,3,true
+سشوار فیلیپس,1100000,زیبایی و مراقبت شخصی,فیلیپس,سشوار فیلیپس با موتور قدرتمند و چند حالت دما.,https://picsum.photos/seed/69/600/600,https://demo-shop.zify.example.com/products/69,0,true
+سشوار براون یونی,1600000,زیبایی و مراقبت شخصی,براون,سشوار یونی براون، کاهش‌دهنده وز مو.,https://picsum.photos/seed/70/600/600,https://demo-shop.zify.example.com/products/70,40,true
+عطر لورآل,950000,زیبایی و مراقبت شخصی,لورآل,عطر لورآل با رایحه ماندگار، مناسب استفاده روزانه.,https://picsum.photos/seed/71/600/600,https://demo-shop.zify.example.com/products/71,8,true
+عطر نیوآ فرش,620000,زیبایی و مراقبت شخصی,نیوآ,ادکلن نیوآ با رایحه ملایم و تازه.,https://picsum.photos/seed/72/600/600,https://demo-shop.zify.example.com/products/72,10,true
+لوسیون بدن نیوآ,320000,زیبایی و مراقبت شخصی,نیوآ,لوسیون بدن نیوآ، مرطوب‌کننده و سریع‌جذب.,https://picsum.photos/seed/73/600/600,https://demo-shop.zify.example.com/products/73,3,true
+لوسیون بدن گارنیه شیر بدن,380000,زیبایی و مراقبت شخصی,گارنیه,شیر بدن گارنیه با عصاره طبیعی.,https://picsum.photos/seed/74/600/600,https://demo-shop.zify.example.com/products/74,8,true
+ماسک صورت گارنیه,260000,زیبایی و مراقبت شخصی,گارنیه,ماسک صورت گارنیه برای شادابی و درخشندگی پوست.,https://picsum.photos/seed/75/600/600,https://demo-shop.zify.example.com/products/75,3,true
+ماسک صورت لورآل خاک رس,340000,زیبایی و مراقبت شخصی,لورآل,ماسک خاک رس لورآل مناسب پوست چرب.,https://picsum.photos/seed/76/600/600,https://demo-shop.zify.example.com/products/76,15,true
+برس مو حرفه‌ای براون,220000,زیبایی و مراقبت شخصی,براون,برس مو حرفه‌ای با دسته ارگونومیک، مناسب انواع مو.,https://picsum.photos/seed/77/600/600,https://demo-shop.zify.example.com/products/77,10,true
+برس مو حرفه‌ای فیلیپس حجم‌دهنده,480000,زیبایی و مراقبت شخصی,فیلیپس,برس حجم‌دهنده فیلیپس، مناسب سشوار کشیدن در منزل.,https://picsum.photos/seed/78/600/600,https://demo-shop.zify.example.com/products/78,20,true
+ست مانیکور ژیلت,480000,زیبایی و مراقبت شخصی,ژیلت,ست مانیکور شامل ابزار کامل مراقبت از ناخن.,https://picsum.photos/seed/79/600/600,https://demo-shop.zify.example.com/products/79,40,true
+ست مانیکور نیوآ سفری,350000,زیبایی و مراقبت شخصی,نیوآ,ست مانیکور سفری، جمع‌وجور و مناسب مسافرت.,https://picsum.photos/seed/80/600/600,https://demo-shop.zify.example.com/products/80,12,true
+دمبل ست آدیداس,1600000,ورزش و سرگرمی,آدیداس,ست دمبل آدیداس با روکش لاستیکی، مناسب تمرین در منزل.,https://picsum.photos/seed/81/600/600,https://demo-shop.zify.example.com/products/81,5,true
+دمبل ست دیکتلون استایل تنظیم‌شونده,2400000,ورزش و سرگرمی,دیکتلون استایل,دمبل تنظیم‌شونده، جایگزین چند وزنه مختلف.,https://picsum.photos/seed/82/600/600,https://demo-shop.zify.example.com/products/82,12,true
+تشک یوگا نایک,650000,ورزش و سرگرمی,نایک,تشک یوگا نایک ضدلغزش با ضخامت مناسب.,https://picsum.photos/seed/83/600/600,https://demo-shop.zify.example.com/products/83,12,true
+تشک یوگا دیکتلون استایل مسافرتی,480000,ورزش و سرگرمی,دیکتلون استایل,تشک یوگا سبک، مناسب حمل و سفر.,https://picsum.photos/seed/84/600/600,https://demo-shop.zify.example.com/products/84,8,true
+توپ فوتبال آدیداس,850000,ورزش و سرگرمی,آدیداس,توپ فوتبال آدیداس استاندارد مسابقات، دوخت دستی.,https://picsum.photos/seed/85/600/600,https://demo-shop.zify.example.com/products/85,40,true
+توپ فوتبال اسپالدینگ سایز ۵,620000,ورزش و سرگرمی,اسپالدینگ,توپ فوتبال سایز ۵، مناسب تمرین باشگاهی.,https://picsum.photos/seed/86/600/600,https://demo-shop.zify.example.com/products/86,10,true
+دوچرخه شهری دیکتلون استایل,14500000,ورزش و سرگرمی,دیکتلون استایل,دوچرخه شهری با فریم سبک، مناسب مسیرهای روزمره.,https://picsum.photos/seed/87/600/600,https://demo-shop.zify.example.com/products/87,50,true
+دوچرخه شهری جاینت استایل کوهستان,22000000,ورزش و سرگرمی,جاینت استایل,دوچرخه کوهستان با دنده‌های متعدد و ترمز دیسکی.,https://picsum.photos/seed/88/600/600,https://demo-shop.zify.example.com/products/88,40,true
+کوله پشتی کوهنوردی دیکتلون استایل,1800000,ورزش و سرگرمی,دیکتلون استایل,کوله پشتی کوهنوردی ۴۰ لیتری با پارچه ضدآب.,https://picsum.photos/seed/89/600/600,https://demo-shop.zify.example.com/products/89,40,true
+کوله پشتی کوهنوردی کیپلینگ روزانه,1200000,ورزش و سرگرمی,کیپلینگ,کوله پشتی روزانه، مناسب دانشگاه و کار.,https://picsum.photos/seed/90/600/600,https://demo-shop.zify.example.com/products/90,3,true
+چادر مسافرتی دیکتلون استایل,3600000,ورزش و سرگرمی,دیکتلون استایل,چادر مسافرتی ۲ نفره، ضدآب و سبک برای کوله‌پیمایی.,https://picsum.photos/seed/91/600/600,https://demo-shop.zify.example.com/products/91,30,true
+چادر مسافرتی کوانتوم استایل خانوادگی,5200000,ورزش و سرگرمی,کوانتوم استایل,چادر مسافرتی ۴ نفره، مناسب کمپینگ خانوادگی.,https://picsum.photos/seed/92/600/600,https://demo-shop.zify.example.com/products/92,40,true
+کفش پیاده‌روی نایک,2600000,ورزش و سرگرمی,نایک,کفش پیاده‌روی نایک با کفی طبی و تهویه مناسب.,https://picsum.photos/seed/93/600/600,https://demo-shop.zify.example.com/products/93,5,true
+کفش پیاده‌روی آدیداس ترکینگ,3100000,ورزش و سرگرمی,آدیداس,کفش ترکینگ آدیداس، مناسب مسیرهای ناهموار.,https://picsum.photos/seed/94/600/600,https://demo-shop.zify.example.com/products/94,25,true
+کش ورزشی مقاومتی دیکتلون استایل,320000,ورزش و سرگرمی,دیکتلون استایل,ست کش ورزشی با چند سطح مقاومت.,https://picsum.photos/seed/95/600/600,https://demo-shop.zify.example.com/products/95,50,true
+کش ورزشی مقاومتی آدیداس لوپ,380000,ورزش و سرگرمی,آدیداس,کش ورزشی حلقه‌ای، مناسب تمرینات پایین‌تنه.,https://picsum.photos/seed/96/600/600,https://demo-shop.zify.example.com/products/96,8,true
+ساک ورزشی نایک,750000,ورزش و سرگرمی,نایک,ساک ورزشی نایک با فضای مناسب و بند قابل تنظیم.,https://picsum.photos/seed/97/600/600,https://demo-shop.zify.example.com/products/97,5,true
+ساک ورزشی اسپالدینگ باشگاهی,620000,ورزش و سرگرمی,اسپالدینگ,ساک ورزشی باشگاهی با جادار برای لوازم تمرین.,https://picsum.photos/seed/98/600/600,https://demo-shop.zify.example.com/products/98,20,true
+دستکش بوکس اسپالدینگ,1400000,ورزش و سرگرمی,اسپالدینگ,دستکش بوکس اسپالدینگ با کف‌پوش ضربه‌گیر مناسب تمرین.,https://picsum.photos/seed/99/600/600,https://demo-shop.zify.example.com/products/99,15,true
+دستکش بوکس آدیداس پرو,1900000,ورزش و سرگرمی,آدیداس,دستکش بوکس حرفه‌ای آدیداس، مناسب تمرینات کیسه بوکس.,https://picsum.photos/seed/100/600/600,https://demo-shop.zify.example.com/products/100,10,true

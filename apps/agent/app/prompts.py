@@ -83,6 +83,30 @@ DROPPED_FILTER_LABELS = {
 }
 
 
+# How to answer each objection. Shared with graph.CLOSING_MOVES so a customer
+# who objects gets the same advice whether the turn retrieved products or is
+# closing on what is already on the table. Each one is specific about *what to
+# say* rather than "rebut it with logic": a generic nudge produced generic
+# reassurance ("کیفیتش خوبه") and, worse, a follow-up question offering
+# alternatives the customer never asked for.
+OBJECTION_MOVES = {
+    "price": (
+        "قیمت را با همان مشخصاتی که در توضیح خود محصول آمده توجیه کن و مشخصات مهم را تک‌تک "
+        "نام ببر. محصول ارزان‌تری پیشنهاد نده، درباره بودجه‌اش سوال نپرس و نگو که می‌توانید "
+        "گزینه‌های دیگری بررسی کنید."
+    ),
+    "uncertainty": (
+        "فقط با همان توضیحی که از خود محصول به تو داده شده به تردیدش پاسخ بده و در آخر کوتاه "
+        "بپرس دقیقاً چه چیزی نگرانش کرده. تردید او درباره قیمت نیست، پس قیمت را وسط نیاور مگر "
+        "خودش از قیمت حرف زده باشد. هیچ ادعای تازه‌ای اضافه نکن — نه وعده راحتی یا عملکرد، "
+        "نه ضمانت، نه ویژگی‌ای که در توضیح محصول نیامده."
+    ),
+    "delay": (
+        "به او فرصت فکر کردن بده، هیچ فشاری برای خرید نیاور و محصول جدیدی پیشنهاد نده."
+    ),
+}
+
+
 def build_explore_prompt(
     context: list[RetrievedItem],
     stage: Optional[str],
@@ -114,7 +138,12 @@ def build_explore_prompt(
                 "نه به‌عنوان چیزی که مشتری خواسته.\n"
             )
         else:
-            prompt += "هیچ محصول جایگزینی هم برای پیشنهاد نداری. چیزی از خودت نساز.\n"
+            prompt += (
+                "هیچ محصول جایگزینی هم برای پیشنهاد نداری. فقط یک جمله بنویس: که این را نداریم، و "
+                "بپرس دنبال چه چیز دیگری می‌گردد.\n"
+                "⚠️ هیچ نام محصول یا دسته‌بندی‌ای ننویس — حتی دسته‌بندی‌های خود فروشگاه را هم "
+                "به‌عنوان مثال یا گزینه نام نبر.\n"
+            )
     elif dropped:
         # Name the predicates that were actually given up. The old text always
         # said "دسته/برند/بودجه" regardless, so the model would invent a budget
@@ -134,6 +163,8 @@ def build_explore_prompt(
         prompt += (
             "\n⚠️ فقط همین محصولات بالا را نام ببر. هیچ محصول، قیمت یا لینک دیگری "
             "که در این فهرست نیست ننویس — حتی اگر در بخش‌های قبلی گفتگو آمده باشد.\n"
+            "⚠️ قیمت‌ها را عیناً با همان ارقامی که بالا نوشته شده بیاور و ویژگی‌ای فراتر از "
+            "همین توضیح‌ها به محصول نسبت نده.\n"
         )
 
     if faqs:
@@ -173,12 +204,32 @@ def build_explore_prompt(
             "delay": "می‌خواهد فکر کند یا با گزینه‌های دیگر مقایسه کند",
         }
         prompt += f"اعتراض مشتری: {obj_map.get(objection, objection)}\n"
-        prompt += "این اعتراض را با دلیل و منطق رفع کن.\n"
+        prompt += OBJECTION_MOVES.get(objection, "این اعتراض را با دلیل و منطق رفع کن.") + "\n"
+
+    # Stage nudges are scoped deliberately. An objection has its own move above
+    # and a stage nudge on top of it pulled in the opposite direction; an
+    # out-of-catalog turn has nothing to nudge toward; and the browsing nudge
+    # ("invite them to compare, ask what matters most") only makes sense with a
+    # real list to explore — applied to a single product it turned a plain "is
+    # it in stock?" answer into an unasked-for feature interview.
+    if objection or out_of_catalog:
+        return prompt
 
     if stage == "ready_to_buy":
         prompt += "مشتری آماده خرید است — او را به سمت اقدام هدایت کن.\n"
     elif stage == "considering":
-        prompt += "مشتری در حال تصمیم‌گیری است — ارزش محصول را برجسته کن.\n"
+        prompt += (
+            "مشتری در حال تصمیم‌گیری است — یک دلیل مشخص و ملموس از توضیح همین محصول بیاور که "
+            "چرا انتخاب خوبی است. آرام بنویس: نگو «همین را انتخاب کنید» یا «همین حالا بخرید» و "
+            "لینک خرید را پیش نکش مگر خودش بخواهد.\n"
+        )
+    elif stage == "browsing" and len(products) > 1:
+        prompt += (
+            "مشتری هنوز در حال بررسی گزینه‌هاست — محصولات را به‌عنوان چیزهایی برای مقایسه و بررسی "
+            "معرفی کن، بپرس کدام ویژگی برایش مهم‌تر است، و برای تصمیم فوری فشاری نیاور.\n"
+        )
+    elif stage == "browsing" and len(products) == 1 and not dropped:
+        prompt += "به همان چیزی که مشتری پرسیده کوتاه و مستقیم جواب بده.\n"
 
     return prompt
 
@@ -240,6 +291,9 @@ def build_intent_analysis_prompt(categories: Optional[list[str]] = None) -> str:
 - mode: explore (مشاوره کلی) | product (محصول خاص)
 - stage: browsing | considering | ready_to_buy
 - value_driver: low_price (دنبال ارزان‌ترین) | high_quality (کیفیت مهم‌تر از قیمت) | best_price_in_quality (بهترین قیمت در سطح کیفی مشخص) | best_quality_in_price (بهترین کیفیت در بودجه مشخص)
+  ⚠️ این دو مقدار آخر را با دقت از هم تشخیص بده — به این نگاه کن که مشتری کدام‌یک را **ثابت** گرفته:
+  مثال: «یه لپ‌تاپ خوب برای گیم می‌خوام ولی ارزون‌ترینش رو با همون کیفیت» → کیفیت را ثابت گرفته و دنبال کمترین قیمت در آن سطح است → best_price_in_quality.
+  مثال: «توی بودجه ۲۰ میلیون، بهترین کیفیت رو می‌خوام» → بودجه را ثابت گرفته و دنبال بالاترین کیفیت در آن بودجه است → best_quality_in_price.
 - objection: price (قیمت بالاست) | uncertainty (مطمئن نیست مناسب است) | delay (می‌خواهد فکر کند یا مقایسه کند)
 - explore_filters: { category?, maxPrice?, minPrice?, brand?, query? }
 - new_topic: اگر مشتری موضوع یا دسته‌ی کاملاً جدیدی شروع کرده که به جستجوی قبلی ربطی ندارد true، در غیر این صورت false. (فیلترهای قبلی فقط وقتی true است پاک می‌شوند.)

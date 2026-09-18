@@ -41,6 +41,10 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 
+# ── Agent tooling / local scratch ─────────────────────────
+.claude/
+reports/
+
 # ── Misc ──────────────────────────────────────────────────
 coverage/
 .turbo/
