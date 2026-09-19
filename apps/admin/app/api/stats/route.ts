@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
-import { prisma } from "@zify/db"
+import { prisma, PLAYGROUND_WEB_VISITOR_ID } from "@zify/db"
 
 function dateRange(days: number) {
   const now = new Date()
@@ -48,9 +48,13 @@ export async function GET() {
 
   const since30 = dateRange(30)
 
+  // Excludes آزمایشگاه فروش's sentinel EndUser (see chats/route.ts) - a shop
+  // owner testing their own bot shouldn't inflate their own user counts.
+  const notPlayground = { webVisitorId: { not: PLAYGROUND_WEB_VISITOR_ID } }
+
   const [totalUsers, totalOrders, orders, recentMessages, recentUsers, recentLinkViews, allLinkViews] =
     await Promise.all([
-      prisma.endUser.count({ where: { shopId: shop.id } }),
+      prisma.endUser.count({ where: { shopId: shop.id, ...notPlayground } }),
       prisma.order.count({ where: { shopId: shop.id } }),
       prisma.order.findMany({ where: { shopId: shop.id }, select: { amount: true } }),
       prisma.event.findMany({
@@ -58,7 +62,7 @@ export async function GET() {
         select: { createdAt: true },
       }),
       prisma.endUser.findMany({
-        where: { shopId: shop.id, createdAt: { gte: since30 } },
+        where: { shopId: shop.id, createdAt: { gte: since30 }, ...notPlayground },
         select: { createdAt: true },
       }),
       // "link_shown" is a buy link being rendered. It used to be recorded as

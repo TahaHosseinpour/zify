@@ -3,7 +3,6 @@ import {
   ChartLineData02Icon,
   ShoppingBag01Icon,
   MessageQuestionIcon,
-  Store01Icon,
   LinkSquare01Icon,
   UserMultiple02Icon,
   MessageMultiple01Icon,
@@ -35,7 +34,6 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: "/dashboard/products", label: "محصولات", icon: ShoppingBag01Icon },
       { href: "/dashboard/faq", label: "سوالات متداول", icon: MessageQuestionIcon },
-      { href: "/dashboard/business", label: "اطلاعات کسب‌وکار", icon: Store01Icon },
     ],
   },
   {

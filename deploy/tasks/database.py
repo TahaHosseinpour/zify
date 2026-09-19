@@ -90,6 +90,7 @@ def database():
         openai_base_url=host.data.get("openai_base_url"),
         openai_chat_model=host.data.get("openai_chat_model"),
         openai_embedding_model=host.data.get("openai_embedding_model"),
+        use_local_models=host.data.get("use_local_models"),
         langsmith_tracing=host.data.get("langsmith_tracing"),
         langsmith_endpoint=host.data.get("langsmith_endpoint"),
         langsmith_api_key=host.data.get("langsmith_api_key"),

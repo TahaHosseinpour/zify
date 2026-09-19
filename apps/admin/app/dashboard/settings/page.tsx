@@ -15,8 +15,22 @@ import {
 } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
 
+interface SettingsForm {
+  slug: string
+  name: string
+  description: string
+  categories: string
+  supportInfo: string
+  personaCharacter: string
+  personaTone: string
+  systemPromptExtra: string
+}
+
 export default function SettingsPage() {
-  const [form, setForm] = useState({ slug: "", personaCharacter: "", personaTone: "formal", systemPromptExtra: "" })
+  const [form, setForm] = useState<SettingsForm>({
+    slug: "", name: "", description: "", categories: "", supportInfo: "",
+    personaCharacter: "", personaTone: "formal", systemPromptExtra: "",
+  })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [resetting, setResetting] = useState(false)
@@ -76,6 +90,10 @@ export default function SettingsPage() {
         if (shop) {
           setForm({
             slug: shop.slug ?? "",
+            name: shop.name ?? "",
+            description: shop.description ?? "",
+            categories: (shop.categories ?? []).join("، "),
+            supportInfo: shop.supportInfo?.text ?? "",
             personaCharacter: shop.personaCharacter ?? "",
             personaTone: shop.personaTone ?? "formal",
             systemPromptExtra: shop.systemPromptExtra ?? "",
@@ -97,7 +115,11 @@ export default function SettingsPage() {
       const res = await fetch("/api/shop", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          categories: form.categories.split("،").map((c) => c.trim()).filter(Boolean),
+          supportInfo: form.supportInfo ? { text: form.supportInfo } : null,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error)
@@ -107,7 +129,7 @@ export default function SettingsPage() {
     } finally { setSaving(false) }
   }
 
-  if (loading) return <div className="flex flex-col gap-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+  if (loading) return <div className="flex flex-col gap-4">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
 
   function slugify(text: string) {
     return text
@@ -119,6 +141,47 @@ export default function SettingsPage() {
 
   return (
     <form onSubmit={handleSave} className="flex flex-col gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">اطلاعات کسب‌وکار</CardTitle>
+          <CardDescription>این اطلاعات برای آموزش دستیار شما استفاده می‌شود</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label>نام فروشگاه</Label>
+            <Input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>توضیحات فروشگاه</Label>
+            <Textarea
+              value={form.description}
+              onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+              rows={3}
+              placeholder="چه محصولاتی می‌فروشید؟ چه ارزشی ایجاد می‌کنید؟"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>دسته‌بندی‌ها (با ، جدا کنید)</Label>
+            <Input
+              value={form.categories}
+              onChange={(e) => setForm((p) => ({ ...p, categories: e.target.value }))}
+              placeholder="پوشاک، کیف، کفش"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>اطلاعات پشتیبانی</Label>
+            <Textarea
+              value={form.supportInfo}
+              onChange={(e) => setForm((p) => ({ ...p, supportInfo: e.target.value }))}
+              rows={3}
+              placeholder="ساعات پاسخگویی، روش ارسال، سیاست مرجوعی، گارانتی..."
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Separator />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">شناسه یکتا فروشگاه</CardTitle>

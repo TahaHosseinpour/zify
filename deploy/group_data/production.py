@@ -113,6 +113,13 @@ langsmith_tracing = True
 langsmith_endpoint = "https://api.smith.langchain.com"
 langsmith_project = "Zify"
 
+# Always False on the server - USE_LOCAL_MODELS (apps/agent/app/graph.py) is a
+# local-only escape hatch onto a laptop's own Ollama instance, and the
+# production box doesn't even have a GPU to run one against. Committed
+# explicitly (not just left unset) so it's visible here rather than relying
+# on setup-env.sh.j2 simply never having written the key.
+use_local_models = False
+
 # Only used if deploy_secrets.langfuse_public_key/secret_key are set.
 langfuse_host = "https://cloud.langfuse.com"
 

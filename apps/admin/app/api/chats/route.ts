@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
-import { prisma } from "@zify/db"
+import { prisma, PLAYGROUND_WEB_VISITOR_ID } from "@zify/db"
 
 export async function GET() {
   const session = await getSession()
@@ -14,7 +14,9 @@ export async function GET() {
   if (!shop) return NextResponse.json([])
 
   const conversations = await prisma.conversation.findMany({
-    where: { shopId: shop.id },
+    // The shop owner's own test sessions (آزمایشگاه فروش) live under a
+    // sentinel EndUser and don't belong in a list of real customer chats.
+    where: { shopId: shop.id, endUser: { webVisitorId: { not: PLAYGROUND_WEB_VISITOR_ID } } },
     orderBy: { startedAt: "desc" },
     take: 100,
     include: {

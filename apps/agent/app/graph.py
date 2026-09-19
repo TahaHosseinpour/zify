@@ -28,28 +28,92 @@ from .state import RESET_CONTEXT, RetrievedItem, SalesAgentState
 
 # ── LLM / Embeddings ──────────────────────────────────────────────────────────
 
+
+def _env_true(name: str, default: bool = False) -> bool:
+    val = os.environ.get(name)
+    if val is None:
+        return default
+    return val.strip().lower() in ("1", "true", "yes", "on")
+
+
+# Local-dev escape hatch: point the chat/embedding models at a local Ollama
+# server instead of the real OpenAI API, with zero code changes anywhere
+# else — every node calls the same `llm`/`intent_llm`/`embed()` regardless of
+# which branch built them. Never set in production: deploy/templates/
+# setup-env.sh.j2 has no USE_LOCAL_MODELS line, so a deployed .env simply
+# doesn't have the variable and this is always False there.
+USE_LOCAL_MODELS = _env_true("USE_LOCAL_MODELS")
+
+if USE_LOCAL_MODELS:
+    # Ollama serves an OpenAI-compatible API at /v1 (`ollama serve`, default
+    # port 11434), so the same ChatOpenAI/OpenAIEmbeddings classes work
+    # unchanged — only the base_url/model/key differ. The key is required by
+    # langchain_openai's client but never checked by Ollama itself.
+    _chat_model = os.environ.get("OLLAMA_CHAT_MODEL", "qwen3:4b")
+    _embedding_model = os.environ.get("OLLAMA_EMBEDDING_MODEL", "bge-m3")
+    _api_key = "ollama"
+    _base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+    print(f"[agent] USE_LOCAL_MODELS=true — chat={_chat_model!r} embed={_embedding_model!r} @ {_base_url}")
+else:
+    _chat_model = os.environ.get("OPENAI_CHAT_MODEL", "gpt-4o-mini")
+    _embedding_model = os.environ.get("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+    _api_key = os.environ.get("OPENAI_API_KEY")
+    _base_url = os.environ.get("OPENAI_BASE_URL")
+
 llm = ChatOpenAI(
-    model=os.environ.get("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
+    model=_chat_model,
     temperature=0.3,
-    api_key=os.environ.get("OPENAI_API_KEY"),
-    base_url=os.environ.get("OPENAI_BASE_URL"),
+    api_key=_api_key,
+    base_url=_base_url,
 )
 
 # Classification must be (near-)deterministic: the same message should always
 # take the same route through the graph. A separate low-temperature instance is
 # used for intent analysis, distinct from the creative conversational `llm`.
 intent_llm = ChatOpenAI(
-    model=os.environ.get("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
+    model=_chat_model,
     temperature=0,
-    api_key=os.environ.get("OPENAI_API_KEY"),
-    base_url=os.environ.get("OPENAI_BASE_URL"),
+    api_key=_api_key,
+    base_url=_base_url,
 )
 
 embeddings = OpenAIEmbeddings(
-    model=os.environ.get("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
-    api_key=os.environ.get("OPENAI_API_KEY"),
-    base_url=os.environ.get("OPENAI_BASE_URL"),
+    model=_embedding_model,
+    api_key=_api_key,
+    base_url=_base_url,
+    # OpenAIEmbeddings tiktoken-encodes input to integer token arrays by
+    # default (real OpenAI accepts either). Ollama's /v1/embeddings endpoint
+    # only understands raw strings, so against it that default 400s with
+    # "invalid input type" on every single call — this makes it send the text
+    # as-is instead. Harmless to also set against real OpenAI, but left
+    # default there since its own chunking is worth keeping for long text.
+    check_embedding_ctx_length=not USE_LOCAL_MODELS,
 )
+
+# products/faq_items/shop_info_chunks.embedding are all a fixed vector(1536)
+# column (packages/db/prisma/schema.prisma), sized for OpenAI's
+# text-embedding-3-small. A local embedding model has no reason to share that
+# width (bge-m3 is 1024) — rather than a second column or a migration that
+# would also have to ship to production for a dev-only path, embed() below
+# pads a shorter vector with trailing zeros before it ever reaches SQL.
+# Padding both sides of a comparison identically leaves cosine distance
+# mathematically exact, not approximate: the extra dimensions contribute 0 to
+# both the dot product and each vector's norm. This only breaks if a local
+# model's native width exceeds 1536, which _pad_to_dim refuses to silently
+# truncate.
+EMBEDDING_DIM = 1536
+
+
+def _pad_to_dim(vec: list[float], dim: int = EMBEDDING_DIM) -> list[float]:
+    if len(vec) == dim:
+        return vec
+    if len(vec) > dim:
+        raise ValueError(
+            f"embedding dim {len(vec)} exceeds the pgvector column width {dim} — "
+            "truncating would silently corrupt cosine distance; this model can't "
+            "be used against the current schema without a migration."
+        )
+    return vec + [0.0] * (dim - len(vec))
 
 PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹"
 
@@ -252,7 +316,10 @@ async def embed(text: str) -> list[float]:
         # rather than paying for a second identical call.
         return await running
 
-    task = asyncio.create_task(embeddings.aembed_query(text))
+    async def _embed_and_pad() -> list[float]:
+        return _pad_to_dim(await embeddings.aembed_query(text))
+
+    task = asyncio.create_task(_embed_and_pad())
     _embed_inflight[text] = task
     try:
         vec = await task

@@ -1,236 +1,184 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { motion } from "framer-motion"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
 import { HugeiconsIcon } from "@hugeicons/react"
-import {
-  SentIcon,
-  RefreshIcon,
-  TestTube01Icon,
-} from "@hugeicons/core-free-icons"
-import { cn } from "@/lib/utils"
-import { StatePanel, type DebugState } from "./StatePanel"
+import { Add01Icon, Clock01Icon, TestTube01Icon } from "@hugeicons/core-free-icons"
+import { ChatInput } from "@/components/shop-chat/chat-input"
+import { MessageBubble } from "@/components/shop-chat/message-bubble"
+import { ProductCard } from "@/components/shop-chat/product-card"
+import { StatePanel } from "./StatePanel"
+import { PlaygroundHistorySheet } from "./history-sheet"
+import { usePlaygroundChat } from "./use-playground-chat"
 
-interface Turn {
-  input: string
-  reply: string
-  debug: DebugState | null
-  products: {
-    id: string
-    name: string | null
-    price: number | null
-    imageUrl: string | null
-    productUrl: string | null
-  }[]
-  purchaseUrl: string | null
-  showBuyActions: boolean
-}
+const STARTER_PROMPTS = [
+  "چه محصولاتی دارید؟",
+  "دنبال یه پیشنهاد خوب می‌گردم",
+  "ارزون‌ترین‌ها رو نشونم بده",
+  "می‌خوام هدیه بخرم",
+]
 
-const newSessionId = () => Math.random().toString(36).slice(2, 10)
-
+/** آزمایشگاه فروش: the same chat components/streaming UX the real storefront
+ * uses (see app/shops/[slug]/chat/chat-client.tsx), pointed at the admin's
+ * own authenticated /api/playground/* routes instead of the public
+ * /api/shop-chat ones. Two things stay on top of the storefront's own
+ * feature set: a debug snapshot under every assistant turn (see
+ * use-playground-chat.ts + StatePanel - full tracing still lives in
+ * Langfuse, same run) and a "چت‌های قبلی" history sheet, since a shop owner
+ * testing their bot has the same "what did I try last time" need a real
+ * customer resuming a chat does. */
 export default function PlaygroundPage() {
-  const [sessionId, setSessionId] = useState(() => newSessionId())
-  const [turns, setTurns] = useState<Turn[]>([])
-  const [draft, setDraft] = useState("")
-  const [sending, setSending] = useState(false)
-  // The agent's mode/product are part of its state, and /chat overwrites them
-  // with whatever the caller sends. Re-sending "explore"/null every turn wiped
-  // every pin the agent made, so product mode could never be reproduced here —
-  // the Telegram bot keeps the same pair on the conversation row.
-  const [mode, setMode] = useState<"explore" | "product">("explore")
-  const [productId, setProductId] = useState<string | null>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const { messages, isStreaming, conversationId, send, startFresh, loadConversation } = usePlaygroundChat()
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [turns, sending])
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
+  }, [messages])
 
-  async function send(e: React.FormEvent) {
-    e.preventDefault()
-    const message = draft.trim()
-    if (!message || sending || !sessionId) return
-
-    setDraft("")
-    setSending(true)
-    try {
-      const res = await fetch("/api/playground/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, sessionId, mode, productId }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error ?? "خطا")
-
-      setMode(data.mode === "product" ? "product" : "explore")
-      setProductId(data.productId ?? null)
-
-      setTurns((prev) => [
-        ...prev,
-        {
-          input: message,
-          reply: data.reply ?? "",
-          debug: data.debug ?? null,
-          products: data.products ?? [],
-          purchaseUrl: data.purchaseUrl ?? null,
-          showBuyActions: data.showBuyActions !== false,
-        },
-      ])
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "خطا در ارسال پیام")
-      setDraft(message)
-    } finally {
-      setSending(false)
+  async function handleNewChat() {
+    const res = await fetch("/api/playground/new", { method: "POST" })
+    const data = await res.json()
+    if (data.conversationId) {
+      startFresh(data.conversationId)
+      setHistoryRefreshKey((k) => k + 1)
     }
   }
 
-  function reset() {
-    setSessionId(newSessionId())
-    setTurns([])
-    setDraft("")
-    setMode("explore")
-    setProductId(null)
-    toast.success("گفت‌وگوی جدید شروع شد")
+  async function handleResume(id: string) {
+    const res = await fetch("/api/playground/resume", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversationId: id }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      toast.error(data?.error ?? "خطا در بازیابی گفتگو")
+      return
+    }
+    if (data.conversationId) loadConversation(data.conversationId, data.messages ?? [], data.mode, data.productId)
   }
 
+  async function handleSend(text: string) {
+    await send(text)
+    setHistoryRefreshKey((k) => k + 1)
+  }
+
+  const lastMessage = messages[messages.length - 1]
+  const isThinking = isStreaming && lastMessage?.role === "assistant" && lastMessage.content === ""
+
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <p className="text-xs text-muted-foreground">
-            مثل یک مشتری با دستیار حرف بزنید. زیر هر پاسخ، وضعیت داخلی دستیار برای همان
-            نوبت نمایش داده می‌شود.
-          </p>
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="flex shrink-0 items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground">
+          مثل یک مشتری با دستیار حرف بزنید — دقیقاً همان تجربه‌ای که مشتری در فروشگاه شما می‌بیند.
+        </p>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => setHistoryOpen(true)}>
+            <HugeiconsIcon icon={Clock01Icon} className="size-4" />
+            چت‌های قبلی
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={handleNewChat} disabled={isStreaming}>
+            <HugeiconsIcon icon={Add01Icon} className="size-4" />
+            چت جدید
+          </Button>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={reset} disabled={sending}>
-          <HugeiconsIcon icon={RefreshIcon} className="size-4" />
-          گفت‌وگوی جدید
-        </Button>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto pb-4">
-        {turns.length === 0 && !sending && (
-          <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
-            <HugeiconsIcon icon={TestTube01Icon} className="size-12 opacity-30" />
-            <p className="text-sm">یک پیام بفرستید تا گفت‌وگو شروع شود</p>
-          </div>
-        )}
-
-        {turns.map((turn, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col gap-2"
-          >
-            <div className="flex justify-start">
-              <div className="max-w-[75%] rounded-2xl rounded-tr-sm bg-muted px-4 py-2 text-sm">
-                {turn.input}
-              </div>
+      <div className="relative min-h-0 flex-1 rounded-xl border bg-background">
+        {messages.length === 0 ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 px-4">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <HugeiconsIcon icon={TestTube01Icon} className="size-10 text-muted-foreground/40" />
+              <h2 className="text-base font-medium text-muted-foreground">
+                یک پیام بفرستید تا گفت‌وگو شروع شود
+              </h2>
             </div>
 
-            <div className="flex justify-end">
-              <div className="max-w-[75%] rounded-2xl rounded-tl-sm bg-primary px-4 py-2 text-sm whitespace-pre-wrap text-primary-foreground">
-                {turn.reply || "—"}
-              </div>
-            </div>
+            <ChatInput onSend={handleSend} className="w-full max-w-xl" autoFocus />
 
-            {/* Mirrors what the Telegram bot renders — the top-level buy button,
-                then one card per product — so a test here predicts production. */}
-            {turn.showBuyActions && turn.purchaseUrl && (
-              <div className="flex justify-end">
-                <a
-                  href={turn.purchaseUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-lg bg-primary px-3 py-1.5 text-[11px] font-medium text-primary-foreground"
+            <div className="flex w-full max-w-xl flex-wrap justify-center gap-2">
+              {STARTER_PROMPTS.map((prompt) => (
+                <Button
+                  key={prompt}
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full"
+                  onClick={() => handleSend(prompt)}
                 >
-                  🛒 خرید محصول
-                </a>
-              </div>
-            )}
-
-            {turn.products.length > 0 && (
-              <div className="flex flex-wrap justify-end gap-1.5">
-                {turn.products.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex w-40 flex-col gap-1 rounded-lg border bg-background p-1.5 text-[11px]"
-                  >
-                    {p.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={p.imageUrl}
-                        alt={p.name ?? ""}
-                        className="h-20 w-full rounded object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-20 w-full items-center justify-center rounded bg-muted text-[10px] text-muted-foreground">
-                        بدون تصویر
-                      </div>
-                    )}
-                    <span className="truncate">{p.name ?? "—"}</span>
-                    {p.price != null && (
-                      <span className="text-muted-foreground">
-                        {p.price.toLocaleString("fa-IR")} تومان
-                      </span>
-                    )}
-                    {turn.showBuyActions && p.productUrl && (
-                      <a
-                        href={p.productUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded bg-muted px-1.5 py-1 text-center text-[10px]"
-                      >
-                        🛒 مشاهده و خرید
-                      </a>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {turn.debug && (
-              <StatePanel
-                debug={turn.debug}
-                prev={turns[i - 1]?.debug ?? null}
-                turn={i + 1}
-              />
-            )}
-          </motion.div>
-        ))}
-
-        {sending && (
-          <div className="flex flex-col gap-2">
-            <div className="flex justify-end">
-              <Skeleton className="h-10 w-48 rounded-2xl" />
+                  {prompt}
+                </Button>
+              ))}
             </div>
-            <Skeleton className="h-16 rounded-xl" />
           </div>
-        )}
+        ) : (
+          <>
+            <div ref={scrollRef} className="absolute inset-0 overflow-y-auto px-4 pb-32 pt-6">
+              <div className="mx-auto flex max-w-2xl flex-col">
+                {messages.map((m, i) => {
+                  const isLast = i === messages.length - 1
+                  const products = m.products ?? []
+                  // Most recent *prior* assistant turn's debug, so StatePanel
+                  // can highlight what this turn actually moved.
+                  const prevDebug = [...messages.slice(0, i)].reverse().find((x) => x.role === "assistant")?.debug
 
-        <div ref={bottomRef} />
+                  return (
+                    <div key={i} className="flex flex-col gap-3">
+                      <MessageBubble message={m} isThinking={isThinking && isLast} />
+
+                      {m.role === "assistant" && m.showBuyActions && m.purchaseUrl && (
+                        <a
+                          href={m.purchaseUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="self-start rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+                        >
+                          🛒 خرید محصول
+                        </a>
+                      )}
+
+                      {m.role === "assistant" && products.length > 0 && (
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                          {products.map((p) => (
+                            <ProductCard
+                              key={p.id}
+                              product={{
+                                id: p.id,
+                                name: p.name ?? "",
+                                price: p.price,
+                                imageUrl: p.imageUrl,
+                                productUrl: m.showBuyActions ? p.productUrl : null,
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {m.role === "assistant" && m.debug && (
+                        <StatePanel debug={m.debug} prev={prevDebug ?? null} turn={Math.ceil((i + 1) / 2)} />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/95 to-transparent px-4 pb-4 pt-8">
+              <ChatInput onSend={handleSend} disabled={isStreaming} className="mx-auto max-w-2xl" />
+            </div>
+          </>
+        )}
       </div>
 
-      <form
-        onSubmit={send}
-        className="flex shrink-0 items-center gap-2 border-t bg-background py-3"
-      >
-        <Input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="پیام مشتری را بنویسید..."
-          disabled={sending || !sessionId}
-          className={cn("flex-1")}
-        />
-        <Button type="submit" disabled={sending || !draft.trim() || !sessionId}>
-          <HugeiconsIcon icon={SentIcon} className="size-4" />
-          {sending ? "در حال پاسخ..." : "ارسال"}
-        </Button>
-      </form>
+      <PlaygroundHistorySheet
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        activeConversationId={conversationId}
+        onResume={handleResume}
+        refreshKey={historyRefreshKey}
+      />
     </div>
   )
 }

@@ -73,6 +73,7 @@ set_env OPENAI_API_KEY {{ sq(openai_api_key) }}
 set_env OPENAI_BASE_URL {{ sq(openai_base_url) }}
 set_env OPENAI_CHAT_MODEL {{ sq(openai_chat_model) }}
 set_env OPENAI_EMBEDDING_MODEL {{ sq(openai_embedding_model) }}
+set_env USE_LOCAL_MODELS {{ 'true' if use_local_models else 'false' }}
 
 set_env LANGSMITH_TRACING {{ 'true' if langsmith_tracing else 'false' }}
 set_env LANGSMITH_ENDPOINT {{ sq(langsmith_endpoint) }}

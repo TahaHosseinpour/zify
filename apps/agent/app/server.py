@@ -342,16 +342,21 @@ def _sse(event: str, data: dict) -> str:
 async def chat_stream(request: Request):
     """Same contract as /chat, but the reply streams token-by-token as
     Server-Sent Events instead of arriving as one JSON blob - built for the
-    storefront's chat UI. `event: answer` chunks carry `{"text": "..."}` as
-    they're generated; a final `event: done` carries everything /chat returns
-    except `reply` (already delivered) - products, purchaseUrl, mode, etc.
-    `event: error` on failure, same message shape as /chat's own error body.
+    storefront's chat UI (and, with `debug: true`, the admin playground).
+    `event: answer` chunks carry `{"text": "..."}` as they're generated; a
+    final `event: done` carries everything /chat returns except `reply`
+    (already delivered) - products, purchaseUrl, mode, etc., plus `debug`
+    when requested. `event: error` on failure, same message shape as /chat's
+    own error body.
 
     LangGraph's `stream_mode="messages"` streams token deltas from *every*
     LLM call a node makes without any change to how the nodes themselves call
     the model (they still just `await llm.ainvoke(...)`) - filtered here to
     _REPLY_NODES so the customer only ever sees the actual reply forming, not
-    the intent classifier's or the summarizer's internal calls.
+    the intent classifier's or the summarizer's internal calls. `updates` rides
+    alongside only to build `debug` (same path/node_updates run_graph tracks
+    for /chat) - skipped entirely when want_debug is false, so the storefront
+    pays nothing extra for it.
     """
     body = await request.json()
     shop_id = body.get("shopId")
@@ -360,6 +365,7 @@ async def chat_stream(request: Request):
     mode = body.get("mode") or "explore"
     product_id = body.get("productId")
     end_user_id = body.get("endUserId")
+    want_debug = bool(body.get("debug"))
 
     if not shop_id or not thread_id or not message:
         return JSONResponse(
@@ -394,9 +400,13 @@ async def chat_stream(request: Request):
                 "product_id": product_id,
             }
 
+            started = time.perf_counter()
             result: dict = {}
+            path: list[str] = []
+            node_updates: dict = {}
+            stream_modes = ["messages", "values", "updates"] if want_debug else ["messages", "values"]
             async for stream_mode, chunk in graph.astream(
-                input_state, config, stream_mode=["messages", "values"]
+                input_state, config, stream_mode=stream_modes
             ):
                 if stream_mode == "messages":
                     message_chunk, metadata = chunk
@@ -405,14 +415,24 @@ async def chat_stream(request: Request):
                     text = message_chunk.content
                     if text:
                         yield _sse("answer", {"text": text})
-                else:
+                elif stream_mode == "values":
                     result = chunk
+                elif stream_mode == "updates":
+                    for node, update in chunk.items():
+                        if node.startswith("__"):
+                            continue
+                        path.append(node)
+                        if isinstance(update, dict):
+                            node_updates[node] = update
 
             if usage_cb is not None:
                 await increment_input_tokens(end_user_id, usage_cb.input_tokens)
 
             done = _build_chat_payload(result)
             done.pop("reply", None)
+            if want_debug:
+                latency_ms = int((time.perf_counter() - started) * 1000)
+                done["debug"] = build_debug(result, path, node_updates, latency_ms)
             yield _sse("done", done)
         except Exception as err:  # noqa: BLE001
             print(f"[agent] stream error: {err}")

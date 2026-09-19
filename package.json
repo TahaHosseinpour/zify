@@ -8,10 +8,13 @@
   "scripts": {
     "dev": "bun run --cwd apps/admin dev",
     "dev:admin": "bun run --cwd apps/admin dev",
+    "build:admin": "bun run --cwd apps/admin build",
+    "start:admin": "bun run --cwd apps/admin start",
     "dev:agent": "cd apps/agent && RELOAD=true python -m uv run python main.py",
     "start:agent": "cd apps/agent && python -m uv run python main.py",
     "dev:bot": "bun run --cwd apps/telegram-bot dev",
     "admin": "bun run --cwd apps/admin dev",
+    "models": "ollama serve",
     "agent": "apps\\agent\\.venv\\Scripts\\python.exe apps/agent/main.py",
     "bot": "bun run --cwd apps/telegram-bot dev",
     "db:generate": "bun run --cwd packages/db db:generate",
