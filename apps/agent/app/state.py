@@ -92,6 +92,14 @@ class SalesAgentState(TypedDict, total=False):
     excluded_product_ids: list[str]
     explore_filters: dict
     intent: Optional[str]
+    # True when this turn's classifier (Jev) already resolved `category`
+    # against the shop's vocabulary, so the filter step skips its own
+    # embedding-similarity pass. Per-turn: rewritten by analyze_intent.
+    category_final: Optional[bool]
+    # How many turns of this conversation fell back from Jev to the LLM
+    # classifier. Capped (graph.MAX_INTENT_FALLBACKS): each one is a full
+    # extra LLM call the conversation's price does not otherwise allow for.
+    intent_fallbacks: int
 
     # The shop's real category/brand vocabulary, fetched once at the start of
     # the conversation and cached here so every later turn's classification

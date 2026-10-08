@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
+from . import metering
 from .db import db
 from .graph import build_graph
 from .state import RetrievedItem
@@ -38,6 +39,27 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+# Every model call the platform pays for runs behind this service, so only our
+# own services may call it. They share this key (packages: apps/admin/lib/
+# agent.ts, apps/telegram-bot). Unset means "local development": no check, and
+# a loud line at startup so it is never unset in production by accident.
+INTERNAL_KEY = os.environ.get("AGENT_INTERNAL_KEY")
+if not INTERNAL_KEY:
+    print("[agent] WARNING: AGENT_INTERNAL_KEY is not set - the API accepts any caller")
+
+# Mirrors MAX_MESSAGE_CHARS in packages/db/src/billing.ts, which refuses longer
+# messages with a friendly reply before they get here. Enforced again because
+# this is where the tokens are spent.
+MAX_MESSAGE_CHARS = 300
+
+
+@app.middleware("http")
+async def require_internal_key(request: Request, call_next):
+    if INTERNAL_KEY and request.url.path != "/health":
+        if request.headers.get("x-agent-key") != INTERNAL_KEY:
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return await call_next(request)
 
 
 @app.get("/health")
@@ -281,15 +303,19 @@ async def chat(request: Request):
             return JSONResponse(
                 {"error": "shopId, threadId, message are required"}, status_code=400
             )
+        if len(message) > MAX_MESSAGE_CHARS:
+            return JSONResponse({"error": "message too long"}, status_code=413)
 
-        usage_cb = None
         if end_user_id:
             status = await usage_status(end_user_id)
             if status.over_limit:
                 # Refused before spending a single token on a request we're
                 # about to turn away - no graph run, no LLM call at all.
                 return _limit_reached_response(status, mode, product_id)
-            usage_cb = TokenUsageCallback()
+        # Always attached: the customer quota only needs it when there is a
+        # customer, but every turn is metered (metering.record_turn).
+        usage_cb = TokenUsageCallback()
+        meter = metering.start_turn()
 
         graph = request.app.state.graph
         started = time.perf_counter()
@@ -306,12 +332,15 @@ async def chat(request: Request):
                 shop_id,
                 mode,
                 product_id,
-                extra_callbacks=[usage_cb] if usage_cb else None,
+                extra_callbacks=[usage_cb],
             ),
         )
         latency_ms = int((time.perf_counter() - started) * 1000)
 
-        if usage_cb is not None:
+        await metering.record_turn(
+            shop_id, thread_id, usage_cb.input_tokens, usage_cb.output_tokens, meter
+        )
+        if end_user_id:
             await increment_input_tokens(end_user_id, usage_cb.input_tokens)
 
         response = _build_chat_payload(result)
@@ -331,7 +360,14 @@ async def chat(request: Request):
 # call and maybe_summarize's summary are real LLM calls too (same `llm`
 # instance, in maybe_summarize's case), but neither is something a customer
 # should see appearing token-by-token in the reply box.
-_REPLY_NODES = {"suggest_products", "product_agent", "ask_question", "smalltalk_reply", "handle_purchase"}
+_REPLY_NODES = {
+    "suggest_products",
+    "product_agent",
+    "ask_question",
+    "smalltalk_reply",
+    "handle_purchase",
+    "decline_reply",
+}
 
 
 def _sse(event: str, data: dict) -> str:
@@ -371,6 +407,8 @@ async def chat_stream(request: Request):
         return JSONResponse(
             {"error": "shopId, threadId, message are required"}, status_code=400
         )
+    if len(message) > MAX_MESSAGE_CHARS:
+        return JSONResponse({"error": "message too long"}, status_code=413)
 
     async def event_stream():
         try:
@@ -384,14 +422,15 @@ async def chat_stream(request: Request):
                     yield _sse("done", done)
                     return
 
-            usage_cb = TokenUsageCallback() if end_user_id else None
+            usage_cb = TokenUsageCallback()
+            meter = metering.start_turn()
             graph = request.app.state.graph
             config = chat_config(
                 thread_id,
                 shop_id,
                 mode,
                 product_id,
-                extra_callbacks=[usage_cb] if usage_cb else None,
+                extra_callbacks=[usage_cb],
             )
             input_state = {
                 "messages": [HumanMessage(content=message)],
@@ -425,7 +464,10 @@ async def chat_stream(request: Request):
                         if isinstance(update, dict):
                             node_updates[node] = update
 
-            if usage_cb is not None:
+            await metering.record_turn(
+                shop_id, thread_id, usage_cb.input_tokens, usage_cb.output_tokens, meter
+            )
+            if end_user_id:
                 await increment_input_tokens(end_user_id, usage_cb.input_tokens)
 
             done = _build_chat_payload(result)

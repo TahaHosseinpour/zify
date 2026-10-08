@@ -15,12 +15,12 @@ from app.graph import ExploreFiltersModel, IntentResult
 
 
 def install_classifier(monkeypatch, result: IntentResult, categories=None, brands=None):
-    class FakeStructuredLLM:
-        @staticmethod
-        async def ainvoke(messages):
-            return result
+    # Stubbed at classify_intent, above both classifiers (Jev and the LLM
+    # fallback): the merge logic under test never knows which one answered.
+    async def fake_classify_intent(state, recent, categories, brands):
+        return result
 
-    monkeypatch.setattr(G, "structured_llm", FakeStructuredLLM())
+    monkeypatch.setattr(G, "classify_intent", fake_classify_intent)
 
     async def fake_categories(shop_id):
         return categories or []

@@ -1,3 +1,5 @@
+export * from "./plans";
+
 export type Mode = "explore" | "product";
 
 export type Intent =
@@ -8,6 +10,7 @@ export type Intent =
   | "needs_clarification"
   | "objection"
   | "compare"
+  | "off_script"
   | "other";
 
 export type Stage = "browsing" | "considering" | "ready_to_buy";

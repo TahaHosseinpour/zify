@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { prisma } from "@zify/db"
 import { embedProduct } from "@/lib/embeddings"
-import { MAX_ACTIVE_PRODUCTS, MAX_MONTHLY_PRODUCT_UPLOADS, checkAndRecordProductUpload } from "@/lib/product-limits"
+import { checkAndRecordProductUpload } from "@/lib/product-limits"
 
 async function getShop(userId: string) {
   const user = await prisma.user.findUnique({
@@ -45,8 +45,8 @@ export async function POST(req: NextRequest) {
   if (!limitCheck.ok) {
     const message =
       limitCheck.reason === "active_cap"
-        ? `سقف ${MAX_ACTIVE_PRODUCTS.toLocaleString("fa-IR")} محصول فعال پر شده است. برای افزودن محصول جدید، ابتدا یکی از محصولات فعلی را حذف یا غیرفعال کنید.`
-        : `سقف ماهانه افزودن محصول (${MAX_MONTHLY_PRODUCT_UPLOADS.toLocaleString("fa-IR")} مورد) پر شده است. ماه بعد دوباره امکان‌پذیر خواهد بود.`
+        ? `سقف ${limitCheck.limit.toLocaleString("fa-IR")} محصول فعال اشتراک شما پر شده است. برای افزودن محصول جدید، ابتدا یکی از محصولات فعلی را حذف یا غیرفعال کنید.`
+        : `سقف ماهانه افزودن محصول (${limitCheck.limit.toLocaleString("fa-IR")} مورد) پر شده است. ماه بعد دوباره امکان‌پذیر خواهد بود.`
     return NextResponse.json({ error: message }, { status: 429 })
   }
 

@@ -159,9 +159,9 @@ cp deploy/deploy_secrets.example.py deploy/deploy_secrets.py
   تریسینگ.
 - `smsir_api_key`, `smsir_template_id` — بدونشان `sms_mock` روشن می‌ماند.
 - `telegram_bot_token` — توکن از @BotFather.
-- `admin_users` — لیستی از جفت‌های `(mobile, password)` که با هر دیپلوی seed
-  می‌شوند (`packages/db/prisma/seed.ts`) و می‌توانند با رمز عبور وارد `/admin`
-  شوند.
+
+حساب‌ها (ورود صاحبان فروشگاه و مدیران پلتفرم) دیگر اینجا تنظیم نمی‌شوند: در
+`packages/db/prisma/seed-accounts.ts` تعریف شده‌اند و با هر دیپلوی seed می‌شوند.
 
 بدون این فایل، `group_data/production.py` موقع لود شدن خطای روشن می‌دهد.
 

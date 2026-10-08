@@ -103,9 +103,6 @@ def database():
         smsir_template_id=host.data.get("smsir_template_id"),
         telegram_bot_token=host.data.get("telegram_bot_token"),
         bot_username=host.data.get("bot_username"),
-        # packages/db/prisma/seed.ts reads ADMIN_USERS as comma-separated
-        # "mobile:password" pairs.
-        admin_users=",".join(f"{mobile}:{password}" for mobile, password in host.data.get("admin_users", [])),
     )
 
     # Runs every deploy on purpose - the script itself is idempotent (see its

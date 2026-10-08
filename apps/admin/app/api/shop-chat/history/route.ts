@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@zify/db"
 import { resolveShopVisitor } from "@/lib/resolve-shop-visitor"
+import { readVisitorId } from "@/lib/visitor-cookie"
 
 export async function GET(req: NextRequest) {
   const slug = req.nextUrl.searchParams.get("slug") ?? ""
-  const webVisitorId = req.nextUrl.searchParams.get("webVisitorId") ?? ""
-  if (!slug || !webVisitorId) {
-    return NextResponse.json({ error: "slug و webVisitorId الزامی است" }, { status: 400 })
-  }
+  if (!slug) return NextResponse.json({ error: "slug الزامی است" }, { status: 400 })
+  // No signed cookie yet means no identity yet: resolves to "never chatted".
+  const webVisitorId = readVisitorId(req) ?? ""
 
   const resolved = await resolveShopVisitor(slug, webVisitorId)
   if (!resolved) return NextResponse.json({ error: "فروشگاه یافت نشد" }, { status: 404 })

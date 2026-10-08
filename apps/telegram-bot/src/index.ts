@@ -3,6 +3,7 @@ import {
   prisma,
   type Prisma,
   getOrStartConversation,
+  admitTurn,
   startNewConversation,
   resumeConversation,
   listRecentConversations,
@@ -13,6 +14,7 @@ import { formatDateTime, withNavRow } from "./ui"
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!
 const AGENT_URL = process.env.AGENT_URL ?? "http://localhost:3001"
+const AGENT_INTERNAL_KEY = process.env.AGENT_INTERNAL_KEY
 
 if (!BOT_TOKEN) throw new Error("TELEGRAM_BOT_TOKEN is required")
 
@@ -46,7 +48,11 @@ async function resolveEndUserForTelegram(telegramUserId: string) {
 async function callAgent(req: ChatRequest): Promise<ChatResponse> {
   const res = await fetch(`${AGENT_URL}/chat`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      // The agent only answers our own services (apps/agent/app/server.py).
+      ...(AGENT_INTERNAL_KEY ? { "x-agent-key": AGENT_INTERNAL_KEY } : {}),
+    },
     body: JSON.stringify(req),
   })
   if (!res.ok) throw new Error(`Agent error: ${res.status}`)
@@ -124,10 +130,21 @@ bot.on("message:text", async (ctx) => {
     return
   }
 
-  // Bounded-lifetime conversation: continues the active one within 24h of its
-  // last message, otherwise starts a fresh one (fresh LangGraph memory too -
-  // see packages/db/src/conversations.ts).
-  const conversation = await getOrStartConversation(endUser.shopId, endUser.id, "explore")
+  // The gate every channel shares (packages/db/src/billing.ts): is this
+  // shop's subscription live, is there quota left, is this customer within
+  // their limits. It also picks the conversation - the active one within 24h
+  // while it has room, otherwise a fresh one (fresh LangGraph memory too).
+  const admission = await admitTurn({
+    shopId: endUser.shopId,
+    endUserId: endUser.id,
+    message: userMessage,
+    mode: "explore",
+  })
+  if (!admission.ok) {
+    await ctx.reply(admission.message)
+    return
+  }
+  const conversation = admission.conversation
 
   // Record the user message
   await prisma.message.create({

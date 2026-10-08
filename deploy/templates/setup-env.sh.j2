@@ -96,9 +96,12 @@ set_env AGENT_URL {{ sq('http://localhost:' ~ agent_port) }}
 set_env AGENT_PORT {{ sq(agent_port) }}
 set_env NEXT_PUBLIC_APP_URL {{ sq(public_app_url) }}
 
-# Panel accounts seeded on every deploy (packages/db/prisma/seed.ts, run from
-# tasks/website.py) - each can log into /admin with a password.
-set_env ADMIN_USERS {{ sq(admin_users) }}
+# Shared secret between the admin panel / bot and the agent
+# (apps/agent/app/server.py rejects any caller without it). Generated once,
+# like JWT_SECRET, and added to servers that predate it.
+if ! grep -q '^AGENT_INTERNAL_KEY=' "$ENV_FILE"; then
+  set_env AGENT_INTERNAL_KEY "$(openssl rand -hex 32)"
+fi
 
 # Pull DB_PASSWORD (and only that - never echo the rest) back out for the
 # role/database setup below, whether the .env above was just created or was

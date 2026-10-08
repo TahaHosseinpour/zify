@@ -1,15 +1,30 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { jwtVerify } from "jose"
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "fallback-secret-change-in-production"
-)
+import { appSecretBytes } from "./lib/secret"
+import { ADMIN_COOKIE, verifyAdminToken } from "./lib/admin-token"
 
 const PROTECTED_PREFIXES = ["/dashboard", "/onboarding"]
 
+// The platform admin panel has its own login and its own session
+// (lib/admin-auth.ts), checked here on its own terms: a shop owner's session
+// neither grants nor affects access to it. The panel's layout and every admin
+// API route check again against the database.
+const ADMIN_PREFIX = "/admin"
+const ADMIN_LOGIN = "/admin/login"
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  if (pathname === ADMIN_PREFIX || pathname.startsWith(`${ADMIN_PREFIX}/`)) {
+    const adminToken = request.cookies.get(ADMIN_COOKIE)?.value
+    const isAdmin = adminToken ? (await verifyAdminToken(adminToken)) !== null : false
+    if (pathname === ADMIN_LOGIN) {
+      return isAdmin ? NextResponse.redirect(new URL(ADMIN_PREFIX, request.url)) : NextResponse.next()
+    }
+    return isAdmin ? NextResponse.next() : NextResponse.redirect(new URL(ADMIN_LOGIN, request.url))
+  }
+
   const token = request.cookies.get("auth-token")?.value
 
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p))
@@ -17,8 +32,8 @@ export async function proxy(request: NextRequest) {
   let isAuthenticated = false
   if (token) {
     try {
-      await jwtVerify(token, JWT_SECRET)
-      isAuthenticated = true
+      const { payload } = await jwtVerify(token, appSecretBytes())
+      isAuthenticated = typeof payload.userId === "string"
     } catch {
       isAuthenticated = false
     }

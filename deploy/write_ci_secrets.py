@@ -12,20 +12,7 @@ import os
 from pathlib import Path
 
 
-def parse_admin_users(raw: str) -> list[tuple[str, str]]:
-    """"09120000000:pw1,09120000001:pw2" -> [("09120000000", "pw1"), ...],
-    matching deploy_secrets.example.py's admin_users shape."""
-
-    pairs = []
-    for item in filter(None, (p.strip() for p in raw.split(","))):
-        mobile, _, password = item.partition(":")
-        pairs.append((mobile.strip(), password.strip()))
-    return pairs
-
-
 def main() -> None:
-    admin_users = parse_admin_users(os.environ.get("ADMIN_USERS", ""))
-
     fields = {
         "openai_api_key": os.environ.get("OPENAI_API_KEY", ""),
         "langsmith_api_key": os.environ.get("LANGSMITH_API_KEY", ""),
@@ -37,7 +24,6 @@ def main() -> None:
     }
 
     lines = [f"{name} = {value!r}" for name, value in fields.items()]
-    lines.append(f"admin_users = {admin_users!r}")
 
     dest = Path(__file__).resolve().parent / "deploy_secrets.py"
     dest.write_text("\n".join(lines) + "\n")

@@ -5,8 +5,9 @@ import { Login02Icon } from "@hugeicons/core-free-icons"
 
 const links = {
   محصول: [
-    { href: "#modes", label: "حالت‌های دستیار" },
-    { href: "#capabilities", label: "پنل مدیریت" },
+    { href: "/#modes", label: "حالت‌های دستیار" },
+    { href: "/#capabilities", label: "پنل مدیریت" },
+    { href: "/pricing", label: "پلن‌ها و قیمت" },
   ],
   حساب‌کاربری: [{ href: "/login", label: "ورود به پنل" }],
 }

@@ -33,20 +33,29 @@ def _business_info_block(shop: ShopPersona) -> str:
     line, and the model needs them on every turn to talk about what the shop
     even sells.
     """
-    categories = getattr(shop, "categories", None) or []
+    categories = [str(c)[:CATEGORY_NAME_LIMIT] for c in (getattr(shop, "categories", None) or [])]
     if not categories:
         return ""
-    return "\n\n## دسته‌بندی محصولات:\n" + "، ".join(categories)
+    return "\n\n## دسته‌بندی محصولات:\n" + "، ".join(categories[:CATEGORY_LIST_LIMIT])
+
+
+# The persona fields are free text the shop owner types, and the system prompt
+# is resent on every turn of every conversation. Bounding them here is part of
+# what makes a turn's cost bounded (see graph.REPLY_MAX_TOKENS).
+PERSONA_CHARACTER_LIMIT = 200
+PROMPT_EXTRA_LIMIT = 600
+CATEGORY_LIST_LIMIT = 40
+CATEGORY_NAME_LIMIT = 40
 
 
 def build_system_prompt(shop: ShopPersona) -> str:
     tone = TONE_MAP.get(shop.personaTone or "formal", "رسمی")
-    character = shop.personaCharacter or "متخصص فروش حرفه‌ای"
+    character = (shop.personaCharacter or "متخصص فروش حرفه‌ای")[:PERSONA_CHARACTER_LIMIT]
 
     business_info = _business_info_block(shop)
 
     extra = (
-        f"\n\nدستورالعمل اضافی:\n{shop.systemPromptExtra}"
+        f"\n\nدستورالعمل اضافی:\n{shop.systemPromptExtra[:PROMPT_EXTRA_LIMIT]}"
         if shop.systemPromptExtra
         else ""
     )

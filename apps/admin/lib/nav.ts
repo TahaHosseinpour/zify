@@ -53,12 +53,28 @@ export const navGroups: NavGroup[] = [
   },
 ]
 
+// The platform operator's panel (/admin) - a different audience from the shop
+// owner's dashboard above, sharing only the sidebar component.
+export const adminNavGroups: NavGroup[] = [
+  {
+    label: null,
+    items: [
+      { href: "/admin", label: "فروشگاه‌ها", icon: ShoppingBag01Icon, exact: true },
+      { href: "/admin/leads", label: "درخواست‌های خرید", icon: MessageMultiple01Icon },
+      { href: "/admin/plans", label: "پلن‌ها و تنظیمات", icon: Settings01Icon },
+    ],
+  },
+]
+
 export function isNavItemActive(item: NavItem, pathname: string) {
   return item.exact ? pathname === item.href : pathname.startsWith(item.href)
 }
 
 export function navTitle(pathname: string) {
-  const items = navGroups.flatMap((group) => group.items)
+  const groups = pathname.startsWith("/admin") ? adminNavGroups : navGroups
+  const items = groups.flatMap((group) => group.items)
   const match = items.find((item) => isNavItemActive(item, pathname))
-  return match?.label ?? "پنل مدیریت"
+  if (match) return match.label
+  // Detail pages (/admin/shops/<id>) sit under no nav item of their own.
+  return pathname.startsWith("/admin") ? "مدیریت پلتفرم" : "پنل مدیریت"
 }

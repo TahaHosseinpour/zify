@@ -16,27 +16,43 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { navGroups, isNavItemActive } from "@/lib/nav"
+import { navGroups, isNavItemActive, type NavGroup } from "@/lib/nav"
 import { toPersianDigits } from "@/lib/utils"
 
 interface AppSidebarProps {
   side?: "left" | "right"
   shopName?: string
   userMobile?: string
+  /** Which panel this is the sidebar of. Defaults to the shop owner's. */
+  groups?: NavGroup[]
+  homeHref?: string
+  /** Shown under "حساب شما" in place of the mobile number. */
+  accountLabel?: string
+  logoutEndpoint?: string
+  afterLogoutHref?: string
 }
 
-export function AppSidebar({ side = "right", shopName, userMobile }: AppSidebarProps) {
+export function AppSidebar({
+  side = "right",
+  shopName,
+  userMobile,
+  groups = navGroups,
+  homeHref = "/dashboard",
+  accountLabel,
+  logoutEndpoint = "/api/auth/logout",
+  afterLogoutHref = "/login",
+}: AppSidebarProps) {
   const pathname = usePathname()
 
   async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" })
-    window.location.href = "/login"
+    await fetch(logoutEndpoint, { method: "POST" })
+    window.location.href = afterLogoutHref
   }
 
   return (
     <Sidebar side={side} collapsible="icon" dir="rtl" className="panel-theme panel-sidebar">
       <SidebarHeader className="h-14 justify-center border-b border-sidebar-border px-3 py-0">
-        <Link href="/dashboard" className="flex items-center gap-2.5">
+        <Link href={homeHref} className="flex items-center gap-2.5">
           <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-sidebar-primary/12 ring-1 ring-sidebar-border group-data-[collapsible=icon]:size-8">
             <Image src="/logo.png" alt="زیفای" width={22} height={22} className="rounded-full" />
           </span>
@@ -50,7 +66,7 @@ export function AppSidebar({ side = "right", shopName, userMobile }: AppSidebarP
       </SidebarHeader>
 
       <SidebarContent className="px-1 py-2">
-        {navGroups.map((group, index) => (
+        {groups.map((group, index) => (
           <SidebarGroup key={group.label ?? index} className="py-1">
             {group.label && (
               <SidebarGroupLabel className="px-3 text-[11px] font-medium tracking-wide text-sidebar-foreground/50">
@@ -96,7 +112,7 @@ export function AppSidebar({ side = "right", shopName, userMobile }: AppSidebarP
           <span className="flex min-w-0 flex-col">
             <span className="text-[11px] text-sidebar-foreground/50">حساب شما</span>
             <span className="truncate text-xs font-medium text-sidebar-foreground/90">
-              {userMobile ? toPersianDigits(userMobile) : "—"}
+              {accountLabel ?? (userMobile ? toPersianDigits(userMobile) : "—")}
             </span>
           </span>
         </div>

@@ -140,7 +140,6 @@ langfuse_secret_key = secrets.langfuse_secret_key
 smsir_api_key = secrets.smsir_api_key
 smsir_template_id = secrets.smsir_template_id
 telegram_bot_token = secrets.telegram_bot_token
-admin_users = secrets.admin_users
 
 # Opt-in extras - both are off until you decide otherwise.
 #

@@ -62,7 +62,7 @@ export default function CtaSection() {
                 className="flex items-center justify-center md:justify-start gap-6"
               >
                 {[
-                  { v: "رایگان", l: "شروع کار" },
+                  { v: "سه پلن", l: "متناسب با اندازه شما" },
                   { v: "بدون کد", l: "راه‌اندازی" },
                   { v: "۲۴/۷", l: "پشتیبانی دستیار" },
                 ].map((s) => (
@@ -82,14 +82,14 @@ export default function CtaSection() {
             >
               <StarBorder
                 as={Link}
-                href="/login"
+                href="/pricing"
                 color="rgba(255,255,255,0.6)"
                 speed="5s"
                 className="rounded-lg"
                 innerClassName="h-[34px] px-5 text-sm font-semibold leading-none text-primary-foreground rounded-lg bg-primary justify-center"
               >
                 <HugeiconsIcon icon={RocketIcon} size={15} strokeWidth={2} />
-                شروع رایگان
+                مشاهده پلن‌ها و قیمت
               </StarBorder>
             </motion.div>
           </div>

@@ -28,10 +28,3 @@ smsir_template_id = ""
 
 # Telegram bot token from @BotFather.
 telegram_bot_token = ""
-
-# Panel accounts seeded on every deploy (packages/db/prisma/seed.ts) - each
-# can log into /admin with a password. Add or remove (mobile, password)
-# pairs as needed.
-admin_users = [
-    ("09120000000", "change-me"),
-]

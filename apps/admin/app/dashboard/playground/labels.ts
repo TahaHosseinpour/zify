@@ -9,6 +9,7 @@ export const INTENT_LABELS: Record<string, string> = {
   compare: "مقایسه",
   ask_question: "سوال روشن‌کننده",
   needs_clarification: "نیاز به شفاف‌سازی",
+  off_script: "خارج از نقش (دور زدن دستورها / کار بی‌ربط)",
   other: "سایر",
 }
 
@@ -70,6 +71,7 @@ export const NODE_LABELS: Record<string, string> = {
   ask_question: "پرسیدن سوال",
   handle_purchase: "هدایت به خرید",
   smalltalk_reply: "پاسخ کوتاه (بدون جستجو)",
+  decline_reply: "رد مودبانه (بدون جستجو)",
 }
 
 // An explicit ORDER BY the customer asked for; vector similarity can't express

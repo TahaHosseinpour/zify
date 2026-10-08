@@ -7,6 +7,7 @@ import {
 } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { SubscriptionCard } from "@/components/subscription-card"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   UserMultiple02Icon, MessageMultiple01Icon, CursorMagicSelection03Icon, ShoppingBag01Icon, Clock01Icon,
@@ -62,6 +63,8 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <SubscriptionCard />
+
       {/* KPI cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         {loading

@@ -22,6 +22,9 @@ from tests.conftest import item
 from .types import DeterministicNodeCase
 
 _SHOP_CATEGORIES = ["کفش", "لپ‌تاپ"]
+# Brand is a choice from the shop's own vocabulary (see app/intent.py), same as
+# category - an empty list here would mean "this shop stocks no brands".
+_SHOP_BRANDS = ["نایک", "آدیداس", "ایسوس"]
 
 _TWO_SHOWN_PRODUCTS = [
     item("p1", price=1_500_000, url="https://shop.test/p1"),
@@ -34,7 +37,7 @@ def _base_state(**overrides) -> dict:
         "shop_id": "shop-1",
         "mode": "explore",
         "shop_categories": _SHOP_CATEGORIES,
-        "shop_brands": [],
+        "shop_brands": _SHOP_BRANDS,
         "shown_products": [],
         "explore_filters": {},
         "excluded_product_ids": [],

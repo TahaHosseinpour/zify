@@ -7,9 +7,9 @@ import type { Conversation } from "@prisma/client";
 // LangGraph thread id is keyed by conversation id (see callers), so a new
 // conversation means a genuinely empty checkpoint - fresh vocabulary, fresh
 // message history - not a resumed one.
-const CONVERSATION_TTL_MS = 24 * 60 * 60 * 1000;
+export const CONVERSATION_TTL_MS = 24 * 60 * 60 * 1000;
 
-async function createAndActivate(
+export async function createAndActivate(
   shopId: string,
   endUserId: string,
   mode: string,

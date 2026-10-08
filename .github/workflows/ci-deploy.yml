@@ -113,7 +113,6 @@ jobs:
           SMSIR_API_KEY: ${{ secrets.DEPLOY_SMSIR_API_KEY }}
           SMSIR_TEMPLATE_ID: ${{ secrets.DEPLOY_SMSIR_TEMPLATE_ID }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.DEPLOY_TELEGRAM_BOT_TOKEN }}
-          ADMIN_USERS: ${{ secrets.DEPLOY_ADMIN_USERS }}
         run: python deploy/write_ci_secrets.py
 
       # Same script as local `npm run deploy`, with `-y` so pyinfra doesn't

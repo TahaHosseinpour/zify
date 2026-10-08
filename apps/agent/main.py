@@ -15,10 +15,15 @@ import uvicorn  # noqa: E402
 if __name__ == "__main__":
     port = int(os.environ.get("AGENT_PORT", "3001"))
     reload = os.environ.get("RELOAD", "false").lower() == "true"
-    print(f"[agent] starting on port {port}")
+    # Loopback by default: the only callers are the admin panel and the bot on
+    # this same machine (AGENT_URL is http://localhost:<port>). Listening on
+    # every interface would put the service that spends the model budget on
+    # the public network, with only its shared key in front of it.
+    host = os.environ.get("AGENT_HOST", "127.0.0.1")
+    print(f"[agent] starting on {host}:{port}")
     uvicorn.run(
         "app.server:app",
-        host="0.0.0.0",
+        host=host,
         port=port,
         reload=reload,
         loop="none",

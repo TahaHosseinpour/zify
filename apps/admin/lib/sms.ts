@@ -1,7 +1,10 @@
+import { randomInt } from "node:crypto"
 import { Smsir } from "smsir-js"
 
+// From the OS's CSPRNG: these codes are the second factor of the platform
+// admin login as well as the shop owner's OTP, and Math.random is predictable.
 function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString()
+  return randomInt(100000, 1000000).toString()
 }
 
 export async function sendOtp(mobile: string): Promise<string> {

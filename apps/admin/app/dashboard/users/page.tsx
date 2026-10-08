@@ -39,6 +39,7 @@ interface EndUser {
   weeklyResetAt: string
   monthlyInputTokens: number
   monthlyResetAt: string
+  isBlocked: boolean
 }
 
 function usagePct(used: number, limit: number): number {
@@ -61,6 +62,25 @@ export default function UsersPage() {
       .then(setUsers)
       .finally(() => setLoading(false))
   }, [])
+
+  // Stops (or resumes) the assistant for one customer - the owner's own
+  // answer to someone burning through the shop's conversations.
+  async function toggleBlocked(user: EndUser) {
+    const isBlocked = !user.isBlocked
+    try {
+      const res = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: user.id, isBlocked }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, isBlocked } : u)))
+      toast.success(isBlocked ? "دستیار دیگر به این کاربر پاسخ نمی‌دهد" : "کاربر رفع مسدودی شد")
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : "خطا در تغییر وضعیت کاربر")
+    }
+  }
 
   async function handleBroadcast() {
     setSending(true)
@@ -116,6 +136,7 @@ export default function UsersPage() {
                   <TableHead>سقف هفتگی</TableHead>
                   <TableHead>سقف ماهانه</TableHead>
                   <TableHead>تاریخ ثبت</TableHead>
+                  <TableHead>دسترسی</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -165,6 +186,16 @@ export default function UsersPage() {
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {new Date(u.createdAt).toLocaleDateString("fa-IR")}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          className={u.isBlocked ? undefined : "text-destructive"}
+                          onClick={() => toggleBlocked(u)}
+                        >
+                          {u.isBlocked ? "رفع مسدودی" : "مسدود کردن"}
+                        </Button>
                       </TableCell>
                     </motion.tr>
                   )

@@ -16,6 +16,7 @@ its entry.
 
 from __future__ import annotations
 
+from app.graph import EXPLORE_CONTEXT_LIMIT
 from app.state import RetrievedItem
 
 from .catalog_40 import ALL_40, CASUAL_SHOES, OFFICE_LAPTOPS, RUNNING_SHOES, pool_with_scores
@@ -42,19 +43,19 @@ def _shop_info(id_: str, score: float) -> RetrievedItem:
 
 def _check_shoe_query_surfaces_only_relevant_shoes(update: dict) -> None:
     ids = [i["id"] for i in update["retrieved_context"]]
-    assert ids == [s["id"] for s in RUNNING_SHOES[:8]], ids
+    assert ids == [s["id"] for s in RUNNING_SHOES[:EXPLORE_CONTEXT_LIMIT]], ids
     assert update["out_of_catalog"] is False, update["out_of_catalog"]
 
 
 def _check_laptop_query_surfaces_only_relevant_laptops(update: dict) -> None:
     ids = [i["id"] for i in update["retrieved_context"]]
-    assert ids == [l["id"] for l in OFFICE_LAPTOPS[:8]], ids
+    assert ids == [l["id"] for l in OFFICE_LAPTOPS[:EXPLORE_CONTEXT_LIMIT]], ids
     assert update["out_of_catalog"] is False, update["out_of_catalog"]
 
 
 def _check_semantic_filter_skips_the_floor(update: dict) -> None:
     ids = {i["id"] for i in update["retrieved_context"]}
-    assert len(update["retrieved_context"]) == 8, update["retrieved_context"]
+    assert len(update["retrieved_context"]) == EXPLORE_CONTEXT_LIMIT, update["retrieved_context"]
     assert {"shoe-run-0", "shoe-run-1", "shoe-run-2"} <= ids, ids
 
 
@@ -80,8 +81,8 @@ def _check_faq_and_shop_info_exempt_from_floor(update: dict) -> None:
     assert types == {"faq", "shop_info"}, types
 
 
-def _check_explore_trims_to_8(update: dict) -> None:
-    assert len(update["retrieved_context"]) == 8, update["retrieved_context"]
+def _check_explore_trims_to_the_limit(update: dict) -> None:
+    assert len(update["retrieved_context"]) == EXPLORE_CONTEXT_LIMIT, update["retrieved_context"]
 
 
 def _check_product_trims_to_6(update: dict) -> None:
@@ -104,7 +105,7 @@ RETRIEVAL_RANKING_CASES: list[DeterministicNodeCase] = [
             ),
             intent="search_product",
         ),
-        expected="of all 40 catalog products, only the 8 most relevant running shoes come back, in relevance order",
+        expected="of all 40 catalog products, only the top EXPLORE_CONTEXT_LIMIT most relevant running shoes come back, in relevance order",
         check=_check_shoe_query_surfaces_only_relevant_shoes,
     ),
     DeterministicNodeCase(
@@ -117,7 +118,7 @@ RETRIEVAL_RANKING_CASES: list[DeterministicNodeCase] = [
             ),
             intent="search_product",
         ),
-        expected="of all 40 catalog products, only the 8 most relevant laptops come back, in relevance order",
+        expected="of all 40 catalog products, only the top EXPLORE_CONTEXT_LIMIT most relevant laptops come back, in relevance order",
         check=_check_laptop_query_surfaces_only_relevant_laptops,
     ),
     DeterministicNodeCase(
@@ -131,7 +132,7 @@ RETRIEVAL_RANKING_CASES: list[DeterministicNodeCase] = [
             filter_effective={"category": "کفش ورزشی"},
             intent="search_product",
         ),
-        expected="SQL already proved these are on-topic, so 3 genuine matches past the 0.70 floor still make the top 8",
+        expected="SQL already proved these are on-topic, so 3 genuine matches past the 0.70 floor still make the cut",
         check=_check_semantic_filter_skips_the_floor,
     ),
     DeterministicNodeCase(
@@ -190,7 +191,7 @@ RETRIEVAL_RANKING_CASES: list[DeterministicNodeCase] = [
         check=_check_faq_and_shop_info_exempt_from_floor,
     ),
     DeterministicNodeCase(
-        id="explore_trims_the_same_oversupply_to_8",
+        id="explore_trims_the_same_oversupply_to_the_limit",
         node="fuse_results_explore",
         state=_base_state(
             retrieved_raw=pool_with_scores(
@@ -198,8 +199,8 @@ RETRIEVAL_RANKING_CASES: list[DeterministicNodeCase] = [
             ),
             intent="search_product",
         ),
-        expected="EXPLORE_CONTEXT_LIMIT=8 - only 8 of the 10 relevant shoes come back",
-        check=_check_explore_trims_to_8,
+        expected=f"EXPLORE_CONTEXT_LIMIT={EXPLORE_CONTEXT_LIMIT} - only that many of the 10 relevant shoes come back",
+        check=_check_explore_trims_to_the_limit,
     ),
     DeterministicNodeCase(
         id="product_mode_trims_the_same_oversupply_to_6",

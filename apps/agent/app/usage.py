@@ -72,6 +72,9 @@ class TokenUsageCallback(BaseCallbackHandler):
 
     def __init__(self) -> None:
         self.input_tokens = 0
+        # Not part of the customer quota (that is input-only) - collected for
+        # metering.record_turn, which prices the whole turn.
+        self.output_tokens = 0
 
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         for generations in response.generations:
@@ -80,6 +83,7 @@ class TokenUsageCallback(BaseCallbackHandler):
                 usage = getattr(message, "usage_metadata", None) if message else None
                 if usage:
                     self.input_tokens += usage.get("input_tokens", 0) or 0
+                    self.output_tokens += usage.get("output_tokens", 0) or 0
 
 
 async def increment_input_tokens(end_user_id: str, tokens: int) -> None:

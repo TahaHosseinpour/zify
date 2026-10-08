@@ -1,9 +1,7 @@
 import { SignJWT, jwtVerify } from "jose"
 import { cookies } from "next/headers"
+import { appSecretBytes } from "./secret"
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "fallback-secret-change-in-production"
-)
 const COOKIE_NAME = "auth-token"
 
 export interface JwtPayload {
@@ -17,12 +15,16 @@ export async function signToken(payload: JwtPayload): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime("7d")
     .setIssuedAt()
-    .sign(JWT_SECRET)
+    .sign(appSecretBytes())
 }
 
 export async function verifyToken(token: string): Promise<JwtPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET)
+    const { payload } = await jwtVerify(token, appSecretBytes())
+    // Every token this app signs shares one secret, so a valid signature is
+    // not enough: it has to be an owner session specifically. A platform
+    // admin's token (lib/admin-auth.ts) carries no userId and stops here.
+    if (typeof payload.userId !== "string") return null
     return payload as unknown as JwtPayload
   } catch {
     return null

@@ -16,3 +16,4 @@ export * from "@prisma/client";
 export * from "./conversations";
 export * from "./usage";
 export * from "./playground";
+export * from "./billing";

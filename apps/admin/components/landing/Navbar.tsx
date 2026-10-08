@@ -8,8 +8,9 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { Menu01Icon, Cancel01Icon, TelegramIcon } from "@hugeicons/core-free-icons"
 
 const navLinks = [
-  { href: "#modes", label: "حالت‌های دستیار" },
-  { href: "#capabilities", label: "امکانات پنل" },
+  { href: "/#modes", label: "حالت‌های دستیار" },
+  { href: "/#capabilities", label: "امکانات پنل" },
+  { href: "/pricing", label: "قیمت‌ها" },
 ]
 
 export default function Navbar() {

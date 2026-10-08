@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
-import { prisma, getOrStartConversation, PLAYGROUND_WEB_VISITOR_ID } from "@zify/db"
-import { parseSseEvents } from "@/lib/sse"
+import { prisma, admitTurn, PLAYGROUND_WEB_VISITOR_ID } from "@zify/db"
+import { parseSseEvents, sseTextResponse } from "@/lib/sse"
 import { resolvePlaygroundShop } from "@/lib/resolve-playground"
+import { AGENT_URL, agentHeaders } from "@/lib/agent"
 
-const AGENT_URL = process.env.AGENT_URL ?? "http://localhost:3001"
+// What the shop owner sees in place of a reply when a turn is refused. Unlike
+// a customer, they are told the actual reason - it is their subscription.
+const OWNER_DENIAL_MESSAGES: Record<string, string> = {
+  no_subscription: "اشتراک فعالی برای این فروشگاه وجود ندارد، پس دستیار خاموش است.",
+  quota_exhausted: "گفتگوهای این دوره‌ی اشتراک تمام شده است.",
+  shop_daily_cap: "سقف گفتگوی روزانه‌ی فروشگاه پر شده است. فردا دوباره فعال می‌شود.",
+}
 
 /**
  * Authenticated counterpart to /api/shop-chat for the admin's آزمایشگاه فروش
@@ -32,7 +39,20 @@ export async function POST(req: NextRequest) {
     create: { shopId: shop.id, webVisitorId: PLAYGROUND_WEB_VISITOR_ID },
   })
 
-  const conversation = await getOrStartConversation(shop.id, endUser.id, mode, productId)
+  // A playground turn costs exactly what a customer's does, so it is counted
+  // against the same quota; only the per-customer abuse limits are waived.
+  const admission = await admitTurn({
+    shopId: shop.id,
+    endUserId: endUser.id,
+    message,
+    mode,
+    productId,
+    isOwner: true,
+  })
+  if (!admission.ok) {
+    return sseTextResponse(OWNER_DENIAL_MESSAGES[admission.reason] ?? admission.message)
+  }
+  const conversation = admission.conversation
   // Same "<shopId>:<endUserId>:<conversationId>" shape the storefront uses -
   // "ریست حافظه دستیار" (which matches on "<shopId>:%") wipes this the same
   // way, and Langfuse's tracing groups turns by the same thread id either way.
@@ -46,7 +66,7 @@ export async function POST(req: NextRequest) {
   try {
     agentRes = await fetch(`${AGENT_URL}/chat/stream`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: agentHeaders(),
       body: JSON.stringify({
         shopId: shop.id,
         // No endUserId: the shop owner testing their own bot must never hit

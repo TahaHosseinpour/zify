@@ -7,6 +7,23 @@ export interface SseEvent<T = unknown> {
   data: T
 }
 
+/** A complete, already-finished stream carrying one assistant message - for
+ * replies that never involve the agent (a refusal, a rate limit). The chat UI
+ * reads it exactly like a real turn, so the text shows up as the assistant's
+ * answer rather than as a transport error. */
+export function sseTextResponse(text: string, headers: Record<string, string> = {}): Response {
+  const body =
+    `event: answer\ndata: ${JSON.stringify({ text })}\n\n` +
+    `event: done\ndata: ${JSON.stringify({ products: [], showBuyActions: false })}\n\n`
+  return new Response(body, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      ...headers,
+    },
+  })
+}
+
 /** Parse a *complete* SSE payload (already-buffered text) into events. Used
  * server-side in api/shop-chat/route.ts to reconstruct the full reply for
  * persistence from the tapped copy of the stream. */

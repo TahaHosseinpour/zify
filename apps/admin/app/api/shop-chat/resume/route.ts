@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma, resumeConversation } from "@zify/db"
 import { resolveShopVisitor } from "@/lib/resolve-shop-visitor"
+import { readVisitorId } from "@/lib/visitor-cookie"
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
   const slug = typeof body.slug === "string" ? body.slug : ""
-  const webVisitorId = typeof body.webVisitorId === "string" ? body.webVisitorId : ""
+  const webVisitorId = readVisitorId(req) ?? ""
   const conversationId = typeof body.conversationId === "string" ? body.conversationId : ""
   if (!slug || !webVisitorId || !conversationId) {
     return NextResponse.json({ error: "اطلاعات ناقص است" }, { status: 400 })

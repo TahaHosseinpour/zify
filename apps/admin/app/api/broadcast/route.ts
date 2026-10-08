@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
-import { prisma } from "@zify/db"
+import { prisma, getQuotaStatus } from "@zify/db"
 
 // Telegram's global send cap is ~30 msg/sec across all chats. We send in
 // small concurrent batches with a pause between them to stay well under
@@ -36,6 +36,29 @@ export async function POST(req: Request) {
   })
   const shop = user?.shops[0]
   if (!shop) return NextResponse.json({ error: "فروشگاهی یافت نشد" }, { status: 404 })
+
+  // Broadcasts are a subscription feature with a per-period allowance: one
+  // click messages every customer the shop has, so it is neither free to
+  // offer nor safe to leave uncounted. Each send is recorded as an event,
+  // which is what the next check counts.
+  const quota = await getQuotaStatus(shop.id)
+  if (!quota.subscription || !quota.periodStart) {
+    return NextResponse.json(
+      { error: "ارسال پیام همگانی فقط با اشتراک فعال ممکن است." },
+      { status: 403 },
+    )
+  }
+  const sentThisPeriod = await prisma.event.count({
+    where: { shopId: shop.id, type: "broadcast", createdAt: { gte: quota.periodStart } },
+  })
+  const allowed = quota.subscription.maxBroadcastsPerMonth
+  if (sentThisPeriod >= allowed) {
+    return NextResponse.json(
+      { error: `سقف ${allowed.toLocaleString("fa-IR")} پیام همگانی این دوره پر شده است.` },
+      { status: 429 },
+    )
+  }
+  await prisma.event.create({ data: { shopId: shop.id, type: "broadcast" } })
 
   const recipients = await prisma.endUser.findMany({
     where: { shopId: shop.id, telegramUserId: { not: null } },

@@ -2,8 +2,12 @@ import { NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { prisma } from "@zify/db"
 import { reembedAllForShop } from "@/lib/embeddings"
+import { AGENT_URL, agentHeaders } from "@/lib/agent"
+import { checkRateLimit } from "@/lib/rate-limit"
 
-const AGENT_URL = process.env.AGENT_URL ?? "http://localhost:3001"
+// Every run re-embeds the shop's whole catalog, which is paid for per call.
+const REINDEX_WINDOW_MS = 60 * 60 * 1000
+const REINDEX_MAX_PER_WINDOW = 3
 
 async function getShop(userId: string) {
   const user = await prisma.user.findUnique({
@@ -20,6 +24,13 @@ export async function POST() {
   const shop = await getShop(session.userId)
   if (!shop) return NextResponse.json({ error: "فروشگاه یافت نشد" }, { status: 404 })
 
+  if (!checkRateLimit(`reindex:${shop.id}`, REINDEX_MAX_PER_WINDOW, REINDEX_WINDOW_MS).allowed) {
+    return NextResponse.json(
+      { error: "بازسازی ایندکس بیش از حد تکرار شده است. یک ساعت بعد دوباره تلاش کنید." },
+      { status: 429 },
+    )
+  }
+
   // 1) Re-index embeddings for the latest products / FAQs / shop info.
   let reindexed: { products: number; faqs: number } | null = null
   try {
@@ -33,7 +44,7 @@ export async function POST() {
   try {
     const res = await fetch(`${AGENT_URL}/admin/reset-memory`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: agentHeaders(),
       body: JSON.stringify({ shopId: shop.id }),
     })
     if (!res.ok) throw new Error(`agent responded ${res.status}`)
