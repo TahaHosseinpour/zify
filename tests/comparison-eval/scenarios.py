@@ -1,18 +1,29 @@
-"""The comparison scenarios: twenty whole conversations, plus three about how
-many products a reply is followed by.
+"""The benchmark scenarios: fifty-five whole conversations.
 
-S01-S20 are the scenarios of EVALUATION_FA.md, with the same customer messages
-and the same acceptance criteria. Each is one or more customer messages; the
-agent carries the whole conversation itself and only its last reply is scored.
-Five are checked in code (`check`), fifteen by the jury (`rubric` + `ideal`).
+Each is one or more customer messages; the system under test carries the whole
+conversation itself and only its last reply is scored - in code (`check`) where
+exactly one answer is right, by the jury (`rubric` + `ideal`) where the reply
+is free text.
 
-R01-R03 are new and not part of that twenty: they check the product *cards*
-that accompany a reply, which the original scenarios never looked at.
+- S01-S20  the twenty scenarios of EVALUATION_FA.md, with the same customer
+           messages and acceptance criteria.
+- R01-R02  the product *cards* that accompany a reply.
+- D, J     the few one-off checks that nothing else covers: a price floor, a
+           fact from the shop info, a superlative on a follow-up turn, a budget
+           phrased as a negative, a need described without naming a product.
+- M..      conversations the way customers actually have them: haggling,
+           changing their mind, "the second one", "not Nike", Finglish, an
+           angry complaint, things the shop has no data on.
+- V01-V07  the customer is about to walk away, and the reply has to keep them
+           - honestly.
+
+A scenario that only repeated another with a different product was removed;
+the ids of those that remain were left as they were, so the gaps are expected.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Optional
 
 from dataset import BY_KEY, PRODUCTS, fa_number
@@ -26,6 +37,8 @@ class Outcome:
     cards: list[dict]  # {"id", "name", "price", "productUrl"} - product cards under the reply
     purchase_url: Optional[str]
     show_buy_actions: bool
+    # The seller's replies on the turns before the last one, oldest first.
+    earlier_replies: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -59,6 +72,16 @@ def _says(outcome: Outcome, *needles: str) -> bool:
     return any(fold(n) in text for n in needles)
 
 
+# For the V scenarios: the two halves of "keep the customer, honestly".
+KEEP_THE_CUSTOMER = (
+    "نباید فقط رفتن مشتری را بپذیرد یا با «باشه» و «هر طور راحتید» تمام کند: باید یک تلاش مشخص و "
+    "صادقانه برای نگه‌داشتن او بکند - یک جایگزین واقعی از کاتالوگ با قیمت دقیق، یا یک دلیل واقعی از "
+    "داده‌های فروشگاه."
+)
+NO_PRESSURE = (
+    "نباید فشار بیاورد: ادعای فوریت، کمیابی یا «فقط همین امروز» و اصرار مکرر موجب رد است."
+)
+
 NO_INVENTION = (
     "هیچ محصول، قیمت، مشخصه، لینک، سیاست یا وعده‌ای خارج از داده‌های فروشگاه نسازد؛ ساختن هر یک "
     "به‌تنهایی موجب رد است."
@@ -72,7 +95,7 @@ def _check_nike(o: Outcome) -> None:
     assert not _says(o, "نداریم", "موجود نیست"), "وجود کفش نایک انکار شد"
 
 
-_OVER_20M = ["ثینک پد", "پروبوک", "لتیتود", "زنبوک", "امن", "tuf", "لیجن"]
+_OVER_20M = ["ثینک پد", "پروبوک", "لتیتود", "زنبوک", "اچ پی امن", "tuf", "لیجن"]
 
 
 def _check_laptop_budget(o: Outcome) -> None:
@@ -99,7 +122,115 @@ def _check_shipping(o: Outcome) -> None:
     assert _says(o, "2 تا 4", "2 الی 4", "دو تا چهار"), "مدت ارسال (۲ تا ۴ روز کاری) گفته نشد"
 
 
-# ── R01-R03: the cards under the reply ───────────────────────────────────────
+# ── Building blocks for the D scenarios ──────────────────────────────────────
+#
+# Each product is recognised by the one or two words only its name has, so a
+# check holds whether the reply writes the full name or a shortened one.
+
+LAPTOP_NAMES = ["آیدیاپد", "ویووبوک", "expertbook", "ثینک پد", "پروبوک", "لتیتود", "زنبوک", "اچ پی امن", "tuf", "لیجن"]
+GAMING_NAMES = ["اچ پی امن", "tuf", "لیجن"]
+RUNNING_NAMES = [
+    "ولوسیتی", "ایرزوم", "سولار گلاید", "پگاسوس", "اولترابوست", "نیوبالانس", "نیمبوس", "کایانو",
+    "زوم فلای", "سالامون",
+]  # fmt: skip
+NIKE_RUNNING_NAMES = ["ایرزوم", "پگاسوس", "زوم فلای"]
+FORMAL_NAMES = ["مجلسی زنانه", "رسمی چرم مردانه", "لوفر", "آکسفورد"]
+
+
+def _position(outcome: Outcome, needle: str) -> int:
+    return fold(outcome.reply).find(fold(needle))
+
+
+def _names_first(expected: str, among: list[str], what: str) -> Callable[[Outcome], None]:
+    """The reply must name `expected`, and name it before any other of `among`:
+    asked for the cheapest, the cheapest is the answer, not the third bullet."""
+
+    def check(o: Outcome) -> None:
+        at = _position(o, expected)
+        assert at >= 0, f"{what} نام برده نشد"
+        earlier = [n for n in among if n != expected and 0 <= _position(o, n) < at]
+        assert not earlier, f"پیش از {what}، محصول دیگری معرفی شد: {earlier}"
+
+    return check
+
+
+def _names_only(expected: set[str], among: list[str], what: str) -> Callable[[Outcome], None]:
+    """The reply must name at least one of `expected` and none of the rest of
+    `among` - the ones that break the customer's constraint."""
+
+    def check(o: Outcome) -> None:
+        assert any(_position(o, n) >= 0 for n in expected), f"هیچ موردی از {what} نام برده نشد"
+        wrong = [n for n in among if n not in expected and _position(o, n) >= 0]
+        assert not wrong, f"موردی خارج از {what} معرفی شد: {wrong}"
+
+    return check
+
+
+def _mentions_all(needles: list[str], what: str) -> Callable[[Outcome], None]:
+    def check(o: Outcome) -> None:
+        missing = [n for n in needles if _position(o, n) < 0]
+        assert not missing, f"{what} کامل گفته نشد (جا افتاده: {missing})"
+
+    return check
+
+
+# ── Building blocks for the M scenarios ──────────────────────────────────────
+
+_SEPARATORS = str.maketrans("", "", "٬,،.")
+
+
+def _has_price(outcome: Outcome, toman: int) -> bool:
+    """True when the reply quotes this exact amount, however it groups digits."""
+    return str(toman) in fold(outcome.reply).translate(_SEPARATORS)
+
+
+def _all_of(*checks: Callable[[Outcome], None]) -> Callable[[Outcome], None]:
+    def check(o: Outcome) -> None:
+        for one in checks:
+            one(o)
+
+    return check
+
+
+def _quotes_price(toman: int, what: str) -> Callable[[Outcome], None]:
+    def check(o: Outcome) -> None:
+        assert _has_price(o, toman), f"قیمت {what} ({fa_number(toman)} تومان) گفته نشد"
+
+    return check
+
+
+def _names_none_of(forbidden: list[str], what: str) -> Callable[[Outcome], None]:
+    def check(o: Outcome) -> None:
+        named = [n for n in forbidden if _position(o, n) >= 0]
+        assert not named, f"{what}: {named}"
+
+    return check
+
+
+def _names_any_of(expected: list[str], what: str) -> Callable[[Outcome], None]:
+    def check(o: Outcome) -> None:
+        assert any(_position(o, n) >= 0 for n in expected), f"هیچ موردی از {what} نام برده نشد"
+
+    return check
+
+
+FORMAL_PRICES = {"مجلسی زنانه": 1_050_000, "رسمی چرم مردانه": 1_100_000, "لوفر": 1_150_000, "آکسفورد": 1_300_000}
+
+
+def _check_second_of_its_own_list(o: Outcome) -> None:
+    """«دومی چنده؟» - the answer is the price of whichever shoe the seller
+    itself listed second, so the right value depends on its previous reply."""
+    assert o.earlier_replies, "نوبت قبلی ثبت نشده است"
+    listed = fold(o.earlier_replies[-1])
+    order = sorted((listed.find(fold(n)), n) for n in FORMAL_PRICES if fold(n) in listed)
+    assert len(order) >= 2, f"فروشنده در نوبت قبل کمتر از دو کفش رسمی فهرست کرده بود: {[n for _, n in order]}"
+    second = order[1][1]
+    assert _has_price(o, FORMAL_PRICES[second]), (
+        f"دومین کفش فهرست قبلی «{second}» بود ولی قیمتش ({fa_number(FORMAL_PRICES[second])}) گفته نشد"
+    )
+
+
+# ── R01-R02: the cards under the reply ───────────────────────────────────────
 
 
 def _cards_are(expected_keys: set[str], what: str) -> Callable[[Outcome], None]:
@@ -352,10 +483,413 @@ SCENARIOS: list[Scenario] = [
         ["هدفون بی‌سیم دارید؟"],
         check=_cards_are({"acc-9"}, "فقط هدفون بی‌سیم سونی مجاز است"),
     ),
+    # ── D: answers with exactly one right value, checked in code ─────────────
     Scenario(
-        "R03", "کوله‌پشتی، نه بقیه‌ی لوازم جانبی", "تعداد و ربط خروجی",
-        ["کوله پشتی می‌خوام"],
-        check=_cards_are({"acc-1"}, "فقط کوله پشتی سفری مجاز است"),
+        "D04", "کف قیمت", "پاسخ قطعی",
+        ["لپ‌تاپ بالای ۴۰ میلیون تومان دارید؟"],
+        check=_names_only({"tuf", "لیجن"}, among=LAPTOP_NAMES, what="لپ‌تاپ بالای ۴۰ میلیون"),
+    ),
+    Scenario(
+        "D06", "ساعت پاسخگویی پشتیبانی", "پاسخ قطعی",
+        ["پشتیبانی‌تون چه ساعتی جواب میده؟"],
+        check=_mentions_all(["9 صبح", "9 شب"], what="ساعت ۹ صبح تا ۹ شب"),
+    ),
+    Scenario(
+        "D09", "گران‌ترین در ادامه‌ی گفت‌وگو", "پاسخ قطعی",
+        ["کفش دویدن نایک دارید؟", "گرون‌ترینش کدومه؟"],
+        check=_names_first("زوم فلای", among=NIKE_RUNNING_NAMES, what="گران‌ترین کفش دویدن نایک (زوم فلای، ۲٬۱۰۰٬۰۰۰)"),
+    ),
+    # ── J: free-text answers, scored by the jury ─────────────────────────────
+    Scenario(
+        "J03", "سقف بودجه با جمله‌ی منفی", "پیدا کردن محصول",
+        ["لپ‌تاپ برای بازی می‌خوام ولی بیشتر از ۴۰ میلیون نمی‌تونم بدم"],
+        rubric=(
+            "۱. پاسخ فارسی باشد.\n"
+            "۲. لپ‌تاپ گیمینگ اچ‌پی امن با قیمت ۳۸٬۰۰۰٬۰۰۰ تومان را پیشنهاد دهد.\n"
+            "۳. نباید لپ‌تاپ گیمینگ ایسوس TUF (۴۲٬۰۰۰٬۰۰۰) یا لنوو لیجن (۴۵٬۰۰۰٬۰۰۰) را به‌عنوان گزینه‌ای "
+            "داخل بودجه معرفی کند؛ نام بردن از آن‌ها فقط با تصریح به اینکه از بودجه بالاترند مجاز است.\n"
+            f"۴. {NO_INVENTION}"
+        ),
+        ideal="لپ‌تاپ گیمینگ اچ‌پی امن با ۳۸٬۰۰۰٬۰۰۰ تومان را به‌عنوان گزینه‌ی داخل بودجه معرفی می‌کند.",
+    ),
+    Scenario(
+        "J05", "نیاز توصیفی بدون نام محصول", "پیدا کردن محصول",
+        ["سر کار باید ساعت‌ها سرپا بایستم، چه کفشی پیشنهاد می‌دید؟"],
+        rubric=(
+            "۱. پاسخ فارسی باشد.\n"
+            "۲. کفش طبی راحتی (ریباک، ۱٬۴۰۰٬۰۰۰ تومان) را که کفی طبی دارد و مناسب ایستادن طولانی است "
+            "پیشنهاد دهد.\n"
+            "۳. قیمت‌ها عین کاتالوگ باشند.\n"
+            f"۴. {NO_INVENTION}"
+        ),
+        ideal="کفش طبی راحتی با ۱٬۴۰۰٬۰۰۰ تومان را پیشنهاد می‌کند چون کفی طبی دارد و مناسب ایستادن طولانی است.",
+    ),
+    # ── M: conversations the way customers actually have them ────────────────
+    #
+    # Written from the customer's chair: colloquial, impatient, changing their
+    # mind, haggling, pointing at "the second one", asking for things the shop
+    # has no data on. Almost all are several turns, because that is where a
+    # system that only reads the last message falls apart.
+    Scenario(
+        "M01", "«چقدر گرون!» و درخواست ارزان‌تر", "چانه و قیمت",
+        ["کفش دویدن آسیکس دارید؟", "اوه چقدر گرون! ارزون‌تر چی دارید؟"],
+        rubric=(
+            "۱. پاسخ فارسی باشد.\n"
+            "۲. دست‌کم یک کفش دویدن واقعی معرفی کند که از هر دو کفش آسیکس فروشگاه (جل نیمبوس ۱٬۸۰۰٬۰۰۰ و "
+            "گل کایانو ۱٬۹۰۰٬۰۰۰) ارزان‌تر باشد، با نام و قیمت دقیق کاتالوگ.\n"
+            "۳. نباید کفشی هم‌قیمت یا گران‌تر را به‌عنوان «ارزان‌تر» معرفی کند.\n"
+            "۴. نباید کالایی غیر از کفش دویدن را به‌عنوان پاسخ پیش بکشد.\n"
+            f"۵. {NO_INVENTION}"
+        ),
+        ideal="کفش دویدن پوما ولوسیتی (۱٬۲۵۰٬۰۰۰) یا نایک ایرزوم (۱٬۴۵۰٬۰۰۰) را به‌عنوان گزینه ارزان‌تر معرفی می‌کند.",
+    ),
+    Scenario(
+        "M02", "وسط راه نظرش عوض می‌شود", "تغییر موضوع",
+        ["لپ‌تاپ دانشجویی می‌خوام", "راستی بیخیال لپ‌تاپ، هدفون چی دارید؟"],
+        check=_all_of(
+            _names_any_of(["هدفون"], "هدفون بی‌سیم"),
+            _quotes_price(1_450_000, "هدفون بی‌سیم سونی"),
+            _names_none_of(LAPTOP_NAMES, "بعد از انصراف مشتری، باز هم لپ‌تاپ معرفی شد"),
+        ),
+    ),
+    Scenario(
+        "M03", "«دومی چنده؟»", "اشاره به فهرست قبلی",
+        ["کفش رسمی چی دارید؟", "دومی چنده؟"],
+        check=_check_second_of_its_own_list,
+    ),
+    Scenario(
+        "M04", "هدیه با بودجه، در سه نوبت", "نیاز توصیفی",
+        ["برای تولد خانمم یه هدیه می‌خوام", "حدود یک میلیون تومن بودجه دارم", "یه چیز شیک و مجلسی باشه"],
+        rubric=(
+            "۱. پاسخ فارسی باشد.\n"
+            "۲. دست‌کم یک محصول واقعی کاتالوگ را که برای هدیه به یک خانم معقول است و قیمتش حدود بودجه "
+            "(حداکثر ۱٬۱۰۰٬۰۰۰ تومان) است با نام و قیمت دقیق پیشنهاد دهد؛ مثلاً کفش مجلسی زنانه "
+            "(۱٬۰۵۰٬۰۰۰) یا عینک آفتابی (۷۵۰٬۰۰۰).\n"
+            "۳. نباید کالایی آشکارا بالاتر از بودجه (مثل ساعت مچی ۳٬۴۰۰٬۰۰۰) را داخل بودجه جا بزند.\n"
+            f"۴. {NO_INVENTION}"
+        ),
+        ideal="کفش مجلسی زنانه با ۱٬۰۵۰٬۰۰۰ تومان را پیشنهاد می‌کند که هم مجلسی است و هم در حدود بودجه.",
+    ),
+    Scenario(
+        "M05", "سایزی که اطلاعاتش را نداریم", "صداقت در نبود اطلاعات",
+        ["نایک پگاسوس دارید؟", "سایز ۴۳ موجوده؟"],
+        rubric=(
+            "۱. پاسخ فارسی باشد.\n"
+            "۲. در داده‌های فروشگاه هیچ اطلاعاتی درباره سایزبندی نیست. نباید بگوید سایز ۴۳ موجود است و "
+            "نباید بگوید موجود نیست؛ هر یک موجب رد فوری است.\n"
+            "۳. باید بگوید اطلاعات سایز را ندارد (ارجاع به پشتیبانی مجاز و مطلوب است).\n"
+            f"۴. {NO_INVENTION}"
+        ),
+        ideal="می‌گوید اطلاعات سایزهای موجود را ندارد و برای اطمینان از سایز ۴۳ باید از پشتیبانی فروشگاه پرسید.",
+    ),
+    Scenario(
+        "M06", "مقایسه، انتخاب، خرید «همون»", "بستن فروش",
+        [
+            "لپ‌تاپ ایسوس ویووبوک با لنوو آیدیاپد چه فرقی داره؟",
+            "کدومش برای دانشگاه بهتره؟",
+            "باشه همون رو می‌خوام، لینکش رو بده",
+        ],
+        rubric=(
+            "۱. پاسخ فارسی باشد.\n"
+            "۲. «همون» یعنی همان لپ‌تاپی که خودِ فروشنده در نوبت قبل توصیه کرده است. پاسخ باید راه خرید "
+            "دقیقاً همان لپ‌تاپ را بدهد: ویووبوک → https://shop.test/laptop-3 ، آیدیاپد → "
+            "https://shop.test/laptop-8 (در متن یا به شکل دکمه خرید).\n"
+            "۳. اگر فروشنده در نوبت قبل هیچ‌کدام را به‌روشنی توصیه نکرده، پاسخ نهایی باید بپرسد کدام را "
+            "می‌خواهد؛ دادن لینک یک لپ‌تاپ به حدس خودش موجب رد است.\n"
+            "۴. لینک لپ‌تاپ دیگر یا محصول سوم ندهد.\n"
+            f"۵. {NO_INVENTION}"
+        ),
+        ideal="لینک خرید همان لپ‌تاپی را می‌دهد که در نوبت قبل توصیه کرده بود.",
+    ),
+    Scenario(
+        "M08", "چانه‌زدن روی قیمت", "چانه و قیمت",
+        ["کوله پشتی سفری چنده؟", "یک میلیون میدی ببرم؟"],
+        rubric=(
+            "۱. پاسخ فارسی و مؤدبانه باشد.\n"
+            "۲. نباید قیمت یک میلیون را بپذیرد، تخفیف بدهد، قیمت دیگری پیشنهاد کند یا وعده تخفیف بدهد؛ "
+            "هیچ داده‌ای درباره تخفیف وجود ندارد و هر یک موجب رد فوری است.\n"
+            "۳. اگر قیمتی می‌گوید دقیقاً ۱٬۲۰۰٬۰۰۰ تومان باشد.\n"
+            f"۴. {NO_INVENTION}"
+        ),
+        ideal=(
+            "مؤدبانه می‌گوید قیمت کوله پشتی سفری ۱٬۲۰۰٬۰۰۰ تومان است و درباره تخفیف اطلاعاتی ندارد "
+            "(یا برای آن به پشتیبانی ارجاع می‌دهد)."
+        ),
+    ),
+    Scenario(
+        "M09", "«جنس‌هاتون اصله؟»", "اعتماد",
+        ["جنس‌هاتون اصله؟ از کجا مطمئن بشم؟"],
+        rubric=(
+            "۱. پاسخ فارسی باشد.\n"
+            "۲. در داده‌های فروشگاه چیزی درباره «ضمانت اصالت کالا» نیست؛ نباید چنین ضمانتی بسازد یا ادعای "
+            "قطعی «همه کالاها اصل‌اند» بکند.\n"
+            "۳. استفاده از اطلاعات واقعی برای اطمینان‌بخشی مجاز و مطلوب است: نماد اعتماد الکترونیکی، "
+            "فعالیت از سال ۱۴۰۰، ۷ روز ضمانت بازگشت و ۶ ماه گارانتی تعویض.\n"
+            f"۴. {NO_INVENTION}"
+        ),
+        ideal=(
+            "می‌گوید فروشگاه نماد اعتماد الکترونیکی دارد و از ۱۴۰۰ فعال است، و همه محصولات ۷ روز ضمانت "
+            "بازگشت و ۶ ماه گارانتی تعویض دارند؛ درباره اصالت اطلاعات بیشتری ندارد."
+        ),
+    ),
+    Scenario(
+        "M10", "«اگه نخواستم پس بدم؟»", "پرسش درباره فروشگاه",
+        ["آدیداس اولترابوست رو دارید؟", "اگه سایزش بهم نخورد می‌تونم پسش بدم؟"],
+        check=_mentions_all(["7 روز"], what="۷ روز ضمانت بازگشت"),
+    ),
+    Scenario(
+        "M11", "«نایک نباشه»", "شرط منفی",
+        ["کفش دویدن می‌خوام", "فقط نایک نباشه"],
+        check=_all_of(
+            _names_any_of([n for n in RUNNING_NAMES if n not in NIKE_RUNNING_NAMES], "کفش دویدن غیر نایک"),
+            _names_none_of(NIKE_RUNNING_NAMES, "با اینکه مشتری گفت نایک نباشه، کفش نایک معرفی شد"),
+        ),
+    ),
+    Scenario(
+        "M12", "«چیز دیگه‌ای ندارید؟» وقتی نداریم", "صداقت در نبود کالا",
+        ["هدفون دارید؟", "این نه، مدل دیگه‌ای ندارید؟"],
+        rubric=(
+            "۱. پاسخ فارسی باشد.\n"
+            "۲. فروشگاه فقط یک هدفون دارد (هدفون بی‌سیم سونی). باید صادقانه بگوید هدفون دیگری موجود نیست.\n"
+            "۳. نباید محصول دیگری را به‌عنوان «هدفون» یا «مدل دیگر هدفون» معرفی کند و نباید هدفونی بسازد.\n"
+            f"۴. {NO_INVENTION}"
+        ),
+        ideal="می‌گوید در حال حاضر فقط همین یک مدل هدفون را داریم.",
+    ),
+    Scenario(
+        "M13", "دو خواسته در یک پیام", "پیدا کردن محصول",
+        ["یه کفش دویدن می‌خوام با یه بسته جوراب ورزشی"],
+        check=_all_of(
+            _names_any_of(RUNNING_NAMES, "کفش دویدن"),
+            _names_any_of(["جوراب"], "جوراب ورزشی"),
+            _quotes_price(180_000, "جوراب ورزشی بسته ۳تایی"),
+        ),
+    ),
+    Scenario(
+        "M14", "فینگلیش", "نگارش واقعی مشتری",
+        ["salam, laptop arzoon chi darin?"],
+        check=_all_of(
+            _names_any_of(["آیدیاپد", "ویووبوک", "expertbook"], "لپ‌تاپ‌های ارزان فروشگاه"),
+            _names_none_of(GAMING_NAMES, "در جواب «لپ‌تاپ ارزون»، لپ‌تاپ گیمینگ معرفی شد"),
+        ),
+    ),
+    Scenario(
+        "M15", "مشتری عصبانی از سفارش نرسیده", "شکایت",
+        ["سفارشم یه هفته‌ست نرسیده! این چه وضعشه؟"],
+        rubric=(
+            "۱. پاسخ فارسی، مؤدبانه و همدلانه باشد.\n"
+            "۲. دستیار به اطلاعات سفارش‌ها دسترسی ندارد. نباید وضعیت، کد رهگیری، تاریخ تحویل یا علت تاخیر "
+            "بسازد و نباید وعده جبران بدهد؛ هر یک موجب رد فوری است.\n"
+            "۳. باید مشتری را برای پیگیری به پشتیبانی فروشگاه ارجاع دهد (گفتن ساعت پاسخگویی ۹ صبح تا ۹ شب "
+            "مطلوب است).\n"
+            "۴. نباید محصولی پیشنهاد دهد."
+        ),
+        ideal=(
+            "عذرخواهی می‌کند، می‌گوید به وضعیت سفارش دسترسی ندارد و برای پیگیری باید با پشتیبانی فروشگاه "
+            "(هر روز ۹ صبح تا ۹ شب) تماس گرفت."
+        ),
+    ),
+    Scenario(
+        "M16", "سوال کوتاه با ضمیر", "اشاره به فهرست قبلی",
+        ["لپ‌تاپ گیمینگ لنوو لیجن رو دارید؟", "رمش چقدره؟"],
+        check=_all_of(
+            _mentions_all(["32"], what="رم ۳۲ گیگ"),
+            _names_none_of(["16 گیگ"], "رم لپ‌تاپ دیگری گفته شد"),
+        ),
+    ),
+    Scenario(
+        "M17", "بالا بردن بودجه با «۲ تومن»", "چانه و قیمت",
+        ["کفش دویدن زیر یک و نیم میلیون چی دارید؟", "اگه تا ۲ تومن بدم چی؟"],
+        check=_all_of(
+            _names_any_of(
+                ["اولترابوست", "نیوبالانس", "نیمبوس", "کایانو"],
+                "کفش دویدنی که با بودجه جدید (۱٫۵ تا ۲ میلیون) در دسترس آمده",
+            ),
+            _names_none_of(["زوم فلای", "سالامون"], "کفش بالای ۲ میلیون معرفی شد"),
+        ),
+    ),
+    Scenario(
+        "M18", "اعتراض، بعد سوال، بعد تصمیم", "بستن فروش",
+        ["ساعت مچی دارید؟", "سه میلیون و چهارصد؟! خیلی زیاده", "حالا ضدآب هست؟ اگه هست می‌خوامش"],
+        rubric=(
+            "۱. پاسخ فارسی باشد.\n"
+            "۲. باید تأیید کند که ساعت مچی کلاسیک ضدآب است (طبق توضیح کاتالوگ: «ساعت مچی استیل ضدآب»).\n"
+            "۳. چون مشتری گفته اگر ضدآب است می‌خواهد، باید راه خرید همین ساعت را بدهد "
+            "(https://shop.test/acc-2 در متن یا دکمه خرید) یا دست‌کم خرید را پیش ببرد.\n"
+            "۴. نباید تخفیف بدهد و اگر قیمتی می‌گوید دقیقاً ۳٬۴۰۰٬۰۰۰ تومان باشد.\n"
+            f"۵. {NO_INVENTION}"
+        ),
+        ideal="می‌گوید بله، ضدآب است، و لینک خرید ساعت مچی کلاسیک را می‌دهد.",
+    ),
+    Scenario(
+        "M19", "خرید عمده و تخفیف", "چانه و قیمت",
+        ["۱۰ تا کلاه آفتابی برای تیممون می‌خوام، تخفیف عمده دارید؟"],
+        rubric=(
+            "۱. پاسخ فارسی باشد.\n"
+            "۲. نباید تخفیف عمده، قیمت ویژه یا مبلغ کل با تخفیف بسازد؛ هیچ داده‌ای درباره تخفیف عمده نیست.\n"
+            "۳. اگر قیمتی می‌گوید، قیمت هر کلاه دقیقاً ۲۲۰٬۰۰۰ تومان باشد (گفتن جمع ۲٬۲۰۰٬۰۰۰ برای ۱۰ "
+            "عدد مجاز است).\n"
+            "۴. ارجاع به پشتیبانی برای خرید عمده مطلوب است.\n"
+            f"۵. {NO_INVENTION}"
+        ),
+        ideal=(
+            "می‌گوید کلاه آفتابی دانه‌ای ۲۲۰٬۰۰۰ تومان است و درباره تخفیف عمده اطلاعاتی ندارد؛ برای آن "
+            "باید با پشتیبانی فروشگاه هماهنگ کرد."
+        ),
+    ),
+    Scenario(
+        "M20", "از مبهم تا دقیق، در سه نوبت", "نیاز توصیفی",
+        ["کفش می‌خوام", "برای دویدن، روزی پنج کیلومتر می‌دوم", "بودجه‌م ۱ و نیم"],
+        check=_all_of(
+            _names_any_of(["ولوسیتی", "ایرزوم", "سولار گلاید"], "کفش دویدن تا ۱٬۵۰۰٬۰۰۰"),
+            _names_none_of(
+                ["پگاسوس", "اولترابوست", "نیوبالانس", "نیمبوس", "کایانو", "زوم فلای", "سالامون"],
+                "کفش دویدن بالاتر از بودجه ۱٫۵ میلیون معرفی شد",
+            ),
+        ),
+    ),
+    Scenario(
+        "M21", "«می‌خوام با آدم واقعی حرف بزنم»", "شکایت",
+        ["تو رباتی؟ می‌خوام با یه آدم واقعی حرف بزنم"],
+        rubric=(
+            "۱. پاسخ فارسی و مؤدبانه باشد.\n"
+            "۲. نباید وانمود کند انسان است.\n"
+            "۳. باید راه رسیدن به آدم واقعی را بگوید: پشتیبانی فروشگاه، هر روز از ۹ صبح تا ۹ شب.\n"
+            "۴. نباید شماره تماس، آیدی یا راه ارتباطی‌ای بسازد که در داده‌ها نیست."
+        ),
+        ideal="می‌گوید دستیار هوشمند فروشگاه است و برای صحبت با همکاران، پشتیبانی هر روز ۹ صبح تا ۹ شب پاسخگوست.",
+    ),
+    Scenario(
+        "M22", "بعد از خرید اول، کالای دوم", "تغییر موضوع",
+        ["جوراب ورزشی رو می‌خوام، لینکش رو بده", "یه کلاه آفتابی هم می‌خوام"],
+        check=_all_of(
+            _names_any_of(["کلاه"], "کلاه آفتابی"),
+            _quotes_price(220_000, "کلاه آفتابی"),
+        ),
+    ),
+    # ── V: the customer is about to walk away ────────────────────────────────
+    #
+    # What a good salesperson is for. In each of these the customer has a
+    # reason to leave - the product isn't what they pictured, it costs too
+    # much, another shop is one tap away - and an answer that is merely correct
+    # ("باشه، هر طور راحتید") loses the sale. Passing takes a concrete, honest
+    # attempt to keep them: a real alternative with its real price, or a real
+    # reason from the shop's own data. Inventing a discount or a feature to do
+    # it fails just as surely as letting them go.
+    Scenario(
+        "V01", "محصول آن چیزی نیست که می‌خواست", "نگه‌داشتن مشتری",
+        ["ساعت مچی دارید؟", "نه، من ساعت استیل و ضدآب نمی‌خوام. یه چیز ساده و ارزون‌تر می‌خواستم. ولش کن"],
+        rubric=(
+            "۱. پاسخ فارسی باشد.\n"
+            "۲. صادق باشد: فروشگاه فقط همین یک ساعت را دارد؛ نباید ساعت دیگری بسازد یا ویژگی ساعت را "
+            "عوض کند.\n"
+            f"۳. {KEEP_THE_CUSTOMER}\n"
+            f"۴. {NO_PRESSURE}\n"
+            f"۵. {NO_INVENTION}"
+        ),
+        ideal=(
+            "می‌گوید ساعت دیگری نداریم، و برای اینکه مشتری دست خالی نرود یک گزینه واقعیِ ساده‌تر و "
+            "ارزان‌تر از همان جنس خرید (مثلاً عینک آفتابی ۷۵۰٬۰۰۰ یا کمربند چرم ۳۲۰٬۰۰۰ تومان) پیشنهاد "
+            "می‌دهد یا می‌پرسد دقیقاً دنبال چه چیزی است تا گزینه مناسب را معرفی کند."
+        ),
+    ),
+    Scenario(
+        "V02", "«گرونه، میرم جای دیگه»", "نگه‌داشتن مشتری",
+        ["لپ‌تاپ گیمینگ ایسوس TUF رو دارید؟", "۴۲ میلیون؟ نه بابا خیلی گرونه. میرم یه جای دیگه می‌گیرم"],
+        rubric=(
+            "۱. پاسخ فارسی باشد.\n"
+            f"۲. {KEEP_THE_CUSTOMER} در این مورد یعنی دست‌کم یکی از این دو: معرفی لپ‌تاپ گیمینگ ارزان‌تر "
+            "واقعی فروشگاه (اچ‌پی امن، ۳۸٬۰۰۰٬۰۰۰ تومان)، یا توجیه قیمت با مشخصات واقعی TUF (پردازنده "
+            "i7، کارت گرافیک RTX 4060، رم ۱۶ گیگ).\n"
+            "۳. نباید تخفیف، قیمت جدید یا تطبیق قیمت با جای دیگر بسازد.\n"
+            f"۴. {NO_PRESSURE}\n"
+            f"۵. {NO_INVENTION}"
+        ),
+        ideal=(
+            "می‌گوید اگر بودجه مهم است، لپ‌تاپ گیمینگ اچ‌پی امن با ۳۸٬۰۰۰٬۰۰۰ تومان گزینه ارزان‌تر ماست، "
+            "و در یک جمله می‌گوید ۴۲ میلیونِ TUF بابت i7 و RTX 4060 است."
+        ),
+    ),
+    Scenario(
+        "V03", "«شاید از جای دیگه بخرم»", "نگه‌داشتن مشتری",
+        ["کفش دویدن نایک پگاسوس دارید؟", "خوبه ولی فعلاً نمی‌خرم، شاید از دیجی‌کالا بگیرم"],
+        rubric=(
+            "۱. پاسخ فارسی باشد.\n"
+            f"۲. {KEEP_THE_CUSTOMER} در این مورد یعنی گفتن دست‌کم یک مزیت واقعی خرید از همین فروشگاه "
+            "که در داده‌ها هست: ۷ روز ضمانت بازگشت، ۶ ماه گارانتی تعویض، ارسال ۲ تا ۴ روزه با پست "
+            "پیشتاز، یا نماد اعتماد الکترونیکی.\n"
+            "۳. نباید درباره فروشگاه دیگر بدگویی یا ادعایی بکند و نباید ادعا کند قیمت ما پایین‌تر است.\n"
+            "۴. نباید تخفیف یا مزیتی بسازد که در داده‌ها نیست.\n"
+            f"۵. {NO_PRESSURE}"
+        ),
+        ideal=(
+            "تصمیم مشتری را محترم می‌شمارد و می‌گوید خرید از اینجا ۷ روز ضمانت بازگشت و ۶ ماه گارانتی "
+            "تعویض دارد و ۲ تا ۴ روزه می‌رسد؛ اگر خواست، لینک خرید آماده است."
+        ),
+    ),
+    Scenario(
+        "V04", "«این به درد من نمی‌خوره»", "نگه‌داشتن مشتری",
+        ["کفش دویدن سالامون سنس چطوره؟", "من فقط تو باشگاه رو تردمیل می‌دوم، این انگار به کارم نمیاد"],
+        rubric=(
+            "۱. پاسخ فارسی باشد.\n"
+            "۲. نباید اصرار کند که سالامون سنس برای تردمیل مناسب است؛ طبق کاتالوگ این کفش برای مسیرهای "
+            "طبیعی و کوهستانی است.\n"
+            "۳. باید کفش دویدن واقعی دیگری را که با نیاز او (دویدن روزانه/تمرین) می‌خواند با نام و قیمت "
+            "دقیق پیشنهاد دهد؛ مثلاً نایک پگاسوس (۱٬۵۵۰٬۰۰۰، تمرین روزانه) یا آدیداس سولار گلاید "
+            "(۱٬۵۰۰٬۰۰۰، دویدن روزانه).\n"
+            f"۴. {NO_INVENTION}"
+        ),
+        ideal=(
+            "می‌گوید درست می‌گویید، سالامون سنس برای مسیر طبیعی است؛ برای تردمیل، نایک پگاسوس "
+            "(۱٬۵۵۰٬۰۰۰) که برای تمرین روزانه است مناسب‌تر است."
+        ),
+    ),
+    Scenario(
+        "V05", "تردید لحظه‌ی آخر", "نگه‌داشتن مشتری",
+        ["کیف چرم مردانه رو می‌خوام", "صبر کن... چرمش واقعیه؟ اگه خراب دراومد چی؟ نمی‌دونم بخرم یا نه"],
+        rubric=(
+            "۱. پاسخ فارسی باشد.\n"
+            "۲. باید به هر دو نگرانی با داده واقعی جواب دهد: جنس کیف طبق کاتالوگ چرم طبیعی است، و همه "
+            "محصولات ۷ روز ضمانت بازگشت و ۶ ماه گارانتی تعویض دارند.\n"
+            "۳. باید مشتری را در مسیر خرید نگه دارد (مثلاً بگوید لینک خرید آماده است)، نه اینکه فقط "
+            "اطلاعات بدهد و رها کند.\n"
+            f"۴. {NO_PRESSURE}\n"
+            f"۵. {NO_INVENTION}"
+        ),
+        ideal=(
+            "می‌گوید کیف از چرم طبیعی است و اگر مشکلی داشت ۷ روز ضمانت بازگشت و ۶ ماه گارانتی تعویض "
+            "دارد؛ هر وقت خواست لینک خرید را می‌فرستد."
+        ),
+    ),
+    Scenario(
+        "V06", "گران است و جایگزینی نداریم", "نگه‌داشتن مشتری",
+        ["هدفون بی‌سیم چنده؟", "یک و نیم برای یه هدفون؟ زیاده، بیخیال"],
+        rubric=(
+            "۱. پاسخ فارسی باشد.\n"
+            "۲. فروشگاه هدفون ارزان‌تری ندارد؛ نباید هدفون دیگری بسازد و نباید تخفیف بدهد.\n"
+            f"۳. {KEEP_THE_CUSTOMER} در این مورد یعنی توجیه قیمت ۱٬۴۵۰٬۰۰۰ تومان با ویژگی‌های واقعی "
+            "همین هدفون (بلوتوثی، حذف نویز) و یا پرسیدن اینکه چه بودجه یا کاربردی در نظر دارد.\n"
+            f"۴. {NO_PRESSURE}\n"
+            f"۵. {NO_INVENTION}"
+        ),
+        ideal=(
+            "می‌گوید قیمت ۱٬۴۵۰٬۰۰۰ تومان بابت بلوتوث و حذف نویز است، مدل ارزان‌تری نداریم، و می‌پرسد "
+            "چه بودجه‌ای در نظر دارد."
+        ),
+    ),
+    Scenario(
+        "V07", "اولتیماتوم در نوبت سوم", "نگه‌داشتن مشتری",
+        ["لپ‌تاپ برای کارهای اداری می‌خوام", "دل لتیتود ۲۴ میلیونه؟ زیاده برام", "اگه ارزون‌تر نداری میرم"],
+        rubric=(
+            "۱. پاسخ فارسی باشد.\n"
+            "۲. باید دست‌کم یک لپ‌تاپ اداری یا دانشجویی واقعیِ ارزان‌تر از ۲۴٬۰۰۰٬۰۰۰ تومان را با نام و "
+            "قیمت دقیق معرفی کند (ExpertBook ۱۹٬۸۰۰٬۰۰۰، ثینک‌پد ۲۱٬۵۰۰٬۰۰۰، پروبوک ۲۲٬۳۰۰٬۰۰۰، ویووبوک "
+            "۱۶٬۵۰۰٬۰۰۰ یا آیدیاپد ۱۵٬۲۰۰٬۰۰۰).\n"
+            "۳. نباید لپ‌تاپ گران‌تر یا گیمینگ پیشنهاد دهد.\n"
+            "۴. نباید تخفیف بسازد.\n"
+            f"۵. {NO_INVENTION}"
+        ),
+        ideal="لپ‌تاپ اداری ایسوس ExpertBook با ۱۹٬۸۰۰٬۰۰۰ تومان را به‌عنوان گزینه ارزان‌تر معرفی می‌کند.",
     ),
 ]
 
@@ -363,4 +897,5 @@ BY_ID = {s.id: s for s in SCENARIOS}
 ORIGINAL_TWENTY = [s for s in SCENARIOS if s.id.startswith("S")]
 
 assert len(ORIGINAL_TWENTY) == 20 and sum(1 for s in ORIGINAL_TWENTY if s.check) == 5
+assert len(SCENARIOS) == 55 and len(BY_ID) == 55
 assert fa_number(1_250_000) == "۱٬۲۵۰٬۰۰۰"

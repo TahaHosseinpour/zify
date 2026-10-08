@@ -9,6 +9,8 @@ changed description never leaves a stale embedding behind.
 
 from __future__ import annotations
 
+import asyncio
+
 from app import graph as G
 from app.db import db
 
@@ -17,6 +19,52 @@ from dataset import CATEGORIES, FAQS, ID_PREFIX, PRODUCTS, SHOP_INFO, SHOP_NAME,
 SHOP_ID = ID_PREFIX + "shop"
 OWNER_ID = ID_PREFIX + "owner"
 OWNER_MOBILE = "comparison-eval"
+
+
+# The provider's gateway times out now and then (a 504 from nginx), and more
+# readily on a large batch. Seeding is the one step the whole run depends on,
+# so it asks for a few texts at a time and tries again before giving up.
+EMBED_BATCH_SIZE = 8
+EMBED_ATTEMPTS = 5
+
+
+async def _embed_with(client, texts: list[str]) -> list[list[float]]:
+    vectors: list[list[float]] = []
+    for start in range(0, len(texts), EMBED_BATCH_SIZE):
+        batch = texts[start : start + EMBED_BATCH_SIZE]
+        for attempt in range(1, EMBED_ATTEMPTS + 1):
+            try:
+                vectors += await client.aembed_documents(batch)
+                break
+            except Exception as exc:  # noqa: BLE001 - retried, then re-raised
+                if attempt == EMBED_ATTEMPTS:
+                    raise
+                wait = 3 * attempt
+                print(f"  embedding call failed ({type(exc).__name__}); retrying in {wait}s ...", flush=True)
+                await asyncio.sleep(wait)
+    return vectors
+
+
+async def _embed_all(texts: list[str]) -> dict[str, list[list[float]]]:
+    """The texts embedded by every provider the run can use, keyed by the
+    column each provider's vectors are stored in - the same two columns the
+    admin panel writes (packages/db/src/embeddings.ts). A provider the
+    pre-flight check found down (its breaker is open) is left out, and its
+    column stays empty."""
+    by_column: dict[str, list[list[float]]] = {}
+    for space, client in G._embedding_chain():
+        if G._embedding_breaker(space).available():
+            by_column[space.column] = await _embed_with(client, texts)
+    if not by_column:
+        raise RuntimeError("no embedding provider is available")
+    return by_column
+
+
+async def _store_vectors(table: str, row_id: str, index: int, by_column: dict[str, list[list[float]]]) -> None:
+    for column, vectors in by_column.items():
+        await db.execute_raw(
+            f"UPDATE {table} SET {column} = $1::vector WHERE id = $2", _vector(vectors[index]), row_id
+        )
 
 
 def _vector(vec: list[float]) -> str:
@@ -53,14 +101,14 @@ async def seed() -> str:
     # admin panel embeds for each (apps/admin/app/api/products/route.ts and
     # apps/admin/lib/embeddings.ts): name + description + category + brand for
     # a product, the question for an FAQ entry, the content for shop info.
-    product_vecs = await G.embeddings.aembed_documents(
+    product_vecs = await _embed_all(
         [" ".join([p.name, p.description, p.category, p.brand]) for p in PRODUCTS]
     )
-    for product, vec in zip(PRODUCTS, product_vecs):
+    for i, product in enumerate(PRODUCTS):
         await db.execute_raw(
             """INSERT INTO products
-                 (id, "shopId", name, price, "productUrl", description, category, brand, stock, embedding)
-               VALUES ($1, $2, $3, $4::numeric, $5, $6, $7, $8, 10, $9::vector)""",
+                 (id, "shopId", name, price, "productUrl", description, category, brand, stock)
+               VALUES ($1, $2, $3, $4::numeric, $5, $6, $7, $8, 10)""",
             product.id,
             SHOP_ID,
             product.name,
@@ -69,29 +117,29 @@ async def seed() -> str:
             product.description,
             product.category,
             product.brand,
-            _vector(vec),
         )
+        await _store_vectors("products", product.id, i, product_vecs)
 
-    faq_vecs = await G.embeddings.aembed_documents([question for question, _ in FAQS])
-    for i, ((question, answer), vec) in enumerate(zip(FAQS, faq_vecs)):
+    faq_vecs = await _embed_all([question for question, _ in FAQS])
+    for i, (question, answer) in enumerate(FAQS):
         await db.execute_raw(
-            """INSERT INTO faq_items (id, "shopId", question, answer, embedding)
-               VALUES ($1, $2, $3, $4, $5::vector)""",
+            """INSERT INTO faq_items (id, "shopId", question, answer)
+               VALUES ($1, $2, $3, $4)""",
             f"{ID_PREFIX}faq-{i}",
             SHOP_ID,
             question,
             answer,
-            _vector(vec),
         )
+        await _store_vectors("faq_items", f"{ID_PREFIX}faq-{i}", i, faq_vecs)
 
-    info_vecs = await G.embeddings.aembed_documents(SHOP_INFO)
-    for i, (content, vec) in enumerate(zip(SHOP_INFO, info_vecs)):
+    info_vecs = await _embed_all(SHOP_INFO)
+    for i, content in enumerate(SHOP_INFO):
         await db.execute_raw(
-            """INSERT INTO shop_info_chunks (id, "shopId", content, embedding)
-               VALUES ($1, $2, $3, $4::vector)""",
+            """INSERT INTO shop_info_chunks (id, "shopId", content)
+               VALUES ($1, $2, $3)""",
             f"{ID_PREFIX}info-{i}",
             SHOP_ID,
             content,
-            _vector(vec),
         )
+        await _store_vectors("shop_info_chunks", f"{ID_PREFIX}info-{i}", i, info_vecs)
     return SHOP_ID
