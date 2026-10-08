@@ -171,6 +171,7 @@ def build_explore_prompt(
     out_of_catalog: bool = False,
     intent: Optional[str] = None,
     sort: Optional[str] = None,
+    nothing_else: bool = False,
 ) -> str:
     products = [c for c in context if c["type"] == "product"]
     faqs = [c for c in context if c["type"] == "faq"]
@@ -184,7 +185,22 @@ def build_explore_prompt(
     # reads six products it might otherwise present as the answer. This block
     # is deliberately outside `if products:` — the honest case where nothing
     # was found needs instructions too, and previously got none.
-    if out_of_catalog:
+    if nothing_else:
+        # Not "we don't stock this": we do, and the customer has just seen it.
+        # Told only that the request had no match, the model answered a request
+        # for another model with «این مدل را نداریم».
+        prompt += (
+            "\n⚠️ مشتری گزینه‌ای را که دید نخواست و مدل دیگری از همان کالا خواست، ولی فروشگاه از این "
+            "نوع کالا چیز دیگری ندارد.\n"
+            "در یک جمله صادقانه بگو که به‌جز همان که دید، مدل دیگری از این کالا موجود نیست. نگو "
+            "«این را نداریم». سپس کوتاه بپرس دنبال چه چیز دیگری می‌گردد.\n"
+            "⚠️ هیچ محصول یا دسته‌بندی دیگری نام نبر.\n"
+        )
+        # Nothing below applies: there is no product to present, and the
+        # objection move ("ask what worries them") is about a product the
+        # customer has already turned down.
+        return prompt
+    elif out_of_catalog:
         prompt += (
             "\n⚠️ فروشگاه چیزی که مشتری خواسته را ندارد.\n"
             "اول صریح و کوتاه بگو که این محصول را نداریم. از عذرخواهی طولانی پرهیز کن.\n"
@@ -337,9 +353,10 @@ def build_product_prompt(
     out_of_catalog: bool = False,
     intent: Optional[str] = None,
     sort: Optional[str] = None,
+    nothing_else: bool = False,
 ) -> str:
     return build_explore_prompt(
-        context, stage, value_driver, objection, filters_dropped, out_of_catalog, intent, sort
+        context, stage, value_driver, objection, filters_dropped, out_of_catalog, intent, sort, nothing_else
     )
 
 

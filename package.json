@@ -22,6 +22,7 @@
     "db:studio": "bun run --cwd packages/db db:studio",
     "db:seed": "bun run --cwd packages/db db:seed",
     "db:backfill-categories": "bun run --cwd packages/db db:backfill-categories",
+    "db:backfill-embeddings": "bun run --cwd packages/db db:backfill-embeddings",
     "deploy": "python -m pyinfra deploy/inventory.py deploy/deploy.py",
     "lint": "bun run --cwd apps/admin lint",
     "test": "bun run test:unit && bun run test:integration",

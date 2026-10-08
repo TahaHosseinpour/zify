@@ -74,7 +74,7 @@ class TestEmbedSharing:
         assert "متن" not in G._embed_inflight
         # A later attempt must actually retry, not reuse a poisoned cache entry.
         result = await G.embed("متن")
-        assert result == [0.1]
+        assert result == G._pad_to_dim([0.1])
         assert fake.calls == 2
 
     async def test_cache_is_bounded_and_evicts_oldest(self, monkeypatch):
@@ -90,5 +90,5 @@ class TestEmbedSharing:
     async def test_a_waiting_call_gets_the_same_vector_the_winner_produced(self, monkeypatch):
         install_fake_embeddings(monkeypatch, vec=(1.0, 2.0, 3.0))
         a, b = await asyncio.gather(G.embed("x"), G.embed("x"))
-        assert a == [1.0, 2.0, 3.0]
+        assert a == G._pad_to_dim([1.0, 2.0, 3.0])
         assert b == a

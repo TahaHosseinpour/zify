@@ -11,7 +11,8 @@
     "db:push": "prisma db push",
     "db:seed": "bun --env-file=../../.env prisma/seed.ts",
     "db:hash-password": "bun prisma/hash-password.ts",
-    "db:backfill-categories": "bun prisma/backfill-categories.ts"
+    "db:backfill-categories": "bun prisma/backfill-categories.ts",
+    "db:backfill-embeddings": "bun --env-file=../../.env prisma/backfill-embeddings.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.15.0"

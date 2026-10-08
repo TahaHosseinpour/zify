@@ -10,6 +10,9 @@ class RetrievedItem(TypedDict, total=False):
     content: str
     score: float
     metadata: dict
+    # Set only on rows scored by the second embedding provider, whose
+    # distances are on a different scale (graph._relevance_limits).
+    space: str
 
 
 # Sentinel a node returns to wipe retrieved_raw at the start of a turn.
@@ -91,6 +94,18 @@ class SalesAgentState(TypedDict, total=False):
     # new topic clears the list.
     excluded_product_ids: list[str]
     explore_filters: dict
+    # A price the customer objected to ("۲۴ میلیون؟ زیاده"). It is the price of
+    # the product under discussion, not a budget, so it is kept out of
+    # explore_filters - and it is what a following "ارزون‌تر ندارید؟" is
+    # measured against. Cleared once used, and on a new topic.
+    price_anchor: Optional[float]
+    # Clarifying questions asked on the current topic (graph.
+    # MAX_CLARIFYING_QUESTIONS). Reset on a new topic.
+    clarify_count: int
+    # This turn must end in a suggestion: the customer has already answered a
+    # clarifying question, so the search shows its nearest matches instead of
+    # concluding it has none. Per-turn: rewritten by analyze_intent.
+    must_suggest: Optional[bool]
     intent: Optional[str]
     # True when this turn's classifier (Jev) already resolved `category`
     # against the shop's vocabulary, so the filter step skips its own

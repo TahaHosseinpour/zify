@@ -16,7 +16,9 @@ from langgraph.types import Send
 
 from . import intent as jev
 from . import metering, tracing
+from .breaker import breaker
 from .db import db
+from .failover import ChatLink, EmbeddingSpace, FailoverChat, GeminiEmbeddings, Vector
 from .intent import ExploreFiltersModel, IntentResult
 from .prompts import (
     COMPARE_MOVE,
@@ -69,28 +71,93 @@ else:
 # bound at all. Replies measure 180-270 tokens, so this cuts nothing normal.
 REPLY_MAX_TOKENS = 300
 
-llm = ChatOpenAI(
-    model=_chat_model,
-    temperature=0.3,
-    max_tokens=REPLY_MAX_TOKENS,
-    api_key=_api_key,
-    base_url=_base_url,
+# ── Provider failover ─────────────────────────────────────────────────────────
+#
+# Each kind of call has a second provider that takes over when the first stops
+# answering (failover.py walks the chain, breaker.py decides when to stop
+# trying a provider that keeps failing). A second provider is only added when
+# its base URL is configured, so a deployment without these variables behaves
+# exactly as it did with one provider. The API key defaults to OPENAI_API_KEY:
+# one Metis key serves every route.
+#
+#   chat:       OPENAI_*  ->  DEEPSEEK_BASE_URL  (deepseek-v4-flash)
+#   embedding:  OPENAI_*  ->  GEMINI_BASE_URL    (gemini-embedding-001)
+PRIMARY_PROVIDER = "ollama" if USE_LOCAL_MODELS else "openai"
+
+_deepseek_base_url = None if USE_LOCAL_MODELS else os.environ.get("DEEPSEEK_BASE_URL") or None
+_deepseek_model = os.environ.get("DEEPSEEK_CHAT_MODEL", "deepseek-v4-flash")
+_deepseek_api_key = os.environ.get("DEEPSEEK_API_KEY") or _api_key
+
+_gemini_base_url = None if USE_LOCAL_MODELS else os.environ.get("GEMINI_BASE_URL") or None
+_gemini_model = os.environ.get("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001")
+_gemini_api_key = os.environ.get("GEMINI_API_KEY") or _api_key
+
+# How long one provider gets before the call is abandoned. The client's own
+# default is ten minutes, which a customer never waits out; a provider that
+# accepts the connection and then sends nothing has to be given up on quickly
+# for the next one to be of any use. A local model on a laptop is slower than
+# any of this and has no second provider to move to, so it keeps the default.
+LLM_TIMEOUT_SECONDS = None if USE_LOCAL_MODELS else float(os.environ.get("LLM_TIMEOUT_SECONDS", "15"))
+EMBEDDING_TIMEOUT_SECONDS = (
+    None if USE_LOCAL_MODELS else float(os.environ.get("EMBEDDING_TIMEOUT_SECONDS", "8"))
 )
+
+
+def _chat_chain(temperature: float, max_tokens: Optional[int] = None) -> FailoverChat:
+    links = [
+        ChatLink(
+            PRIMARY_PROVIDER,
+            ChatOpenAI(
+                model=_chat_model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                api_key=_api_key,
+                base_url=_base_url,
+                timeout=LLM_TIMEOUT_SECONDS,
+                # With a second provider, that provider is the retry.
+                max_retries=0 if _deepseek_base_url else 1,
+            ),
+        )
+    ]
+    if _deepseek_base_url:
+        links.append(
+            ChatLink(
+                "deepseek",
+                ChatOpenAI(
+                    model=_deepseek_model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    api_key=_deepseek_api_key,
+                    base_url=_deepseek_base_url,
+                    timeout=LLM_TIMEOUT_SECONDS,
+                    max_retries=1,
+                    # This model reasons before answering unless told not to,
+                    # and the reasoning is billed against max_tokens: a
+                    # 300-token reply came back cut short or empty.
+                    extra_body={"thinking": {"type": "disabled"}},
+                    # Token counts are not sent on a streamed reply unless
+                    # asked for, and an unmetered reply is unbilled spend.
+                    stream_usage=True,
+                ),
+                structured_method="function_calling",
+            )
+        )
+    return FailoverChat(links)
+
+
+llm = _chat_chain(temperature=0.3, max_tokens=REPLY_MAX_TOKENS)
 
 # Classification must be (near-)deterministic: the same message should always
 # take the same route through the graph. A separate low-temperature instance is
 # used for intent analysis, distinct from the creative conversational `llm`.
-intent_llm = ChatOpenAI(
-    model=_chat_model,
-    temperature=0,
-    api_key=_api_key,
-    base_url=_base_url,
-)
+intent_llm = _chat_chain(temperature=0)
 
 embeddings = OpenAIEmbeddings(
     model=_embedding_model,
     api_key=_api_key,
     base_url=_base_url,
+    timeout=EMBEDDING_TIMEOUT_SECONDS,
+    max_retries=0 if _gemini_base_url else 1,
     # OpenAIEmbeddings tiktoken-encodes input to integer token arrays by
     # default (real OpenAI accepts either). Ollama's /v1/embeddings endpoint
     # only understands raw strings, so against it that default 400s with
@@ -124,6 +191,55 @@ def _pad_to_dim(vec: list[float], dim: int = EMBEDDING_DIM) -> list[float]:
             "be used against the current schema without a migration."
         )
     return vec + [0.0] * (dim - len(vec))
+
+
+# Vectors from two embedding models cannot be compared with each other, so the
+# second provider is only usable because every row stores a vector from each:
+# `embedding` (written by `embeddings`) and `embedding_gemini` (migration
+# 0005). A query is measured against the column of whichever model embedded
+# it — the Vector that embed() returns carries its space for exactly that.
+PRIMARY_SPACE = EmbeddingSpace(name=PRIMARY_PROVIDER, column="embedding")
+GEMINI_SPACE = EmbeddingSpace(name="gemini", column="embedding_gemini")
+
+fallback_embeddings: Optional[GeminiEmbeddings] = (
+    GeminiEmbeddings(
+        base_url=_gemini_base_url,
+        api_key=_gemini_api_key,
+        model=_gemini_model,
+        dimensions=EMBEDDING_DIM,
+        timeout=EMBEDDING_TIMEOUT_SECONDS or 8.0,
+    )
+    if _gemini_base_url
+    else None
+)
+
+
+def _embedding_chain() -> list[tuple[EmbeddingSpace, object]]:
+    # Read at call time: tests swap `embeddings` / `fallback_embeddings`.
+    chain: list[tuple[EmbeddingSpace, object]] = [(PRIMARY_SPACE, embeddings)]
+    if fallback_embeddings is not None:
+        chain.append((GEMINI_SPACE, fallback_embeddings))
+    return chain
+
+
+def _embedding_breaker(space: EmbeddingSpace):
+    return breaker(f"{space.name}-embedding")
+
+
+def active_space() -> EmbeddingSpace:
+    """The space the next embed() is expected to land in.
+
+    For SQL that runs before any embedding exists (the filter step) but still
+    has to count only the rows the vector step will be able to rank.
+    """
+    for space, _client in _embedding_chain():
+        if _embedding_breaker(space).available():
+            return space
+    return PRIMARY_SPACE
+
+
+def _space_of(vec: list[float]) -> EmbeddingSpace:
+    return getattr(vec, "space", PRIMARY_SPACE)
 
 PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹"
 
@@ -228,6 +344,7 @@ def _product_where(
     filters: Optional[dict],
     exclude_ids: Optional[list[str]],
     first_param: int,
+    column: Optional[str] = None,
 ) -> tuple[str, list, int]:
     """Build the product WHERE clause shared by both retrieval steps.
 
@@ -235,6 +352,9 @@ def _product_where(
     same predicates can start a plain filter query ($1...) or follow the
     embedding parameter of a vector query ($2...). Returns the clause, its
     parameters, and the next free placeholder index.
+
+    `column` is the embedding column rows must have a value in — the query
+    vector's own when there is one, otherwise the space in use right now.
     """
     f = filters or {}
     clauses = [
@@ -242,7 +362,7 @@ def _product_where(
         '"isActive" = true',
         # Rows without an embedding can never come back from step 2, so they
         # must not be counted as matches in step 1 either.
-        "embedding IS NOT NULL",
+        f"{column or active_space().column} IS NOT NULL",
     ]
     params: list = [shop_id]
     n = first_param + 1
@@ -334,39 +454,87 @@ def _log_items(items: list[RetrievedItem]) -> list[dict]:
 # task per text and only the winner pays.
 _EMBED_CACHE_MAX = 32
 _embed_cache: "OrderedDict[str, list[float]]" = OrderedDict()
-_embed_inflight: dict[str, "asyncio.Task[list[float]]"] = {}
+# The second provider's vectors, kept apart: the same text has a different
+# vector in each space.
+_fallback_embed_cache: "OrderedDict[str, list[float]]" = OrderedDict()
+_embed_inflight: dict[tuple[str, str], "asyncio.Task[list[float]]"] = {}
 
 
-async def embed(text: str) -> list[float]:
-    """Embed `text`, sharing one API call across every branch of the turn."""
-    cached = _embed_cache.get(text)
+def _cache_of(space: EmbeddingSpace) -> "OrderedDict[str, list[float]]":
+    return _embed_cache if space is PRIMARY_SPACE else _fallback_embed_cache
+
+
+async def _embed_in(space: EmbeddingSpace, client, text: str) -> list[float]:
+    """Embed `text` with one specific provider, sharing one API call across
+    every branch of the turn. Reports the outcome to that provider's breaker."""
+    cache = _cache_of(space)
+    cached = cache.get(text)
     if cached is not None:
-        _embed_cache.move_to_end(text)
+        cache.move_to_end(text)
         return cached
 
-    running = _embed_inflight.get(text)
+    key = (space.name, text)
+    running = _embed_inflight.get(key)
     if running is not None:
         # Another branch is already embedding this exact text — wait on it
         # rather than paying for a second identical call.
         return await running
 
     async def _embed_and_pad() -> list[float]:
-        metering.add_embedding_text(text)
-        return _pad_to_dim(await embeddings.aembed_query(text))
+        metering.add_embedding_text(text, fallback=space is not PRIMARY_SPACE)
+        return Vector(_pad_to_dim(await client.aembed_query(text)), space)
 
+    gate = _embedding_breaker(space)
     task = asyncio.create_task(_embed_and_pad())
-    _embed_inflight[text] = task
+    _embed_inflight[key] = task
     try:
         vec = await task
+    except Exception:
+        gate.record_failure()
+        raise
+    except BaseException:
+        gate.release()
+        raise
     finally:
         # Pop on failure too, or one transient error would poison the text for
         # the lifetime of the process.
-        _embed_inflight.pop(text, None)
+        _embed_inflight.pop(key, None)
+    gate.record_success()
 
-    _embed_cache[text] = vec
-    if len(_embed_cache) > _EMBED_CACHE_MAX:
-        _embed_cache.popitem(last=False)
+    cache[text] = vec
+    if len(cache) > _EMBED_CACHE_MAX:
+        cache.popitem(last=False)
     return vec
+
+
+async def embed(text: str) -> list[float]:
+    """Embed `text` with the first provider that answers.
+
+    The result is a Vector: a plain list of floats that also knows which
+    space it is in, so the searches below read the matching column.
+    """
+    chain = _embedding_chain()
+    last_error: Optional[Exception] = None
+    for position, (space, client) in enumerate(chain):
+        # A vector already in hand needs no provider, healthy or not.
+        if text not in _cache_of(space) and not _embedding_breaker(space).allow():
+            continue
+        try:
+            return await _embed_in(space, client, text)
+        except Exception as err:  # noqa: BLE001 — any failure moves to the next provider
+            last_error = err
+            if position < len(chain) - 1:
+                print(f"[agent] {space.name} embedding failed ({type(err).__name__}: {err}) - trying the next provider")
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("no embedding provider is available (all circuit breakers are open)")
+
+
+def _space_tag(space: EmbeddingSpace) -> dict:
+    """Marks a row scored in the second provider's space, whose distances sit
+    on a different scale (see _relevance_limits). Rows from the primary space
+    stay unmarked."""
+    return {} if space is PRIMARY_SPACE else {"space": space.name}
 
 
 async def vector_search_products(
@@ -384,22 +552,24 @@ async def vector_search_products(
     pool, or there were no hard constraints to begin with.
     """
     params: list = [_vector_literal(query_vec)]
+    space = _space_of(query_vec)
+    column = space.column
 
     if candidate_ids is not None:
         if not candidate_ids:
             return []
         where = (
             '"shopId" = $2 AND "isActive" = true '
-            "AND embedding IS NOT NULL AND id = ANY($3)"
+            f"AND {column} IS NOT NULL AND id = ANY($3)"
         )
         params += [shop_id, candidate_ids]
         n = 4
     else:
-        where, extra, n = _product_where(shop_id, filters, exclude_ids, 2)
+        where, extra, n = _product_where(shop_id, filters, exclude_ids, 2, column)
         params += extra
 
     sql = f"""SELECT {_PRODUCT_COLUMNS},
-               embedding <=> $1::vector AS score
+               {column} <=> $1::vector AS score
         FROM products
         WHERE {where}
         ORDER BY score ASC
@@ -420,6 +590,7 @@ async def vector_search_products(
                     "price": r["price"],
                     "stock": r.get("stock"),
                 },
+                **_space_tag(space),
             )
             for r in rows
         ]
@@ -430,10 +601,11 @@ async def vector_search_products(
 async def vector_search_faq(
     shop_id: str, query_vec: list[float], k: int = 3
 ) -> list[RetrievedItem]:
-    sql = """SELECT id, question, answer,
-              embedding <=> $1::vector AS score
+    column = _space_of(query_vec).column
+    sql = f"""SELECT id, question, answer,
+              {column} <=> $1::vector AS score
        FROM faq_items
-       WHERE "shopId" = $2 AND embedding IS NOT NULL
+       WHERE "shopId" = $2 AND {column} IS NOT NULL
        ORDER BY score ASC
        LIMIT $3"""
     loggable_params = [f"<embedding dim={len(query_vec)}>", shop_id, k]
@@ -461,10 +633,11 @@ async def vector_search_shop_info(
     info and prompt extra whenever the catalog is re-embedded, so this is the
     live copy — the system prompt no longer repeats it (see prompts.py).
     """
-    sql = """SELECT id, content,
-              embedding <=> $1::vector AS score
+    column = _space_of(query_vec).column
+    sql = f"""SELECT id, content,
+              {column} <=> $1::vector AS score
        FROM shop_info_chunks
-       WHERE "shopId" = $2 AND embedding IS NOT NULL
+       WHERE "shopId" = $2 AND {column} IS NOT NULL
        ORDER BY score ASC
        LIMIT $3"""
     loggable_params = [f"<embedding dim={len(query_vec)}>", shop_id, k]
@@ -562,16 +735,25 @@ PRICE_EPSILON = 0.01
 
 
 def _relative_price_bound(
-    relative: Optional[str], shown: Optional[list[RetrievedItem]]
+    relative: Optional[str],
+    shown: Optional[list[RetrievedItem]],
+    anchor: Optional[float] = None,
 ) -> Optional[tuple[str, float]]:
     """Turn "cheaper"/"pricier" into a price bound taken from the shown list.
 
     Cheaper is measured against the *lowest* price on the table (and pricier
     against the highest): anything else would return a product the customer can
     already see and has implicitly passed over.
+
+    Unless the customer has just objected to one specific price (`anchor`).
+    "۲۴ میلیون؟ زیاده" followed by "ارزون‌تر ندارید؟" means cheaper than 24M,
+    not cheaper than the cheapest thing on the list - measured that way, a
+    shop with three cheaper laptops answered that it had none.
     """
     if relative not in ("cheaper", "pricier"):
         return None
+    if anchor is not None and relative == "cheaper":
+        return "maxPrice", float(anchor) - PRICE_EPSILON
 
     prices = []
     for item in shown or []:
@@ -641,6 +823,12 @@ async def shop_brands(shop_id: str) -> list[str]:
 # LLM-classifier fallbacks one conversation may use (see classify_intent).
 MAX_INTENT_FALLBACKS = 2
 
+# Clarifying questions the agent may ask about one topic before it has to show
+# something. A customer who has answered one question is owed a suggestion; a
+# second and third question in a row ("چه سلیقه‌ای؟" ... "برای چه کسی؟") is an
+# interrogation, and a gift request went three turns without a single product.
+MAX_CLARIFYING_QUESTIONS = 1
+
 
 async def classify_intent(
     state: SalesAgentState,
@@ -648,18 +836,19 @@ async def classify_intent(
     categories: list[str],
     brands: list[str],
 ) -> IntentResult:
-    """Classify the turn: Jev first, the LLM only when Jev can't.
+    """Classify the turn: Jev first, the LLM only when Jev can't be reached.
 
     Jev answers in one fast request with no generation step, which is why it
-    takes every turn by default. It hands the turn back in exactly two cases —
-    the request failed, or it wasn't confident which route the message belongs
-    on — and then the LLM classifier runs as it always did. A turn therefore
-    costs one cheap call in the common case and never more than it used to
-    plus that one.
+    takes every turn. Its answer stands even when it is unsure which route the
+    message belongs on: on the turns where it used to hand an uncertain guess
+    to the LLM classifier, the guess was as often the better of the two as the
+    worse (comparison benchmark, 2026-10-08: 9 such turns - 4 agreed, 3 went
+    to the LLM, 2 to Jev), and each hand-over cost a full extra LLM call. The
+    LLM classifier now runs only when the Jev request itself fails.
     """
-    # The fallback is a full LLM call, and a conversation's price assumes it
-    # happens rarely. Once a conversation has used its allowance, Jev's best
-    # guess is taken as it stands instead.
+    # That fallback is a full LLM call, and a conversation's price assumes it
+    # happens rarely. Once a conversation has used its allowance the turn is
+    # answered without it.
     fallbacks_left = MAX_INTENT_FALLBACKS - int(state.get("intent_fallbacks") or 0)
 
     if jev.enabled():
@@ -671,7 +860,7 @@ async def classify_intent(
                 shown_products=state.get("shown_products"),
                 filters=state.get("explore_filters"),
                 objection=state.get("objection"),
-                allow_uncertain=fallbacks_left <= 0,
+                allow_uncertain=True,
             )
         except jev.JevUnavailable as exc:
             if fallbacks_left <= 0:
@@ -706,10 +895,21 @@ async def analyze_intent(state: SalesAgentState) -> dict:
 
     result = await classify_intent(state, recent, categories, brands)
 
+    intent = result.intent
+    clarify_count = 0 if result.new_topic else int(state.get("clarify_count") or 0)
+    must_suggest = False
+    if intent == "needs_clarification":
+        if clarify_count >= MAX_CLARIFYING_QUESTIONS:
+            # Already asked once on this topic - search with what is known.
+            intent = "search_product"
+            must_suggest = True
+        else:
+            clarify_count += 1
+
     prev_mode = state.get("mode", "explore")
     # Single source of truth: derive mode from intent rather than trusting a
     # separate model field that may disagree with it.
-    new_mode = derive_mode(result.intent, prev_mode)
+    new_mode = derive_mode(intent, prev_mode)
 
     # Merge new filters onto the existing ones so earlier constraints (budget,
     # brand, ...) survive; wipe them only when the topic genuinely changed.
@@ -718,9 +918,26 @@ async def analyze_intent(state: SalesAgentState) -> dict:
         if result.explore_filters
         else {}
     )
+    # An objection talks about the product on the table: the price it quotes
+    # is that product's price and the brand it names is that product's brand.
+    # Neither is something to search by. Merged in as filters, "دل لتیتود ۲۴
+    # میلیونه؟ زیاده" pinned every later search to Dell under 24M, and the next
+    # "ارزون‌تر ندارید؟" found nothing. The quoted price is kept as the anchor
+    # that request is measured against instead.
+    price_anchor = None if result.new_topic else state.get("price_anchor")
+    if intent == "objection":
+        quoted = new_filters.get("maxPrice", new_filters.get("minPrice"))
+        if quoted is not None:
+            price_anchor = float(quoted)
+        new_filters = {}
     merged_filters = (
         new_filters if result.new_topic else {**(state.get("explore_filters") or {}), **new_filters}
     )
+    # The message that opened a vague request is the best description of the
+    # topic the later answers ("حدود یک میلیون") belong to; _search_text appends
+    # it to them, exactly as it does for a search turn's own query.
+    if result.intent == "needs_clarification" and not merged_filters.get("query"):
+        merged_filters["query"] = last_message_text(state)
     # A merge can only ever add constraints. Without this, a filter the model
     # invented once (a budget read into "ارزون") survived every correction the
     # customer made for the rest of the conversation.
@@ -760,8 +977,20 @@ async def analyze_intent(state: SalesAgentState) -> dict:
     # this the request was honoured only by luck: `rejected_current` excluded the
     # shown ids, so the next search returned *different* products — which could
     # perfectly well cost more than the ones the customer just called expensive.
-    bound = _relative_price_bound(result.relative_price, state.get("shown_products"))
+    bound = _relative_price_bound(result.relative_price, state.get("shown_products"), price_anchor)
     if bound:
+        if price_anchor is not None:
+            # "Cheaper than the one I just called expensive" is a move away
+            # from that product. The classifier still reads its brand out of
+            # the earlier messages, and searching "Dell, under Dell's own
+            # price" can only come back empty - so the brand filter goes back
+            # to whatever the customer had asked for before the objection.
+            previous_brand = (state.get("explore_filters") or {}).get("brand")
+            if previous_brand:
+                merged_filters["brand"] = previous_brand
+            else:
+                merged_filters.pop("brand", None)
+        price_anchor = None
         key, value = bound
         merged_filters[key] = value
         # A cheaper-than bound replaces any floor left over from earlier turns
@@ -775,7 +1004,10 @@ async def analyze_intent(state: SalesAgentState) -> dict:
         new_objection = result.objection or state.get("objection")
 
     updates: dict = {
-        "intent": result.intent,
+        "intent": intent,
+        "price_anchor": price_anchor,
+        "clarify_count": clarify_count,
+        "must_suggest": must_suggest,
         # stage / value_driver describe the customer over the whole
         # conversation, so keep the previous value when this turn says nothing.
         "stage": result.stage or state.get("stage", "browsing"),
@@ -941,6 +1173,17 @@ def _active_filters(filters: dict) -> dict:
 CATEGORY_CONFIDENT_MAX_DISTANCE = 0.15
 CATEGORY_CANDIDATE_MAX_DISTANCE = 0.55
 
+# The same two bands in the second provider's space, where every distance is
+# smaller (see GEMINI_RELEVANCE_MAX_DISTANCE). Measured on ten customer
+# phrasings against eight category names: the right category sat at 0.07-0.25
+# ("کفش ورزشی مردانه" -> "کفش ورزشی" 0.07, "گوشی سامسونگ میخوام" -> "گوشی
+# موبایل" 0.25) and the nearest category to a request the shop has nothing for
+# ("یخچال", "شلوار اسلش") at 0.36-0.38. CONFIDENT stays near-verbatim for the
+# reason given above: "شلوار ورزشی زنانه" scored 0.088 and 0.146 against the
+# two sportswear categories it must not choose between on its own.
+GEMINI_CATEGORY_CONFIDENT_MAX_DISTANCE = 0.05
+GEMINI_CATEGORY_CANDIDATE_MAX_DISTANCE = 0.30
+
 
 def _cosine_distance(a: list[float], b: list[float]) -> float:
     dot = sum(x * y for x, y in zip(a, b))
@@ -980,6 +1223,21 @@ async def _resolve_category_candidates(state: SalesAgentState) -> list[str]:
 
     query_vec = await embed(text)
     category_vecs = await asyncio.gather(*(embed(c) for c in categories))
+    space = _space_of(category_vecs[-1])
+    if any(_space_of(v) is not space for v in (query_vec, *category_vecs)):
+        # The provider failed over part-way through, leaving vectors from two
+        # models that cannot be measured against each other. Redo them all in
+        # the space that answered last.
+        client = dict(_embedding_chain())[space]
+        query_vec, *category_vecs = await asyncio.gather(
+            *(_embed_in(space, client, t) for t in (text, *categories))
+        )
+    if space is GEMINI_SPACE:
+        confident_max = GEMINI_CATEGORY_CONFIDENT_MAX_DISTANCE
+        candidate_max = GEMINI_CATEGORY_CANDIDATE_MAX_DISTANCE
+    else:
+        confident_max = CATEGORY_CONFIDENT_MAX_DISTANCE
+        candidate_max = CATEGORY_CANDIDATE_MAX_DISTANCE
     scored = sorted(
         zip(categories, (_cosine_distance(query_vec, v) for v in category_vecs)),
         key=lambda pair: pair[1],
@@ -993,12 +1251,12 @@ async def _resolve_category_candidates(state: SalesAgentState) -> list[str]:
     with tracing.span(
         "category_resolution", as_type="retriever", input={"text": text, "categories": categories}
     ) as obs:
-        if scored[0][1] > CATEGORY_CANDIDATE_MAX_DISTANCE:
+        if scored[0][1] > candidate_max:
             resolved: list[str] = []
-        elif scored[0][1] <= CATEGORY_CONFIDENT_MAX_DISTANCE:
+        elif scored[0][1] <= confident_max:
             resolved = [scored[0][0]]
         else:
-            resolved = [c for c, d in scored if d <= CATEGORY_CANDIDATE_MAX_DISTANCE]
+            resolved = [c for c, d in scored if d <= candidate_max]
         obs.update(output={"distances": [{"category": c, "distance": d} for c, d in scored], "resolved": resolved})
     return resolved
 
@@ -1317,8 +1575,61 @@ async def vector_search_explore(state: SalesAgentState) -> dict:
         filters,
         exclude_ids,
     )
+    items += await _also_named(state, query_vec, items)
     # candidate_ids is per-turn scratch, already consumed by _vector_scope above.
     return {"retrieved_raw": items, "candidate_ids": []}
+
+
+ALSO_NAMED_LIMIT = 2
+
+
+def _name_head(name: str) -> str:
+    """The leading word of a product name - in Persian, the noun that says
+    what the thing is ("جوراب ورزشی بسته ۳تایی" -> "جوراب")."""
+    tokens = _normalize_name(name).split()
+    return tokens[0] if tokens and len(tokens[0]) >= _NAME_TOKEN_MIN_LENGTH else ""
+
+
+async def _also_named(
+    state: SalesAgentState, query_vec: list[float], scoped: list[RetrievedItem]
+) -> list[RetrievedItem]:
+    """Products the customer named that the category filter left out.
+
+    The filter holds one kind of product per search, so "یه کفش دویدن می‌خوام با
+    یه بسته جوراب ورزشی" searched shoes only and the agent said it had no socks
+    while stocking them. This looks once more without the category - same
+    budget, brand and exclusions - and keeps a row only on plain evidence: the
+    word its name opens with is in the customer's message, and is not the word
+    the in-category results open with (a search for "کفش دویدن" must not pull
+    in every other kind of "کفش"). Similarity alone is never enough here; that
+    is the mistake the category filter exists to prevent.
+    """
+    effective = state.get("filter_effective") or {}
+    if not effective.get("category") or not scoped:
+        return []
+    words = _normalize_name(last_message_text(state)).split()
+    scoped_heads = {_name_head((i.get("metadata") or {}).get("name") or "") for i in scoped}
+    scoped_ids = {i["id"] for i in scoped}
+
+    wider = await vector_search_products(
+        state["shop_id"],
+        query_vec,
+        SORT_POOL_K,
+        None,
+        {k: v for k, v in effective.items() if k != "category"},
+        state.get("excluded_product_ids"),
+    )
+    best = min(float(i["score"]) for i in scoped)
+    named: list[RetrievedItem] = []
+    for row in wider:
+        head = _name_head((row.get("metadata") or {}).get("name") or "")
+        if row["id"] in scoped_ids or not head or head in scoped_heads:
+            continue
+        if any(word.startswith(head) for word in words):
+            # Ranked alongside the best in-category match: it is an answer to
+            # part of the request, not a distant neighbour for the gap to trim.
+            named.append({**row, "score": best})
+    return named[:ALSO_NAMED_LIMIT]
 
 
 def _item_from_product(product) -> RetrievedItem:
@@ -1425,6 +1736,25 @@ def fuse_and_rank_context(
 # conditional — see _drop_irrelevant.
 RELEVANCE_MAX_DISTANCE = 0.70
 
+# The same floor for rows scored by the second embedding provider. Its
+# distances are compressed into a much lower range, so the number above would
+# let everything through: on the 40-product sample catalog, genuine matches
+# land at 0.21-0.37 and, when the shop stocks nothing relevant, the nearest
+# row is at 0.385-0.435.
+GEMINI_RELEVANCE_MAX_DISTANCE = 0.38
+
+
+def _relevance_limits(items: list[RetrievedItem]) -> tuple[float, float]:
+    """The distance floor and gap for the space these rows were scored in.
+
+    One search embeds its query once, so its rows share a space; the first
+    marked row speaks for all of them.
+    """
+    if any(i.get("space") == GEMINI_SPACE.name for i in items):
+        return GEMINI_RELEVANCE_MAX_DISTANCE, GEMINI_RELEVANCE_GAP
+    return RELEVANCE_MAX_DISTANCE, RELEVANCE_GAP
+
+
 def _semantic_filter_applied(state: SalesAgentState) -> bool:
     """True when the SQL step already proved the candidates are on-topic.
 
@@ -1450,12 +1780,13 @@ def _drop_irrelevant(
     embedding distance is evidence of last resort, not a veto over an exact
     category match.
     """
+    max_distance, _gap = _relevance_limits(items)
     return [
         i
         for i in items
         if i["type"] != "product"
         or i.get("id") == pinned_id
-        or float(i.get("score", 0.0)) <= RELEVANCE_MAX_DISTANCE
+        or float(i.get("score", 0.0)) <= max_distance
     ]
 
 
@@ -1469,6 +1800,10 @@ def _drop_irrelevant(
 # to the rest can. Rows within this distance of the best one stay; the tail
 # goes. The count shown is whatever is left, never padded back up to k.
 RELEVANCE_GAP = 0.10
+
+# In the second provider's space the whole range is narrower, and so is the
+# drop: the best unrelated row trails the best real match by 0.04-0.15.
+GEMINI_RELEVANCE_GAP = 0.05
 
 
 def _within_gap(items: list[RetrievedItem], pinned_id: Optional[str] = None) -> list[RetrievedItem]:
@@ -1489,7 +1824,7 @@ def _within_gap(items: list[RetrievedItem], pinned_id: Optional[str] = None) -> 
     scores = [float(i["score"]) for i in items if ranked_by_similarity(i)]
     if len(scores) < 2:
         return list(items)
-    cutoff = min(scores) + RELEVANCE_GAP
+    cutoff = min(scores) + _relevance_limits(items)[1]
     return [i for i in items if not ranked_by_similarity(i) or float(i["score"]) <= cutoff]
 
 
@@ -1608,7 +1943,10 @@ def _rank_and_trim(state: SalesAgentState, limit: int) -> list[RetrievedItem]:
     """
     ranked = fuse_and_rank_context(state.get("retrieved_raw") or [], state)
     pinned_id = state.get("product_id")
-    if not _semantic_filter_applied(state):
+    # Nor when the turn owes the customer a suggestion (analyze_intent's
+    # must_suggest): they have answered our question, and a request shaped like
+    # a need ("یه هدیه شیک برای خانمم") sits far from every row it should match.
+    if not _semantic_filter_applied(state) and not state.get("must_suggest"):
         ranked = _drop_irrelevant(ranked, pinned_id)
     # Applied on both paths. An exact category match proves a row is the right
     # *kind* of thing, which is why the absolute floor is skipped for it - but
@@ -1651,7 +1989,7 @@ async def fuse_results_explore(state: SalesAgentState) -> dict:
     proven_in_catalog = _semantic_filter_applied(state) and not no_product_answer
     out_of_catalog = (
         False
-        if proven_in_catalog
+        if proven_in_catalog or (state.get("must_suggest") and not no_product_answer)
         else bool(state.get("out_of_catalog")) or (product_request and no_product_answer)
     )
 
@@ -1724,6 +2062,16 @@ def _reply_text(reply) -> str:
     return content if isinstance(content, str) else str(content)
 
 
+def _nothing_else(state: SalesAgentState) -> bool:
+    """The customer turned down what they were shown, asked for another, and
+    the search - with those rows excluded - found no product at all."""
+    return (
+        state.get("intent") == "search_product"
+        and bool(state.get("excluded_product_ids"))
+        and not any(i["type"] == "product" for i in state.get("retrieved_context") or [])
+    )
+
+
 async def suggest_products(state: SalesAgentState) -> dict:
     shop = await db.shop.find_unique(where={"id": state["shop_id"]})
     if not shop:
@@ -1736,6 +2084,7 @@ async def suggest_products(state: SalesAgentState) -> dict:
         out_of_catalog=bool(state.get("out_of_catalog")),
         intent=state.get("intent"),
         sort=state.get("sort"),
+        nothing_else=_nothing_else(state),
     )
 
     reply = await llm.ainvoke(
@@ -1909,11 +2258,52 @@ CLOSING_MOVES = {
         "مشتری همین یک گزینه را با جاهای دیگر مقایسه می‌کند. یک دلیل مشخص و ملموس از توضیح همین "
         "محصول بیاور که چرا انتخاب خوبی است. آرام و بدون فشار بنویس: نگو «همین را انتخاب کنید» یا "
         "«همین حالا بخرید»، لینک خرید را پیش نکش مگر خودش بخواهد، و محصول دیگری پیشنهاد نده. "
-        "چیزی بیرون از همین توضیح به محصول نسبت نده."
+        "چیزی بیرون از همین توضیح به محصول نسبت نده. اگر گفته شاید از جای دیگری بخرد، یک یا دو "
+        "مزیت واقعی خرید از همین فروشگاه را هم که در «اطلاعات کسب‌وکار» پایین آمده بگو (مثل ضمانت "
+        "بازگشت، گارانتی، زمان ارسال)؛ درباره فروشگاه دیگر چیزی نگو و ادعا نکن قیمت ما کمتر است."
     ),
-    "price": "مشتری قیمت را بالا می‌داند. " + OBJECTION_MOVES["price"],
-    "uncertainty": "مشتری مطمئن نیست این گزینه مناسبش است. " + OBJECTION_MOVES["uncertainty"],
-    "delay": "مشتری می‌خواهد فکر کند. " + OBJECTION_MOVES["delay"],
+    # The three objections below each cover two customers who must not get the
+    # same answer: one who is voicing a doubt, and one who is on the way out.
+    # Defending the product is right for the first and loses the second; an
+    # alternative is right for the second and, offered to the first, talks a
+    # customer out of what they came for. The reply model reads the customer's
+    # own words, so the instruction spells out both cases and which is which.
+    "price": (
+        "مشتری قیمت را بالا می‌داند.\n"
+        "۱) قیمت را با همان مشخصاتی که در توضیح خود محصول آمده توجیه کن و مشخصات مهم را تک‌تک نام "
+        "ببر. هیچ ادعایی درباره دوام، طول عمر یا عملکرد که در توضیح نیامده اضافه نکن.\n"
+        "۲) اگر مشتری فقط گفته گران است: همین‌جا تمام کن. محصول دیگری پیشنهاد نده، درباره بودجه‌اش "
+        "سوال نپرس و لینک خرید را پیش نکش.\n"
+        "۳) فقط اگر مشتری گفته منصرف شده، می‌رود یا از جای دیگری می‌خرد (مثل «بیخیال»، «ولش کن»، "
+        "«میرم جای دیگه»): یک تلاش آرام برای نگه‌داشتنش بکن. اگر در «گزینه‌های جایگزین» پایین محصولی "
+        "از همان نوع کالا و ارزان‌تر هست، همان یکی را با نام و قیمت دقیقش معرفی کن. اگر نیست، صادقانه "
+        "بگو مدل ارزان‌تری از این کالا نداریم و کوتاه بپرس چه بودجه یا کاربردی در نظر دارد. اگر خودش "
+        "گفته این محصول را نمی‌خواهد، از آن دفاع نکن. تخفیف نده، قیمت را عوض نکن، درباره فروشگاه‌های "
+        "دیگر چیزی نگو و اصرار نکن."
+    ),
+    "uncertainty": (
+        "مشتری مطمئن نیست این گزینه مناسبش است. ببین کدام‌یک از این سه حالت است:\n"
+        "الف) دلیل مشخصی گفته که این محصول به کارش نمی‌آید (کاربردش فرق دارد، یا ویژگی‌ای را "
+        "نمی‌خواهد): حرفش را بپذیر و اصرار نکن. اگر در «گزینه‌های جایگزین» پایین محصولی از همان نوع "
+        "کالا هست که با نیازی که گفته می‌خواند، همان را با نام و قیمت دقیق و دلیلش (از توضیح خود آن "
+        "محصول) معرفی کن. اگر نیست، صادقانه بگو مدل دیگری از این کالا نداریم و کوتاه بپرس دقیقاً دنبال "
+        "چه چیزی است.\n"
+        "ب) سوال مشخصی پرسیده (جنس، گارانتی، مرجوعی و مانند این‌ها): فقط از توضیح محصول و «اطلاعات "
+        "کسب‌وکار» پایین جواب بده، و در آخر بگو هر وقت خواست لینک خرید را برایش می‌فرستی.\n"
+        "ج) فقط تردید کلی دارد و دلیلی نگفته: با همان توضیحی که از خود محصول داری پاسخ بده و در آخر "
+        "کوتاه بپرس دقیقاً چه چیزی نگرانش کرده. محصول دیگری پیشنهاد نده.\n"
+        "در هر سه حالت هیچ ادعای تازه‌ای اضافه نکن — نه وعده راحتی یا عملکرد، نه ضمانتی که در اطلاعات "
+        "پایین نیامده، نه ویژگی‌ای که در توضیح محصول نیست. تردید او درباره قیمت نیست، پس قیمت را وسط "
+        "نیاور مگر خودش از قیمت حرف زده باشد."
+    ),
+    "delay": (
+        "ببین کدام‌یک از این دو حالت است:\n"
+        "الف) مشتری فقط می‌خواهد فکر کند: " + OBJECTION_MOVES["delay"] + "\n"
+        "ب) مشتری گفته شاید از جای دیگری بخرد: تصمیمش را محترم بشمار و فقط یک یا دو مزیت واقعی خرید از "
+        "همین فروشگاه را که در «اطلاعات کسب‌وکار» پایین آمده بگو (مثل ضمانت بازگشت، گارانتی، زمان "
+        "ارسال)، و بگو هر وقت خواست لینک خرید آماده است. درباره فروشگاه دیگر چیزی نگو، ادعا نکن قیمت "
+        "ما کمتر است، محصول جدیدی پیشنهاد نده و اصرار نکن."
+    ),
 }
 
 
@@ -1923,6 +2313,98 @@ def _closing_move(state: SalesAgentState) -> str:
     if state.get("intent") == "objection":
         return state.get("objection") or "uncertainty"
     return "buy"
+
+
+# The moves where the customer is weighing a doubt, and the shop's own facts
+# (warranty, returns, delivery) may be the answer to it - or, for a customer
+# about to buy elsewhere, the reason to stay. Not "buy" or "compare": nothing
+# there is in question. Each move's instruction says when the facts may be
+# used; a customer who only asked for time to think still gets two short
+# sentences and nothing else.
+SHOP_FACT_MOVES = {"price", "uncertainty", "delay", "compare_one"}
+
+SHOP_FACTS_NOTE = (
+    "⚠️ این‌ها داده واقعی همین فروشگاه‌اند، نه ادعا یا وعده تازه. فقط در همان حالتی که دستور بالا "
+    "گفته و فقط موردی را که به حرف مشتری مربوط است بیاور، عیناً و بدون افزودن چیزی به آن."
+)
+
+# The moves that may offer something else from the catalog (see CLOSING_MOVES).
+ALTERNATIVE_MOVES = {"price", "uncertainty"}
+ALTERNATIVES_K = 3
+
+
+async def _alternatives(
+    state: SalesAgentState, items: list[RetrievedItem], move: str
+) -> list[RetrievedItem]:
+    """Other real products to keep a customer who is turning one down.
+
+    Same category as the search that produced what is on the table, never a
+    product already on it or one the customer rejected. For a price objection
+    they must also cost less than what was objected to, and are the cheaper
+    rows nearest to *that product*; for a doubt about fit they are the rows
+    nearest to what the customer just said they need.
+
+    Never raises: the reply can still be written without them.
+    """
+    names = [(i.get("metadata") or {}).get("name") or "" for i in items]
+    filters: dict = {}
+    category = (state.get("explore_filters") or {}).get("category")
+    if category:
+        filters["category"] = category
+    if move == "price":
+        prices = []
+        for i in items:
+            try:
+                prices.append(float((i.get("metadata") or {}).get("price")))
+            except (TypeError, ValueError):
+                continue
+        ceiling = state.get("price_anchor") or (max(prices) if prices else None)
+        if ceiling is None:
+            return []
+        filters["maxPrice"] = float(ceiling) - PRICE_EPSILON
+        text = " ".join(names)
+    else:
+        text = " ".join([last_message_text(state), *names])
+    if not text.strip():
+        return []
+
+    exclude = list(dict.fromkeys([i["id"] for i in items] + list(state.get("excluded_product_ids") or [])))
+    try:
+        found = await vector_search_products(
+            state["shop_id"], await embed(text), ALTERNATIVES_K, None, filters, exclude
+        )
+    except Exception as err:  # noqa: BLE001
+        print(f"[agent] handle_purchase: alternatives unavailable ({type(err).__name__}: {err})")
+        return []
+    if not category:
+        # Nothing proves these rows are the same kind of thing, so distance
+        # has to: the nearest row to a wristwatch in a shop with one watch is
+        # a pair of sunglasses.
+        found = _within_gap(_drop_irrelevant(found, None))
+    return found
+
+
+async def _shop_facts(state: SalesAgentState) -> str:
+    """The FAQ and shop-info rows nearest the customer's message, as a prompt
+    block. An objection turn retrieves no products, but "اگه خراب دراومد چی؟"
+    is answered by the returns policy - and without this the agent said it had
+    no information about a warranty the shop does offer.
+
+    Never raises: the reply can still be written without it.
+    """
+    try:
+        query_vec = await embed(last_message_text(state))
+        faq_items, info_items = await asyncio.gather(
+            vector_search_faq(state["shop_id"], query_vec, FAQ_K),
+            vector_search_shop_info(state["shop_id"], query_vec, SHOP_INFO_K),
+        )
+    except Exception as err:  # noqa: BLE001
+        print(f"[agent] handle_purchase: shop facts unavailable ({type(err).__name__}: {err})")
+        return ""
+    facts = "\n".join(i["content"] for i in faq_items + info_items)
+    if not facts:
+        return ""
+    return f"\n\n## سوالات متداول و اطلاعات کسب‌وکار:\n{facts}\n{SHOP_FACTS_NOTE}"
 
 
 # Only the "buy" move wants the client to render buy buttons. Telling the model
@@ -1964,6 +2446,7 @@ async def handle_purchase(state: SalesAgentState) -> dict:
     # three made a comparison silently ignore half the options on screen.
     pinned = await _pinned_product(state)
     items = [pinned] if pinned else list(state.get("shown_products") or [])
+    alternatives: list[RetrievedItem] = []
     move = _closing_move(state)
     # "Which of these is better?" with only one product on the table is not a
     # comparison between our options — see CLOSING_MOVES["compare_one"].
@@ -1979,6 +2462,19 @@ async def handle_purchase(state: SalesAgentState) -> dict:
             "ولی اینجا نیست. اگر مطمئن نیستی مشتری کدام‌یک را می‌خواهد، کوتاه بپرس.\n"
             "⚠️ هر قیمتی را که می‌نویسی عیناً با همان ارقامی بنویس که بالا آمده است."
         )
+        if move in ALTERNATIVE_MOVES:
+            alternatives = await _alternatives(state, items, move)
+            if alternatives:
+                context_prompt += (
+                    "\n\n## گزینه‌های جایگزین (فقط در حالتی که دستور بالا اجازه داده، و فقط اگر از "
+                    "همان نوع کالا باشند):\n"
+                    f"{_product_listing(alternatives)}\n"
+                    "⚠️ این‌ها تنها محصولات دیگری‌اند که اجازه داری نام ببری، با همین نام و همین قیمت."
+                )
+            else:
+                context_prompt += "\n\n## گزینه‌های جایگزین:\nهیچ محصول جایگزینی موجود نیست."
+        if move in SHOP_FACT_MOVES:
+            context_prompt += await _shop_facts(state)
     else:
         # Nothing on the table yet — ask instead of guessing.
         context_prompt = (
@@ -1995,11 +2491,23 @@ async def handle_purchase(state: SalesAgentState) -> dict:
     # the start of every turn, and this node never put anything back, so the
     # Telegram bot's "🛒 خرید محصول" button and product cards never rendered.
     # shown_products is deliberately left alone — only the explore path sets it.
-    return {
-        "messages": [reply],
-        "retrieved_context": items,
-        "buy_actions": move in BUY_ACTION_MOVES,
-    }
+    # On the buy move the cards follow the reply, as they do everywhere else
+    # (_presented_context): with two laptops on the table and "همون رو
+    # می‌خوام", the reply gave one link and the customer got a buy card for
+    # both. When the reply names none ("همین را ثبت کنم؟") every item stays.
+    presented = items
+    if move == "buy" and len(items) > 1:
+        presented = _mentioned_products(_reply_text(reply), items) or items
+    updates: dict = {"messages": [reply], "buy_actions": move in BUY_ACTION_MOVES}
+    offered = _mentioned_products(_reply_text(reply), items + alternatives) if alternatives else []
+    offered = [p for p in offered if p in alternatives]
+    if offered:
+        # An alternative the reply offered is on the table now: it gets a card,
+        # and "همون رو می‌خوام" in the next message has to be able to mean it.
+        presented = presented + offered
+        updates["shown_products"] = presented
+    updates["retrieved_context"] = presented
+    return updates
 
 
 # ── Graph ─────────────────────────────────────────────────────────────────────

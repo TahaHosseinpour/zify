@@ -137,6 +137,10 @@ python -m pyinfra deploy/inventory.py deploy/deploy.py --dry --diff
   `zify`.
 - `openai_base_url` / `openai_chat_model` / `openai_embedding_model` —
   می‌توانید به یک gateway سازگار با OpenAI اشاره کنید (مثل توسعهٔ محلی).
+- `deepseek_base_url` / `deepseek_chat_model` و `gemini_base_url` /
+  `gemini_embedding_model` — سرویس‌های دوم برای failover: وقتی سرویس اول جواب
+  ندهد ایجنت خودکار سراغ این‌ها می‌رود. با همان `openai_api_key` کار می‌کنند.
+  خالی گذاشتن هر base URL یعنی برای آن نوع فراخوانی failover نباشد.
 - `langsmith_tracing` / `langsmith_endpoint` / `langsmith_project` —
   تریسینگ LangSmith؛ کلید واقعی در `deploy_secrets.py`.
 - `langfuse_host` — فقط وقتی کلیدهای Langfuse (`deploy_secrets.py`) پر باشند

@@ -63,8 +63,9 @@ class TestPromptSizeBounds:
 
 
 class TestFallbackAllowance:
-    """The LLM classifier is a full extra call; a conversation may use it only
-    MAX_INTENT_FALLBACKS times before Jev's best guess is taken as-is."""
+    """Jev's answer stands even when it is unsure. The LLM classifier is a
+    full extra call and runs only when Jev can't be reached - at most
+    MAX_INTENT_FALLBACKS times in one conversation."""
 
     @pytest.fixture
     def classifiers(self, monkeypatch):
@@ -75,6 +76,11 @@ class TestFallbackAllowance:
             if not allow_uncertain:
                 raise jev.JevUnavailable("intent too uncertain")
             return IntentResult(intent="browse")
+
+        async def jev_down(messages, **kwargs):
+            raise jev.JevUnavailable("HTTP 529")
+
+        calls["take_jev_down"] = lambda: monkeypatch.setattr(jev, "classify", jev_down)
 
         class FakeStructuredLLM:
             @staticmethod
@@ -87,19 +93,19 @@ class TestFallbackAllowance:
         monkeypatch.setattr(G, "structured_llm", FakeStructuredLLM())
         return calls
 
-    async def test_an_unsure_jev_falls_back_to_the_llm_and_the_result_says_so(self, classifiers):
+    async def test_an_unsure_jev_is_taken_at_its_word_without_the_llm(self, classifiers):
+        result = await G.classify_intent({"intent_fallbacks": 0}, [], [], [])
+        assert classifiers["jev"] == [True]  # always asked for its best guess
+        assert classifiers["llm"] == 0
+        assert result.intent == "browse"
+        assert result._via_fallback is False
+
+    async def test_an_unreachable_jev_falls_back_to_the_llm_and_the_result_says_so(self, classifiers):
+        classifiers["take_jev_down"]()
         result = await G.classify_intent({"intent_fallbacks": 0}, [], [], [])
         assert result.intent == "search_product"
         assert result._via_fallback is True
         assert classifiers["llm"] == 1
-
-    async def test_with_the_allowance_spent_the_llm_is_not_called_again(self, classifiers):
-        state = {"intent_fallbacks": G.MAX_INTENT_FALLBACKS}
-        result = await G.classify_intent(state, [], [], [])
-        assert classifiers["llm"] == 0
-        assert classifiers["jev"] == [True]  # asked for its best guess instead
-        assert result.intent == "browse"
-        assert result._via_fallback is False
 
     async def test_jev_down_and_allowance_spent_still_answers_without_the_llm(self, monkeypatch, classifiers):
         async def always_down(messages, **kwargs):

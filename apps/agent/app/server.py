@@ -338,7 +338,7 @@ async def chat(request: Request):
         latency_ms = int((time.perf_counter() - started) * 1000)
 
         await metering.record_turn(
-            shop_id, thread_id, usage_cb.input_tokens, usage_cb.output_tokens, meter
+            shop_id, thread_id, usage_cb.input_tokens, usage_cb.output_tokens, meter, usage_cb.llm_usd
         )
         if end_user_id:
             await increment_input_tokens(end_user_id, usage_cb.input_tokens)
@@ -465,7 +465,7 @@ async def chat_stream(request: Request):
                             node_updates[node] = update
 
             await metering.record_turn(
-                shop_id, thread_id, usage_cb.input_tokens, usage_cb.output_tokens, meter
+                shop_id, thread_id, usage_cb.input_tokens, usage_cb.output_tokens, meter, usage_cb.llm_usd
             )
             if end_user_id:
                 await increment_input_tokens(end_user_id, usage_cb.input_tokens)

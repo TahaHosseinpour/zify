@@ -14,6 +14,7 @@ from typing import Any, NamedTuple
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.outputs import LLMResult
 
+from . import metering
 from .db import db
 
 WEEKLY_INPUT_TOKEN_LIMIT = 80_000
@@ -75,6 +76,9 @@ class TokenUsageCallback(BaseCallbackHandler):
         # Not part of the customer quota (that is input-only) - collected for
         # metering.record_turn, which prices the whole turn.
         self.output_tokens = 0
+        # Each call priced at the rates of the model that answered it - the
+        # two providers of the chat chain do not cost the same.
+        self.llm_usd = 0.0
 
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         for generations in response.generations:
@@ -82,8 +86,12 @@ class TokenUsageCallback(BaseCallbackHandler):
                 message = getattr(gen, "message", None)
                 usage = getattr(message, "usage_metadata", None) if message else None
                 if usage:
-                    self.input_tokens += usage.get("input_tokens", 0) or 0
-                    self.output_tokens += usage.get("output_tokens", 0) or 0
+                    input_tokens = usage.get("input_tokens", 0) or 0
+                    output_tokens = usage.get("output_tokens", 0) or 0
+                    self.input_tokens += input_tokens
+                    self.output_tokens += output_tokens
+                    model = (getattr(message, "response_metadata", None) or {}).get("model_name")
+                    self.llm_usd += metering.llm_cost_usd(model, input_tokens, output_tokens)
 
 
 async def increment_input_tokens(end_user_id: str, tokens: int) -> None:

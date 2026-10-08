@@ -38,6 +38,7 @@ from langchain_core.messages import BaseMessage, HumanMessage
 from pydantic import BaseModel, Field, PrivateAttr
 
 from . import metering, tracing
+from .breaker import breaker
 
 # ── Result schema (shared with the LLM fallback classifier) ───────────────────
 
@@ -219,7 +220,8 @@ _AMOUNT_RE = re.compile(
     rf"(?P<digits>\d{{1,3}}(?:[,٬،.]\d{{3}})+|\d+(?:[./]\d{{1,2}})?)"
     rf"|(?P<words>(?:{_WORD})(?:\s*و\s*(?:{_WORD}))*)(?=\s*(?:{_MAG}))"
     rf")"
-    rf"(?:\s*(?P<mag>{_MAG})(?P<half>\s*و\s*نیم)?)?"
+    # «۲ میلیون و نیم», or the magnitude left unsaid: «بودجه‌م ۱ و نیم».
+    rf"(?:\s*(?P<mag>{_MAG})(?P<half>\s*و\s*نیم)?|(?P<bare_half>\s*و\s*نیم))?"
     rf"(?:\s*(?P<currency>تومان|تومن|ریال))?"
 )
 
@@ -286,7 +288,7 @@ def extract_amounts(text: str) -> list[Amount]:
     for m in _AMOUNT_RE.finditer(text):
         magnitude = _MAGNITUDES.get(m.group("mag")) if m.group("mag") else None
         number = _parse_number(m)
-        if magnitude and m.group("half"):
+        if (magnitude and m.group("half")) or m.group("bare_half"):
             number += 0.5
         raw.append(_RawAmount(m.start(), m.end(), number, magnitude, m.group("currency")))
 
@@ -684,13 +686,29 @@ async def ask(state: Any, questions: dict) -> dict:
     """One Jev request. Returns the `answers` map, or raises JevUnavailable."""
     global _disabled_reason
     payload = {"state": state, "model": JEV_MODEL, "questions": questions}
+    # While Jev keeps failing, turns go straight to the LLM classifier instead
+    # of each waiting out the timeout first.
+    gate = breaker("jev")
+    if not gate.allow():
+        raise JevUnavailable("circuit breaker open")
     with tracing.span("jev_intent", as_type="span", input=payload) as obs:
         try:
             response = await _http().post(
                 JEV_URL, json=payload, headers={"Authorization": f"Bearer {_api_key()}"}
             )
         except httpx.HTTPError as exc:
+            gate.record_failure()
             raise JevUnavailable(f"{type(exc).__name__}: {exc}") from exc
+        except BaseException:
+            gate.release()
+            raise
+
+        if response.status_code == 200:
+            gate.record_success()
+        elif response.status_code >= 500 or response.status_code in (408, 429):
+            gate.record_failure()
+        else:
+            gate.release()
 
         if response.status_code in (401, 403):
             # The key simply isn't valid for TypeSafe (a plain OpenAI key, say).

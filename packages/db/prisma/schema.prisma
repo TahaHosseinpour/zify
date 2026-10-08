@@ -89,6 +89,7 @@ model Product {
 
   // vector column added via raw SQL migration
   // embedding Unsupported("vector(1536)")?
+  // embedding_gemini Unsupported("vector(1536)")? (migration 0005)
 
   shop          Shop           @relation(fields: [shopId], references: [id])
   conversations Conversation[]
@@ -103,7 +104,7 @@ model FaqItem {
   question String
   answer   String
 
-  // embedding vector(1536) added via raw SQL migration
+  // embedding, embedding_gemini vector(1536) added via raw SQL migrations
 
   shop Shop @relation(fields: [shopId], references: [id])
 
@@ -115,7 +116,7 @@ model ShopInfoChunk {
   shopId  String
   content String
 
-  // embedding vector(1536) added via raw SQL migration
+  // embedding, embedding_gemini vector(1536) added via raw SQL migrations
 
   shop Shop @relation(fields: [shopId], references: [id])
 

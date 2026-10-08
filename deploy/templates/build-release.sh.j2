@@ -107,4 +107,11 @@ NOT_IN_SCHEMA="0001_init_pgvector 0002_product_filter_indexes"
 # script (`bun prisma/seed.ts`) instead, so this runs that directly.
 (cd packages/db && bun run db:seed)
 
+# Fill any empty embedding column (rows that predate `embedding_gemini`, or
+# were saved while one embedding provider was down), so the agent's fallback
+# embedding provider has something to search. Only empty columns are
+# requested, so this is a no-op once everything is filled, and it never fails
+# the build: a provider being down today must not block a release.
+(cd packages/db && bun run db:backfill-embeddings) || echo "WARNING: embedding backfill did not complete"
+
 touch .build-complete

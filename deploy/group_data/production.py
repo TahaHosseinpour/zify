@@ -109,6 +109,14 @@ openai_base_url = "https://api.tapsage.com/openai/v1"
 openai_chat_model = "gpt-4o-mini"
 openai_embedding_model = "text-embedding-3-small"
 
+# Second providers the agent fails over to when the ones above stop answering
+# (apps/agent/app/failover.py). Served by the same Metis key. Set a base URL
+# to "" to turn that failover off.
+deepseek_base_url = "https://api.metisai.ir/deepseek/v1"
+deepseek_chat_model = "deepseek-v4-flash"
+gemini_base_url = "https://api.metisai.ir/v1beta"
+gemini_embedding_model = "gemini-embedding-001"
+
 langsmith_tracing = True
 langsmith_endpoint = "https://api.smith.langchain.com"
 langsmith_project = "Zify"
