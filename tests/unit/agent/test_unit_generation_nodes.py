@@ -69,7 +69,9 @@ class TestSuggestProducts:
         assert fake_llm == []  # never reached the LLM call
 
     async def test_buy_actions_on_when_a_product_is_in_context(self, fake_llm, fake_shop_db):
-        result = await G.suggest_products(base_state(retrieved_context=[item("p1")]))
+        result = await G.suggest_products(
+            base_state(retrieved_context=[item("p1")], intent="search_product")
+        )
         assert result["buy_actions"] is True
 
     async def test_buy_actions_off_when_context_has_no_product(self, fake_llm, fake_shop_db):
@@ -89,7 +91,9 @@ class TestProductAgent:
         assert result["messages"][0].content == "پاسخ آزمایشی"
 
     async def test_buy_actions_on_when_a_product_is_in_context(self, fake_llm, fake_shop_db):
-        result = await G.product_agent(base_state(retrieved_context=[item("p1")]))
+        result = await G.product_agent(
+            base_state(retrieved_context=[item("p1")], intent="search_product")
+        )
         assert result["buy_actions"] is True
 
     async def test_buy_actions_off_when_context_has_no_product(self, fake_llm, fake_shop_db):

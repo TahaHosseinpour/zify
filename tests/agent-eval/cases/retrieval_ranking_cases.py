@@ -54,9 +54,11 @@ def _check_laptop_query_surfaces_only_relevant_laptops(update: dict) -> None:
 
 
 def _check_semantic_filter_skips_the_floor(update: dict) -> None:
-    ids = {i["id"] for i in update["retrieved_context"]}
-    assert len(update["retrieved_context"]) == EXPLORE_CONTEXT_LIMIT, update["retrieved_context"]
-    assert {"shoe-run-0", "shoe-run-1", "shoe-run-2"} <= ids, ids
+    # Exactly these three: past the 0.70 floor, which a proven category match
+    # waives - and nothing else, because the rest of the pool trails them by
+    # more than RELEVANCE_GAP and is no longer padded in to fill the list.
+    ids = [i["id"] for i in update["retrieved_context"]]
+    assert ids == ["shoe-run-0", "shoe-run-1", "shoe-run-2"], ids
 
 
 def _check_no_semantic_filter_all_past_floor_is_empty(update: dict) -> None:
@@ -132,7 +134,7 @@ RETRIEVAL_RANKING_CASES: list[DeterministicNodeCase] = [
             filter_effective={"category": "کفش ورزشی"},
             intent="search_product",
         ),
-        expected="SQL already proved these are on-topic, so 3 genuine matches past the 0.70 floor still make the cut",
+        expected="SQL already proved these are on-topic, so the 3 genuine matches past the 0.70 floor are kept - and only they are, the trailing rows are not padded in",
         check=_check_semantic_filter_skips_the_floor,
     ),
     DeterministicNodeCase(
@@ -155,7 +157,10 @@ RETRIEVAL_RANKING_CASES: list[DeterministicNodeCase] = [
         state=_base_state(
             retrieved_raw=[
                 {**RUNNING_SHOES[0], "score": 0.60},
-                {**RUNNING_SHOES[1], "score": 0.40},
+                # Close to the winning copy's score, so it is a comparably good
+                # match and survives the relevance gap - this case is about
+                # de-duplication, not about trimming.
+                {**RUNNING_SHOES[1], "score": 0.25},
                 {**RUNNING_SHOES[0], "score": 0.20},  # same id, later in the list, better score
             ],
         ),

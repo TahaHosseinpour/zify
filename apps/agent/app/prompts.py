@@ -110,8 +110,54 @@ OBJECTION_MOVES = {
         "خودش از قیمت حرف زده باشد. هیچ ادعای تازه‌ای اضافه نکن — نه وعده راحتی یا عملکرد، "
         "نه ضمانت، نه ویژگی‌ای که در توضیح محصول نیامده."
     ),
+    # Deliberately the shortest of the three. Anything said about the product
+    # at this moment - even a true feature - reads as one more push from a
+    # salesperson who was just asked for space.
     "delay": (
-        "به او فرصت فکر کردن بده، هیچ فشاری برای خرید نیاور و محصول جدیدی پیشنهاد نده."
+        "در یک یا دو جمله کوتاه به او فرصت فکر کردن بده و بگو هر وقت خواست در خدمتی. "
+        "هیچ ویژگی، مزیت یا قیمتی از محصول را تکرار نکن، هیچ سوالی نپرس، هیچ فشاری برای خرید "
+        "نیاور و محصول جدیدی پیشنهاد نده."
+    ),
+}
+
+# What to do when the customer asks which of several products is better. Shared
+# by graph.CLOSING_MOVES (comparing what is already on the table) and the
+# explore prompt below (a comparison asked cold, as the first message).
+COMPARE_MOVE = (
+    "مشتری می‌خواهد بین همین گزینه‌ها انتخاب کند. قیمت هر کدام را عیناً همان‌طور که در فهرست "
+    "بالا آمده بنویس و تفاوت واقعی‌شان را فقط از روی همین توضیح‌ها کوتاه و روشن بگو. در پایان "
+    "حتماً یکی را به‌طور مشخص توصیه کن — حتی اگر مشتری ترجیح خاصی نگفته، خودت بر اساس همین "
+    "اطلاعات یکی را انتخاب کن؛ به‌جای اینکه بپرسی کدام ویژگی برایش مهم‌تر است، خودت تصمیم را "
+    "جمع‌بندی کن. لینک خرید را فقط وقتی بده که خودش خواسته باشد."
+)
+
+# For a question about the shop itself whose answer was not retrieved. Without
+# it the model fills the gap with a confident "نداریم" (or "داریم"), which is a
+# policy nobody told it - and the customer has no way to know it was a guess.
+UNKNOWN_SHOP_FACT_RULE = (
+    "اگر مشتری درباره خود فروشگاه سوال کرده (روش پرداخت، قسط، تخفیف، ارسال، گارانتی، مرجوعی، "
+    "شعبه و مانند این‌ها) و پاسخش عیناً در «سوالات متداول» یا «اطلاعات کسب‌وکار» بالا نیامده است: "
+    "نگو «داریم» و نگو «نداریم». فقط بگو این اطلاعات را نداری و او را به پشتیبانی فروشگاه ارجاع بده، "
+    "و همان‌جا تمام کن: محصول، گزینه ارزان‌تر یا راه جایگزینی پیشنهاد نده.\n"
+)
+
+# A reply has a hard length ceiling (graph.REPLY_MAX_TOKENS). Six products with
+# a line of description each do not fit under it, and the reply was cut off
+# mid-sentence. Saying so in the prompt keeps the ceiling from ever being what
+# ends the message.
+BREVITY_RULE = (
+    "⚠️ پاسخ باید کوتاه بماند: حداکثر ۴ محصول را معرفی کن و برای هر کدام فقط یک خط بنویس "
+    "(نام، قیمت و یک ویژگی). اگر موارد مرتبط بیشترند، مرتبط‌ترین‌ها را انتخاب کن.\n"
+)
+
+SORT_NOTES = {
+    "price_asc": (
+        "فهرست بالا به ترتیب قیمت از ارزان‌ترین به گران‌ترین مرتب شده است؛ شماره ۱ ارزان‌ترین "
+        "است. همان را با نام و قیمت دقیقش به‌عنوان پاسخ بگو.\n"
+    ),
+    "price_desc": (
+        "فهرست بالا به ترتیب قیمت از گران‌ترین به ارزان‌ترین مرتب شده است؛ شماره ۱ گران‌ترین "
+        "است. همان را با نام و قیمت دقیقش به‌عنوان پاسخ بگو.\n"
     ),
 }
 
@@ -123,11 +169,14 @@ def build_explore_prompt(
     objection: Optional[str] = None,
     filters_dropped: Optional[list[str]] = None,
     out_of_catalog: bool = False,
+    intent: Optional[str] = None,
+    sort: Optional[str] = None,
 ) -> str:
     products = [c for c in context if c["type"] == "product"]
     faqs = [c for c in context if c["type"] == "faq"]
     shop_info = [c for c in context if c["type"] == "shop_info"]
     dropped = filters_dropped or []
+    price_dropped = any(k in dropped for k in ("maxPrice", "minPrice"))
 
     prompt = ""
 
@@ -164,6 +213,14 @@ def build_explore_prompt(
             "اول کوتاه و صادقانه همین را بگو، بعد گزینه‌ها را پیشنهاد بده.\n"
             "⚠️ فقط درباره همین محدودیت حرف بزن و محدودیت دیگری از خودت اضافه نکن.\n"
         )
+        if price_dropped and products:
+            # The rows below are ordered by price for exactly this case (see
+            # graph.vector_search_explore), so "the nearest option" is simply
+            # the first one rather than something the model has to work out.
+            prompt += (
+                "صریح بگو که در این محدوده قیمت چیزی موجود نیست. سپس نزدیک‌ترین گزینه به قیمتی که "
+                "مشتری خواسته - یعنی شماره ۱ فهرست زیر - را با نام و قیمت دقیقش معرفی کن.\n"
+            )
 
     if products:
         prompt += "\n## محصولات پیدا شده:\n"
@@ -175,6 +232,22 @@ def build_explore_prompt(
             "⚠️ قیمت‌ها را عیناً با همان ارقامی که بالا نوشته شده بیاور و ویژگی‌ای فراتر از "
             "همین توضیح‌ها به محصول نسبت نده.\n"
         )
+        if not out_of_catalog and not dropped:
+            # The list is a search result, not a selection: it is as long as
+            # the search was allowed to be, and in a small catalog its tail is
+            # whatever happened to be nearest. Which rows actually answer the
+            # request is the model's call - and the cards the customer sees
+            # follow what it names (graph._mentioned_products).
+            prompt += (
+                "⚠️ این فهرست نتیجه جستجوست و لازم نیست همه آن را بیاوری. فقط مواردی را معرفی کن که "
+                "واقعاً همان چیزی‌اند که مشتری خواسته (همان نوع کالا، همان برند، همان کاربرد). هر "
+                "موردی که به خواسته او ربطی ندارد را کاملاً نادیده بگیر و نامش را نبر - حتی اگر فقط "
+                "یک مورد باقی بماند.\n"
+            )
+        if sort in SORT_NOTES and not dropped:
+            prompt += SORT_NOTES[sort]
+        if len(products) > 4:
+            prompt += BREVITY_RULE
 
     if faqs:
         prompt += "\n## سوالات متداول مرتبط:\n"
@@ -215,6 +288,18 @@ def build_explore_prompt(
         prompt += f"اعتراض مشتری: {obj_map.get(objection, objection)}\n"
         prompt += OBJECTION_MOVES.get(objection, "این اعتراض را با دلیل و منطق رفع کن.") + "\n"
 
+    if intent in ("browse", "other"):
+        prompt += UNKNOWN_SHOP_FACT_RULE
+
+    # A comparison has its own ending - pick one - and every stage nudge below
+    # would pull the other way ("ask what matters most to them").
+    if intent == "compare" and len(products) > 1 and not out_of_catalog:
+        prompt += (
+            COMPARE_MOVE
+            + " فقط همان محصولاتی را که مشتری نام برده مقایسه کن و محصول دیگری وارد مقایسه نکن.\n"
+        )
+        return prompt
+
     # Stage nudges are scoped deliberately. An objection has its own move above
     # and a stage nudge on top of it pulled in the opposite direction; an
     # out-of-catalog turn has nothing to nudge toward; and the browsing nudge
@@ -232,7 +317,7 @@ def build_explore_prompt(
             "چرا انتخاب خوبی است. آرام بنویس: نگو «همین را انتخاب کنید» یا «همین حالا بخرید» و "
             "لینک خرید را پیش نکش مگر خودش بخواهد.\n"
         )
-    elif stage == "browsing" and len(products) > 1:
+    elif stage == "browsing" and len(products) > 1 and intent in (None, "search_product"):
         prompt += (
             "مشتری هنوز در حال بررسی گزینه‌هاست — محصولات را به‌عنوان چیزهایی برای مقایسه و بررسی "
             "معرفی کن، بپرس کدام ویژگی برایش مهم‌تر است، و برای تصمیم فوری فشاری نیاور.\n"
@@ -250,9 +335,11 @@ def build_product_prompt(
     objection: Optional[str] = None,
     filters_dropped: Optional[list[str]] = None,
     out_of_catalog: bool = False,
+    intent: Optional[str] = None,
+    sort: Optional[str] = None,
 ) -> str:
     return build_explore_prompt(
-        context, stage, value_driver, objection, filters_dropped, out_of_catalog
+        context, stage, value_driver, objection, filters_dropped, out_of_catalog, intent, sort
     )
 
 

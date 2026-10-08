@@ -776,7 +776,11 @@ def _resolve_categories(
 
 # Intents where the customer is asking for a product, so "not one of our
 # categories" means "we don't stock it" rather than "not about a product".
-_PRODUCT_SEEKING_INTENTS = ("search_product", "needs_clarification", "browse", "other")
+# `browse` is deliberately not one of them: a question about the shop itself
+# ("امکان پرداخت اقساطی دارید؟") names no category either, and treating it as
+# a missing product made the agent answer "نداریم" - a policy it invented -
+# instead of saying it doesn't have that information.
+_PRODUCT_SEEKING_INTENTS = ("search_product", "needs_clarification")
 
 
 def to_intent_result(

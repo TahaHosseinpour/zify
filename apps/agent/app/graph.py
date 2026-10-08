@@ -19,7 +19,9 @@ from . import metering, tracing
 from .db import db
 from .intent import ExploreFiltersModel, IntentResult
 from .prompts import (
+    COMPARE_MOVE,
     OBJECTION_MOVES,
+    UNKNOWN_SHOP_FACT_RULE,
     build_explore_prompt,
     build_intent_analysis_prompt,
     build_product_prompt,
@@ -1028,6 +1030,15 @@ async def _filter_step(state: SalesAgentState) -> dict:
         if resolved:
             filters["category"] = resolved
 
+    # "نایک ایرزوم یا آدیداس اولترابوست؟" names two brands, and the brand
+    # filter can hold one. Applying it removed the other shoe from the search
+    # entirely, and the agent then told the customer it didn't stock a product
+    # that was sitting in the catalog. For this turn only - the stored filter
+    # is left alone, so a brand the customer asked for earlier still applies
+    # to their next search.
+    if state.get("intent") == "compare":
+        filters.pop("brand", None)
+
     if not has_meaningful_filters(filters):
         return {
             "candidate_ids": [],
@@ -1101,6 +1112,10 @@ async def sql_filter_explore(state: SalesAgentState) -> dict:
 
 SORT_DIRECTIONS = {"price_asc": "ASC", "price_desc": "DESC"}
 SORT_LIMIT = 5
+# How many of the nearest-priced options to offer when a budget matched nothing.
+NEAREST_PRICE_LIMIT = 3
+# How wide a net similarity casts when its results will be re-ordered by price.
+SORT_POOL_K = 12
 
 
 async def sorted_products(
@@ -1108,6 +1123,7 @@ async def sorted_products(
     sort: str,
     filters: Optional[dict],
     exclude_ids: Optional[list[str]],
+    limit: int = SORT_LIMIT,
 ) -> list[RetrievedItem]:
     """Answer a superlative ("the cheapest one") with SQL, not similarity.
 
@@ -1123,8 +1139,8 @@ async def sorted_products(
     sql = f"""SELECT {_PRODUCT_COLUMNS}
         FROM products WHERE {where}
         ORDER BY price {direction} LIMIT ${n}"""
-    with tracing.span("sql_sorted_products", input={"sql": sql, "params": [*params, SORT_LIMIT]}) as obs:
-        rows = await db.query_raw(sql, *params, SORT_LIMIT)
+    with tracing.span("sql_sorted_products", input={"sql": sql, "params": [*params, limit]}) as obs:
+        rows = await db.query_raw(sql, *params, limit)
         items = [
             RetrievedItem(
                 id=str(r["id"]),
@@ -1240,17 +1256,31 @@ async def vector_search_explore(state: SalesAgentState) -> dict:
     # A superlative is answered by ordering, not by similarity. Reuse the same
     # constrained set the filter step produced so the budget still holds.
     sort = state.get("sort")
-    if sort in SORT_DIRECTIONS:
-        status = state.get("filter_status", FILTER_NONE)
-        scope_filters = (
-            state.get("filter_effective")
-            if status in (FILTER_IDS, FILTER_INLINE)
-            else None
+    topic_proven = _semantic_filter_applied(state)
+    dropped = state.get("filters_dropped") or []
+
+    # The customer's budget matched nothing and was given up (see
+    # FILTER_RELAXATION_ORDER). What they are owed now is the option *nearest*
+    # that budget, and similarity has no idea which one that is: with the
+    # ceiling gone it ranked a 2.3M shoe above the 1.25M one for someone who
+    # asked for "under 1M". Price order answers it exactly - cheapest first
+    # when a ceiling was dropped, dearest first when a floor was.
+    if topic_proven and ("maxPrice" in dropped or "minPrice" in dropped):
+        nearest = await sorted_products(
+            state["shop_id"],
+            "price_asc" if "maxPrice" in dropped else "price_desc",
+            state.get("filter_effective"),
+            state.get("excluded_product_ids"),
+            limit=NEAREST_PRICE_LIMIT,
         )
+        if nearest:
+            return {"retrieved_raw": nearest, "candidate_ids": []}
+
+    if sort in SORT_DIRECTIONS and topic_proven:
         ranked = await sorted_products(
             state["shop_id"],
             sort,
-            scope_filters,
+            state.get("filter_effective"),
             state.get("excluded_product_ids"),
         )
         if ranked:
@@ -1258,6 +1288,27 @@ async def vector_search_explore(state: SalesAgentState) -> dict:
 
     query_vec = await embed(_search_text(state))
     candidate_ids, filters, exclude_ids = _vector_scope(state)
+
+    if sort in SORT_DIRECTIONS:
+        # A superlative with no category or brand to scope it. Ordering the
+        # whole catalog by price would answer "ارزان‌ترین کفش دویدن" with a
+        # pair of socks, and ordering nothing (the old behaviour) answered it
+        # with whichever shoe embedded nearest. So: let similarity decide what
+        # is on topic, over a wider net than usual, and let price decide the
+        # order within that.
+        pool = await vector_search_products(
+            state["shop_id"], query_vec, SORT_POOL_K, candidate_ids, filters, exclude_ids
+        )
+        on_topic = _within_gap(_drop_irrelevant(pool, None))
+        on_topic.sort(
+            key=lambda i: float((i.get("metadata") or {}).get("price") or 0),
+            reverse=sort == "price_desc",
+        )
+        # Scores are overwritten with the rank so the fuse step, which orders
+        # by score, keeps this order instead of putting similarity back.
+        ranked = [{**item, "score": rank * 1e-6} for rank, item in enumerate(on_topic[:SORT_LIMIT])]
+        return {"retrieved_raw": ranked, "candidate_ids": []}
+
     items = await vector_search_products(
         state["shop_id"],
         query_vec,
@@ -1408,8 +1459,140 @@ def _drop_irrelevant(
     ]
 
 
+# How much worse than the best match a product may be and still be shown.
+#
+# The search always returns its top-k, so in a catalog with one real answer the
+# other five rows are simply the next-nearest things the shop sells: ask a shop
+# with two shoes for a Nike shoe and it came back with the Nike shoe, a leather
+# formal shoe, and four bags. The absolute floor above cannot catch that - in a
+# small catalog everything is "near enough" - but the *drop* from the best match
+# to the rest can. Rows within this distance of the best one stay; the tail
+# goes. The count shown is whatever is left, never padded back up to k.
+RELEVANCE_GAP = 0.10
+
+
+def _within_gap(items: list[RetrievedItem], pinned_id: Optional[str] = None) -> list[RetrievedItem]:
+    """Drop products that trail the best match by more than RELEVANCE_GAP.
+
+    Only similarity-ranked products are compared. Rows fetched by an explicit
+    order (price-sorted, score ~0) and the pinned product are exact answers,
+    not near ones, and are never dropped - nor are FAQ / shop-info rows.
+    """
+
+    def ranked_by_similarity(item: RetrievedItem) -> bool:
+        return (
+            item["type"] == "product"
+            and item.get("id") != pinned_id
+            and float(item.get("score", 0.0)) > _EXACT_SCORE_CEILING
+        )
+
+    scores = [float(i["score"]) for i in items if ranked_by_similarity(i)]
+    if len(scores) < 2:
+        return list(items)
+    cutoff = min(scores) + RELEVANCE_GAP
+    return [i for i in items if not ranked_by_similarity(i) or float(i["score"]) <= cutoff]
+
+
+# Scores at or below this are ranks written by a price sort, not distances.
+_EXACT_SCORE_CEILING = 1e-3
+
+
 def _shown_products(items: list[RetrievedItem]) -> list[RetrievedItem]:
     return [i for i in items if i["type"] == "product"]
+
+
+_NAME_NORMALIZATION = str.maketrans(
+    {
+        "ي": "ی", "ك": "ک", "ة": "ه", "\u200c": " ", "\u200f": " ", "‌": " ",
+        **{fa: str(d) for d, fa in enumerate("۰۱۲۳۴۵۶۷۸۹")},
+        **{ar: str(d) for d, ar in enumerate("٠١٢٣٤٥٦٧٨٩")},
+    }
+)  # fmt: skip
+_NAME_TOKEN_MIN_LENGTH = 3
+
+
+def _normalize_name(text: str) -> str:
+    return " ".join(str(text).lower().translate(_NAME_NORMALIZATION).split())
+
+
+def _mentioned_products(reply: str, products: list[RetrievedItem]) -> list[RetrievedItem]:
+    """The products the reply actually presents, in the order it presents them.
+
+    The prompt tells the model the list is a search result and to present only
+    what answers the request. This is the other half: the cards and buttons the
+    customer sees follow what the reply *names*, so a reply about one shoe is
+    not followed by six product cards. A product counts as named when its full
+    name appears, or - since replies shorten names ("نایک پگاسوس") - when a
+    word that belongs to no other candidate's name does.
+    """
+    text = f" {_normalize_name(reply)} "
+    names = {p["id"]: _normalize_name((p.get("metadata") or {}).get("name") or "") for p in products}
+
+    token_owners: dict[str, set[str]] = {}
+    for product_id, name in names.items():
+        for token in name.split():
+            token_owners.setdefault(token, set()).add(product_id)
+
+    found: list[tuple[int, RetrievedItem]] = []
+    for product in products:
+        name = names[product["id"]]
+        if not name:
+            continue
+        position = text.find(name)
+        if position < 0:
+            own_tokens = [
+                t
+                for t in name.split()
+                if len(t) >= _NAME_TOKEN_MIN_LENGTH and token_owners[t] == {product["id"]}
+            ]
+            positions = [p for p in (text.find(f" {t}") for t in own_tokens) if p >= 0]
+            position = min(positions) if positions else -1
+        if position >= 0:
+            found.append((position, product))
+    return [product for _, product in sorted(found, key=lambda pair: pair[0])]
+
+
+_PRODUCT_INTENTS = ("search_product", "compare", "buy_intent")
+
+
+def _presented_context(state: SalesAgentState, reply_text: str) -> dict:
+    """State updates that make what the customer is *shown* match what the
+    reply *said*: only the products it named become cards, and they become the
+    list a later "the second one" counts through - in the reply's own order,
+    which is the order the customer read them in.
+
+    The pinned product always stays: a reply about it routinely says "این کفش"
+    rather than its name.
+    """
+    context = list(state.get("retrieved_context") or [])
+    products = [i for i in context if i["type"] == "product"]
+    if not products:
+        return {"buy_actions": False}
+
+    named = _mentioned_products(reply_text, products)
+    if (
+        not named
+        and len(products) == 1
+        and not state.get("out_of_catalog")
+        and state.get("intent") in _PRODUCT_INTENTS
+    ):
+        # One result and the reply is about it: "بله، موجود است" is an answer
+        # that names nothing, and its card must not vanish for that. Only when
+        # a product was what the customer asked for, though - the lone row a
+        # question about discount codes happens to retrieve is not an answer
+        # to anything, and showing it put a power bank under "کد تخفیف ندارم".
+        named = products
+    pinned_id = state.get("product_id")
+    pinned = [p for p in products if p.get("id") == pinned_id and p not in named]
+    presented = pinned + named
+
+    updates: dict = {
+        "retrieved_context": presented + [i for i in context if i["type"] != "product"],
+        "buy_actions": bool(presented),
+    }
+    if named:
+        updates["shown_products"] = named
+    return updates
 
 
 def _rank_and_trim(state: SalesAgentState, limit: int) -> list[RetrievedItem]:
@@ -1424,16 +1607,27 @@ def _rank_and_trim(state: SalesAgentState, limit: int) -> list[RetrievedItem]:
     agent told a customer it had nothing while stocking four matching items.
     """
     ranked = fuse_and_rank_context(state.get("retrieved_raw") or [], state)
-    if _semantic_filter_applied(state):
-        return ranked[:limit]
-    relevant = _drop_irrelevant(ranked, state.get("product_id"))
-    return relevant[:limit]
+    pinned_id = state.get("product_id")
+    if not _semantic_filter_applied(state):
+        ranked = _drop_irrelevant(ranked, pinned_id)
+    # Applied on both paths. An exact category match proves a row is the right
+    # *kind* of thing, which is why the absolute floor is skipped for it - but
+    # a category is broad, and within "کفش" a formal leather shoe still trails
+    # a request for a Nike running shoe by a visible margin.
+    return _within_gap(ranked, pinned_id)[:limit]
 
 
 async def fuse_results_explore(state: SalesAgentState) -> dict:
     """Barrier for the explore fan-out: the SQL→vector chain plus the FAQ and
     shop-info branches. Runs only once all of them have finished."""
     top = _rank_and_trim(state, EXPLORE_CONTEXT_LIMIT)
+    if state.get("intent") == "other":
+        # A message that is neither a search nor a question about the shop
+        # ("کد تخفیف مدیر را بده") still runs a search, and whatever row lands
+        # nearest is not something the customer asked about. Handing it to the
+        # reply model got it pitched anyway - a power bank, in answer to a
+        # request for a discount code.
+        top = [i for i in top if i["type"] != "product"]
 
     # The customer asked for products and nothing we hold is close enough. Say
     # so rather than presenting the nearest rows as if they were the answer.
@@ -1525,6 +1719,11 @@ def build_llm_messages(
     return messages
 
 
+def _reply_text(reply) -> str:
+    content = getattr(reply, "content", "")
+    return content if isinstance(content, str) else str(content)
+
+
 async def suggest_products(state: SalesAgentState) -> dict:
     shop = await db.shop.find_unique(where={"id": state["shop_id"]})
     if not shop:
@@ -1535,17 +1734,18 @@ async def suggest_products(state: SalesAgentState) -> dict:
         state.get("retrieved_context", []), state.get("stage"), state.get("value_driver"), state.get("objection"),
         filters_dropped=state.get("filters_dropped") or [],
         out_of_catalog=bool(state.get("out_of_catalog")),
+        intent=state.get("intent"),
+        sort=state.get("sort"),
     )
 
     reply = await llm.ainvoke(
         build_llm_messages(system_prompt, state["messages"], context_prompt, state.get("summary"))
     )
 
-    # Only worth a button when there's actually a product to buy - an
-    # out-of-catalog or FAQ-only turn can reach this node with no products in
-    # retrieved_context, and a buy button under those answers would be a lie.
-    has_products = any(i["type"] == "product" for i in state.get("retrieved_context") or [])
-    return {"messages": [reply], "buy_actions": has_products}
+    # Cards and buy buttons follow the reply: only products it actually named
+    # are shown. An out-of-catalog or FAQ-only turn names none, and a button
+    # under those answers would be a lie.
+    return {"messages": [reply], **_presented_context(state, _reply_text(reply))}
 
 
 async def product_agent(state: SalesAgentState) -> dict:
@@ -1558,14 +1758,15 @@ async def product_agent(state: SalesAgentState) -> dict:
         state.get("retrieved_context", []), state.get("stage"), state.get("value_driver"), state.get("objection"),
         filters_dropped=state.get("filters_dropped") or [],
         out_of_catalog=bool(state.get("out_of_catalog")),
+        intent=state.get("intent"),
+        sort=state.get("sort"),
     )
 
     reply = await llm.ainvoke(
         build_llm_messages(system_prompt, state["messages"], context_prompt, state.get("summary"))
     )
 
-    has_products = any(i["type"] == "product" for i in state.get("retrieved_context") or [])
-    return {"messages": [reply], "buy_actions": has_products}
+    return {"messages": [reply], **_presented_context(state, _reply_text(reply))}
 
 
 async def ask_question(state: SalesAgentState) -> dict:
@@ -1588,9 +1789,11 @@ async def ask_question(state: SalesAgentState) -> dict:
     # actually ambiguous; a clear question should just be answered.
     clarify_instruction = (
         "درخواست مشتری ناقص یا مبهم است. به‌جای پاسخ کامل، فقط یک سوال کوتاه و مشخص بپرس "
-        "تا نیازش روشن شود (مثلاً برای چه کسی، چه کاربردی، چه بودجه‌ای یا چه سایزی). "
-        "⚠️ هیچ محصول یا دسته‌بندی‌ای را نام نبر و هیچ فهرستی نساز — حتی به‌عنوان مثال یا "
-        "گزینه‌های پیش رو. خروجی تو فقط همان یک سوال است."
+        "تا نیازش روشن شود: درباره کاربرد، اینکه برای چه کسی است، بودجه یا سایز. "
+        "نمونه یک سوال خوب: «برای چه کاری می‌خواهید و بودجه‌تان حدوداً چقدر است؟»\n"
+        "⚠️ هیچ محصول، برند یا دسته‌بندی‌ای را نام نبر و هیچ گزینه‌ای جلوی مشتری نگذار — نه به‌عنوان "
+        "مثال، نه داخل پرانتز، نه به شکل «الف یا ب؟». نگو فروشگاه چه چیزهایی دارد. "
+        "خروجی تو فقط همان یک سوال باز است."
     )
     out_of_catalog = bool(state.get("out_of_catalog"))
     if out_of_catalog and not state.get("category_final"):
@@ -1627,7 +1830,7 @@ async def ask_question(state: SalesAgentState) -> dict:
     elif state.get("intent") == "needs_clarification":
         extra = clarify_instruction
     else:
-        extra = ""
+        extra = UNKNOWN_SHOP_FACT_RULE
 
     reply = await llm.ainvoke(
         build_llm_messages(system_prompt, state["messages"], context_block + extra, state.get("summary"))
@@ -1691,15 +1894,13 @@ async def decline_reply(state: SalesAgentState) -> dict:
 # agent should do next, so they share a node and pick an instruction here.
 CLOSING_MOVES = {
     "buy": (
-        "مشتری آماده خرید است. لینک خرید را بده و او را تشویق کن."
+        # No "encourage them": asked to, the model praised the product in
+        # terms the catalog never used ("بهترین عملکرد") - an invented claim at
+        # the one moment the customer had already decided.
+        "مشتری تصمیمش را گرفته و آماده خرید است. خریدش را کوتاه تأیید کن و لینک خرید را بده. "
+        "هیچ تعریف، وعده یا ویژگی‌ای که در توضیح محصول نیامده اضافه نکن."
     ),
-    "compare": (
-        "مشتری می‌خواهد بین همین گزینه‌ها انتخاب کند. قیمت هر کدام را عیناً همان‌طور که در فهرست "
-        "بالا آمده بنویس و تفاوت واقعی‌شان را فقط از روی همین توضیح‌ها کوتاه و روشن بگو. در پایان "
-        "حتماً یکی را به‌طور مشخص توصیه کن — حتی اگر مشتری ترجیح خاصی نگفته، خودت بر اساس همین "
-        "اطلاعات یکی را انتخاب کن؛ به‌جای اینکه بپرسی کدام ویژگی برایش مهم‌تر است، خودت تصمیم را "
-        "جمع‌بندی کن. لینک خرید را فقط وقتی بده که خودش خواسته باشد."
-    ),
+    "compare": COMPARE_MOVE,
     # Same intent, one product: the customer is weighing what we have against
     # something we can't see (another shop). There is nothing here to compare it
     # *with*, so the "pick one for them" push above turns into closing pressure
@@ -1712,11 +1913,7 @@ CLOSING_MOVES = {
     ),
     "price": "مشتری قیمت را بالا می‌داند. " + OBJECTION_MOVES["price"],
     "uncertainty": "مشتری مطمئن نیست این گزینه مناسبش است. " + OBJECTION_MOVES["uncertainty"],
-    "delay": (
-        "مشتری می‌خواهد فکر کند. "
-        + OBJECTION_MOVES["delay"]
-        + " کوتاه بگو برای هر سوالی در خدمتی."
-    ),
+    "delay": "مشتری می‌خواهد فکر کند. " + OBJECTION_MOVES["delay"],
 }
 
 

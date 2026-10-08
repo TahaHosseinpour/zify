@@ -255,7 +255,9 @@ class TestChatResponseShape:
         assert body["products"][0]["price"] == 1000
 
     async def test_six_products_no_pin_gives_no_ambiguous_purchase_url(self, monkeypatch):
-        found = [item(f"p{i}", price=1000 * i, url=f"https://shop/{i}", score=0.1 * i)
+        # Scores close together: all six are comparably good matches, so none
+        # is cut as trailing the best one (graph.RELEVANCE_GAP).
+        found = [item(f"p{i}", price=1000 * i, url=f"https://shop/{i}", score=0.50 + 0.01 * i)
                  for i in range(1, 7)]
         client = build_stubbed_app(
             monkeypatch,
