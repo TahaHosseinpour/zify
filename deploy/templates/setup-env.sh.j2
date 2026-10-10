@@ -79,6 +79,9 @@ set_env DEEPSEEK_BASE_URL {{ sq(deepseek_base_url) }}
 set_env DEEPSEEK_CHAT_MODEL {{ sq(deepseek_chat_model) }}
 set_env GEMINI_BASE_URL {{ sq(gemini_base_url) }}
 set_env GEMINI_EMBEDDING_MODEL {{ sq(gemini_embedding_model) }}
+# Which provider of each kind is asked first (comma-separated, first wins).
+set_env CHAT_PROVIDER_ORDER {{ sq(chat_provider_order) }}
+set_env EMBEDDING_PROVIDER_ORDER {{ sq(embedding_provider_order) }}
 set_env USE_LOCAL_MODELS {{ 'true' if use_local_models else 'false' }}
 
 set_env LANGSMITH_TRACING {{ 'true' if langsmith_tracing else 'false' }}

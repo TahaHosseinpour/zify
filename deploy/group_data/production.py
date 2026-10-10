@@ -109,13 +109,19 @@ openai_base_url = "https://api.tapsage.com/openai/v1"
 openai_chat_model = "gpt-4o-mini"
 openai_embedding_model = "text-embedding-3-small"
 
-# Second providers the agent fails over to when the ones above stop answering
-# (apps/agent/app/failover.py). Served by the same Metis key. Set a base URL
-# to "" to turn that failover off.
+# The other provider of each kind of call (apps/agent/app/failover.py), served by
+# the same Metis key. Set a base URL to "" to turn that provider off.
+#
+# Which one is asked first is set below: replies and intent classification go
+# to DeepSeek and fall back to gpt-4o-mini; embeddings go to OpenAI and fall back
+# to Gemini. (Embeddings keep OpenAI first because the stored vectors of every
+# shop were made with it; a Gemini-first order is only for the benchmarks.)
 deepseek_base_url = "https://api.metisai.ir/deepseek/v1"
 deepseek_chat_model = "deepseek-v4-flash"
 gemini_base_url = "https://api.metisai.ir/v1beta"
 gemini_embedding_model = "gemini-embedding-001"
+chat_provider_order = "deepseek,openai"
+embedding_provider_order = "openai,gemini"
 
 langsmith_tracing = True
 langsmith_endpoint = "https://api.smith.langchain.com"

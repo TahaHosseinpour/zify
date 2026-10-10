@@ -141,6 +141,9 @@ python -m pyinfra deploy/inventory.py deploy/deploy.py --dry --diff
   `gemini_embedding_model` — سرویس‌های دوم برای failover: وقتی سرویس اول جواب
   ندهد ایجنت خودکار سراغ این‌ها می‌رود. با همان `openai_api_key` کار می‌کنند.
   خالی گذاشتن هر base URL یعنی برای آن نوع فراخوانی failover نباشد.
+- `chat_provider_order` / `embedding_provider_order` — اینکه هر نوع فراخوانی اول سراغ کدام سرویس برود
+  (با ویرگول؛ اولی اولویت دارد). مقدار فعلی: پاسخ و تحلیل نیت `deepseek,openai`، جاسازی `openai,gemini`.
+  جاسازی عمداً با OpenAI شروع می‌شود، چون بردارهای ذخیره‌شدهٔ همهٔ فروشگاه‌ها با آن ساخته شده‌اند.
 - `langsmith_tracing` / `langsmith_endpoint` / `langsmith_project` —
   تریسینگ LangSmith؛ کلید واقعی در `deploy_secrets.py`.
 - `langfuse_host` — فقط وقتی کلیدهای Langfuse (`deploy_secrets.py`) پر باشند

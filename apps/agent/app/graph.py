@@ -82,7 +82,15 @@ REPLY_MAX_TOKENS = 300
 #
 #   chat:       OPENAI_*  ->  DEEPSEEK_BASE_URL  (deepseek-v4-flash)
 #   embedding:  OPENAI_*  ->  GEMINI_BASE_URL    (gemini-embedding-001)
+#
+# CHAT_PROVIDER_ORDER="deepseek,openai" turns the chat chain round: DeepSeek
+# answers and the OPENAI_* model becomes the one it fails over to.
 PRIMARY_PROVIDER = "ollama" if USE_LOCAL_MODELS else "openai"
+CHAT_PROVIDER_ORDER = [
+    name.strip().lower()
+    for name in os.environ.get("CHAT_PROVIDER_ORDER", "").split(",")
+    if name.strip()
+]
 
 _deepseek_base_url = None if USE_LOCAL_MODELS else os.environ.get("DEEPSEEK_BASE_URL") or None
 _deepseek_model = os.environ.get("DEEPSEEK_CHAT_MODEL", "deepseek-v4-flash")
@@ -142,6 +150,13 @@ def _chat_chain(temperature: float, max_tokens: Optional[int] = None) -> Failove
                 structured_method="function_calling",
             )
         )
+    # Providers named in CHAT_PROVIDER_ORDER come first, in that order; any
+    # other keeps its place behind them.
+    links.sort(
+        key=lambda link: CHAT_PROVIDER_ORDER.index(link.name)
+        if link.name in CHAT_PROVIDER_ORDER
+        else len(CHAT_PROVIDER_ORDER)
+    )
     return FailoverChat(links)
 
 
@@ -214,11 +229,27 @@ fallback_embeddings: Optional[GeminiEmbeddings] = (
 )
 
 
+# EMBEDDING_PROVIDER_ORDER="gemini,openai" turns the embedding chain round, the
+# way CHAT_PROVIDER_ORDER does for chat: Gemini embeds, and the OPENAI_* model is
+# the one it fails over to. Names are the spaces' ("gemini", and the primary
+# provider's: "openai" or "ollama").
+EMBEDDING_PROVIDER_ORDER = [
+    name.strip().lower()
+    for name in os.environ.get("EMBEDDING_PROVIDER_ORDER", "").split(",")
+    if name.strip()
+]
+
+
 def _embedding_chain() -> list[tuple[EmbeddingSpace, object]]:
     # Read at call time: tests swap `embeddings` / `fallback_embeddings`.
     chain: list[tuple[EmbeddingSpace, object]] = [(PRIMARY_SPACE, embeddings)]
     if fallback_embeddings is not None:
         chain.append((GEMINI_SPACE, fallback_embeddings))
+    chain.sort(
+        key=lambda link: EMBEDDING_PROVIDER_ORDER.index(link[0].name)
+        if link[0].name in EMBEDDING_PROVIDER_ORDER
+        else len(EMBEDDING_PROVIDER_ORDER)
+    )
     return chain
 
 
@@ -458,6 +489,13 @@ _embed_cache: "OrderedDict[str, list[float]]" = OrderedDict()
 # vector in each space.
 _fallback_embed_cache: "OrderedDict[str, list[float]]" = OrderedDict()
 _embed_inflight: dict[tuple[str, str], "asyncio.Task[list[float]]"] = {}
+
+
+def clear_embed_caches() -> None:
+    """Forget every embedding, in both spaces. For the benchmarks, so that no
+    system gets a vector another already paid for."""
+    _embed_cache.clear()
+    _fallback_embed_cache.clear()
 
 
 def _cache_of(space: EmbeddingSpace) -> "OrderedDict[str, list[float]]":

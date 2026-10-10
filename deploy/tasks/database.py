@@ -94,6 +94,8 @@ def database():
         deepseek_chat_model=host.data.get("deepseek_chat_model"),
         gemini_base_url=host.data.get("gemini_base_url"),
         gemini_embedding_model=host.data.get("gemini_embedding_model"),
+        chat_provider_order=host.data.get("chat_provider_order"),
+        embedding_provider_order=host.data.get("embedding_provider_order"),
         use_local_models=host.data.get("use_local_models"),
         langsmith_tracing=host.data.get("langsmith_tracing"),
         langsmith_endpoint=host.data.get("langsmith_endpoint"),
