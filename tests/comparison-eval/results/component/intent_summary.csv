@@ -1,0 +1,3 @@
+﻿classifier,turns,correct,accuracy_percent,macro_f1_percent,route_accuracy_percent,accuracy_without_context_percent,accuracy_with_context_percent,errors,avg_seconds,median_seconds,p95_seconds,max_seconds,total_seconds,avg_cost_usd,total_cost_usd,cost_per_1000_turns_usd,avg_input_tokens,avg_output_tokens
+jev,98,96,98.0,98.2,98.0,98.0,97.9,0,0.7,0.688,0.945,1.295,68.58,0.0001246,0.012208,0.1246,2966.0,0
+llm,98,95,96.9,95.4,96.9,96.1,97.9,0,1.32,1.299,1.708,1.926,129.4,0.0004901,0.048031,0.4901,2990.2,69.3

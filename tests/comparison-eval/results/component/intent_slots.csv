@@ -1,0 +1,17 @@
+﻿classifier,slot,turns_stating_it,read_correctly,read_correctly_percent,turns_not_stating_it,unsupported
+jev,brand,3,3,100.0,81,0
+jev,category,12,9,75.0,72,
+jev,maxPrice,3,3,100.0,81,0
+jev,minPrice,2,1,50.0,82,0
+jev,sort,2,2,100.0,82,0
+jev,relative_price,3,3,100.0,81,0
+jev,selected_index,3,3,100.0,81,0
+jev,objection,14,14,100.0,84,7
+llm,brand,3,2,66.7,81,0
+llm,category,12,7,58.3,72,
+llm,maxPrice,3,3,100.0,81,0
+llm,minPrice,2,2,100.0,82,0
+llm,sort,2,2,100.0,82,0
+llm,relative_price,3,3,100.0,81,0
+llm,selected_index,3,3,100.0,81,0
+llm,objection,14,14,100.0,84,0

@@ -1,0 +1,17 @@
+﻿classifier,expected,search_product,browse,needs_clarification,buy_intent,objection,compare,smalltalk,other,error
+jev,search_product,20,0,0,0,0,0,0,0,0
+jev,browse,0,14,0,0,0,0,0,0,0
+jev,needs_clarification,1,0,11,0,0,0,0,0,0
+jev,buy_intent,0,1,0,11,0,0,0,0,0
+jev,objection,0,0,0,0,14,0,0,0,0
+jev,compare,0,0,0,0,0,10,0,0,0
+jev,smalltalk,0,0,0,0,0,0,10,0,0
+jev,other,0,0,0,0,0,0,0,6,0
+llm,search_product,20,0,0,0,0,0,0,0,0
+llm,browse,0,14,0,0,0,0,0,0,0
+llm,needs_clarification,0,0,12,0,0,0,0,0,0
+llm,buy_intent,0,1,0,11,0,0,0,0,0
+llm,objection,0,0,0,0,14,0,0,0,0
+llm,compare,0,0,0,0,0,10,0,0,0
+llm,smalltalk,0,0,0,0,0,0,10,0,0
+llm,other,0,0,0,0,0,0,2,4,0

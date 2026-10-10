@@ -50,6 +50,11 @@ class Scenario:
     check: Optional[Callable[[Outcome], None]] = None  # raises AssertionError
     rubric: str = ""
     ideal: str = ""
+    # What the judge is told is true, when it should not be shown the whole
+    # catalog: only the products this scenario is about (the right answer and
+    # what must not be offered instead) and the shop's own policies. Empty
+    # means the judge gets the whole catalog, as the first shop's scenarios do.
+    reference: str = ""
 
     @property
     def kind(self) -> str:
@@ -702,7 +707,9 @@ SCENARIOS: list[Scenario] = [
         ["کفش دویدن زیر یک و نیم میلیون چی دارید؟", "اگه تا ۲ تومن بدم چی؟"],
         check=_all_of(
             _names_any_of(
-                ["اولترابوست", "نیوبالانس", "نیمبوس", "کایانو"],
+                # Everything between 1.5 and 2 million that the first budget left out.
+                # (The list once lacked «پگاسوس», 1,550,000, and failed a correct reply.)
+                ["پگاسوس", "اولترابوست", "نیوبالانس", "نیمبوس", "کایانو"],
                 "کفش دویدنی که با بودجه جدید (۱٫۵ تا ۲ میلیون) در دسترس آمده",
             ),
             _names_none_of(["زوم فلای", "سالامون"], "کفش بالای ۲ میلیون معرفی شد"),

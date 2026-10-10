@@ -14,7 +14,8 @@ import asyncio
 from app import graph as G
 from app.db import db
 
-from dataset import CATEGORIES, FAQS, ID_PREFIX, PRODUCTS, SHOP_INFO, SHOP_NAME, SHOP_SLUG
+import dataset as first_shop
+from dataset import ID_PREFIX
 
 SHOP_ID = ID_PREFIX + "shop"
 OWNER_ID = ID_PREFIX + "owner"
@@ -78,8 +79,14 @@ async def clear() -> None:
     await db.execute_raw("DELETE FROM users WHERE id = $1", OWNER_ID)
 
 
-async def seed() -> str:
-    """(Re)create the sample shop with embeddings. Returns its id."""
+async def seed(data=None) -> str:
+    """(Re)create a sample shop with embeddings. Returns its id.
+
+    `data` is a module of the shape of dataset.py (the default) - the second
+    shop, dataset_beauty.py, is seeded under the same id, so one run holds one
+    shop and clear() removes whichever it was.
+    """
+    data = data or first_shop
     await clear()
     await db.execute_raw(
         """INSERT INTO users (id, mobile, "isVerified", "onboardingCompleted", "updatedAt")
@@ -91,9 +98,9 @@ async def seed() -> str:
         """INSERT INTO shops (id, slug, name, categories, "personaTone", "ownerId")
            VALUES ($1, $2, $3, $4::text[], 'semi-formal', $5)""",
         SHOP_ID,
-        SHOP_SLUG,
-        SHOP_NAME,
-        CATEGORIES,
+        data.SHOP_SLUG,
+        data.SHOP_NAME,
+        data.CATEGORIES,
         OWNER_ID,
     )
 
@@ -102,9 +109,9 @@ async def seed() -> str:
     # apps/admin/lib/embeddings.ts): name + description + category + brand for
     # a product, the question for an FAQ entry, the content for shop info.
     product_vecs = await _embed_all(
-        [" ".join([p.name, p.description, p.category, p.brand]) for p in PRODUCTS]
+        [" ".join([p.name, p.description, p.category, p.brand]) for p in data.PRODUCTS]
     )
-    for i, product in enumerate(PRODUCTS):
+    for i, product in enumerate(data.PRODUCTS):
         await db.execute_raw(
             """INSERT INTO products
                  (id, "shopId", name, price, "productUrl", description, category, brand, stock)
@@ -120,8 +127,8 @@ async def seed() -> str:
         )
         await _store_vectors("products", product.id, i, product_vecs)
 
-    faq_vecs = await _embed_all([question for question, _ in FAQS])
-    for i, (question, answer) in enumerate(FAQS):
+    faq_vecs = await _embed_all([question for question, _ in data.FAQS])
+    for i, (question, answer) in enumerate(data.FAQS):
         await db.execute_raw(
             """INSERT INTO faq_items (id, "shopId", question, answer)
                VALUES ($1, $2, $3, $4)""",
@@ -132,8 +139,8 @@ async def seed() -> str:
         )
         await _store_vectors("faq_items", f"{ID_PREFIX}faq-{i}", i, faq_vecs)
 
-    info_vecs = await _embed_all(SHOP_INFO)
-    for i, content in enumerate(SHOP_INFO):
+    info_vecs = await _embed_all(data.SHOP_INFO)
+    for i, content in enumerate(data.SHOP_INFO):
         await db.execute_raw(
             """INSERT INTO shop_info_chunks (id, "shopId", content)
                VALUES ($1, $2, $3)""",

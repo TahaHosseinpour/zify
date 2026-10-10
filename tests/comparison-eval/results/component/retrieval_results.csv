@@ -1,0 +1,169 @@
+﻿space,retriever,query_id,kind,query,relevant,returned,returned_count,hit_at_1,hit_at_3,recall,precision,mrr,abstained,seconds,cost_usd,note
+gemini,vector,N01,name,نایک پگاسوس دارید؟,shoe-run-2,shoe-run-2 shoe-run-6 shoe-run-0 shoe-run-5 acc-5 shoe-run-4,6,1,1,1.0,0.167,1.0,0,0.887,1e-06,
+gemini,rule_sql,N01,name,نایک پگاسوس دارید؟,shoe-run-2,shoe-run-2 shoe-run-6 shoe-run-0 acc-5,4,1,1,1.0,0.25,1.0,0,0.103,0.0,{'brand': 'نایک'}
+gemini,graph_llm,N01,name,نایک پگاسوس دارید؟,shoe-run-2,shoe-run-2,1,1,1,1.0,1.0,1.0,0,5.469,0.0005047,"search_product {'category': 'کفش ورزشی', 'brand': 'نایک'}"
+gemini,graph_jev,N01,name,نایک پگاسوس دارید؟,shoe-run-2,shoe-run-2,1,1,1,1.0,1.0,1.0,0,2.248,0.0001092,"search_product {'brand': 'نایک', 'category': 'کفش ورزشی'}"
+gemini,vector,N02,name,لپ‌تاپ لنوو لیجن,laptop-5,laptop-5 laptop-8 laptop-0 laptop-9 laptop-4 laptop-6,6,1,1,1.0,0.167,1.0,0,0.889,9e-07,
+gemini,rule_sql,N02,name,لپ‌تاپ لنوو لیجن,laptop-5,laptop-5 laptop-8 laptop-0,3,1,1,1.0,0.333,1.0,0,0.074,0.0,{'brand': 'لنوو'}
+gemini,graph_llm,N02,name,لپ‌تاپ لنوو لیجن,laptop-5,laptop-5,1,1,1,1.0,1.0,1.0,0,2.045,0.0005043,"search_product {'category': 'لپ\u200cتاپ', 'brand': 'لنوو'}"
+gemini,graph_jev,N02,name,لپ‌تاپ لنوو لیجن,laptop-5,laptop-5,1,1,1,1.0,1.0,1.0,0,0.893,0.0001093,"search_product {'brand': 'لنوو', 'category': 'لپ\u200cتاپ'}"
+gemini,vector,N03,name,آسیکس کایانو موجوده؟,shoe-run-8,shoe-run-8 shoe-run-3 shoe-run-9 shoe-run-5 shoe-casual-4 shoe-casual-6,6,1,1,1.0,0.167,1.0,0,0.837,1e-06,
+gemini,rule_sql,N03,name,آسیکس کایانو موجوده؟,shoe-run-8,shoe-run-8 shoe-run-3,2,1,1,1.0,0.5,1.0,0,0.056,0.0,{'brand': 'آسیکس'}
+gemini,graph_llm,N03,name,آسیکس کایانو موجوده؟,shoe-run-8,shoe-run-8,1,1,1,1.0,1.0,1.0,0,2.136,0.0004928,search_product {'brand': 'Asics'}
+gemini,graph_jev,N03,name,آسیکس کایانو موجوده؟,shoe-run-8,shoe-run-8,1,1,1,1.0,1.0,1.0,0,1.602,0.0001111,"search_product {'brand': 'آسیکس', 'category': 'کفش ورزشی'}"
+gemini,vector,N04,name,کوله پشتی سفری,acc-1,acc-1 acc-0 shoe-casual-4 acc-8 shoe-casual-6 shoe-casual-9,6,1,1,1.0,0.167,1.0,0,1.049,8e-07,
+gemini,rule_sql,N04,name,کوله پشتی سفری,acc-1,acc-1 acc-0 shoe-casual-4 acc-8 shoe-casual-6 shoe-casual-9,6,1,1,1.0,0.167,1.0,0,0.052,0.0,
+gemini,graph_llm,N04,name,کوله پشتی سفری,acc-1,acc-1,1,1,1,1.0,1.0,1.0,0,1.393,0.0005007,search_product
+gemini,graph_jev,N04,name,کوله پشتی سفری,acc-1,acc-1,1,1,1,1.0,1.0,1.0,0,0.906,0.0001092,search_product
+gemini,vector,N05,name,ایسوس زنبوک رو می‌خوام,laptop-7,laptop-7 laptop-3 laptop-1 laptop-4 laptop-9 laptop-8,6,1,1,1.0,0.167,1.0,0,1.047,1.2e-06,
+gemini,rule_sql,N05,name,ایسوس زنبوک رو می‌خوام,laptop-7,laptop-7 laptop-3 laptop-1 laptop-4,4,1,1,1.0,0.25,1.0,0,0.06,0.0,{'brand': 'ایسوس'}
+gemini,graph_llm,N05,name,ایسوس زنبوک رو می‌خوام,laptop-7,laptop-7,1,1,1,1.0,1.0,1.0,0,3.011,0.0005007,"search_product {'category': 'لپ\u200cتاپ', 'brand': 'ایسوس'}"
+gemini,graph_jev,N05,name,ایسوس زنبوک رو می‌خوام,laptop-7,laptop-7,1,1,1,1.0,1.0,1.0,0,0.875,0.0001093,"search_product {'brand': 'ایسوس', 'category': 'لپ\u200cتاپ'}"
+gemini,vector,N06,name,کفش لوفر چرم,shoe-casual-3,shoe-casual-3 shoe-casual-0 shoe-casual-8 shoe-casual-2 shoe-casual-7 shoe-casual-1,6,1,1,1.0,0.167,1.0,0,0.868,8e-07,
+gemini,rule_sql,N06,name,کفش لوفر چرم,shoe-casual-3,shoe-casual-3 shoe-casual-0 shoe-casual-8 shoe-casual-2 shoe-casual-7 shoe-casual-1,6,1,1,1.0,0.167,1.0,0,0.054,0.0,
+gemini,graph_llm,N06,name,کفش لوفر چرم,shoe-casual-3,shoe-casual-3 shoe-casual-0,2,1,1,1.0,0.5,1.0,0,2.512,0.0004965,search_product {'category': 'کفش رسمی'}
+gemini,graph_jev,N06,name,کفش لوفر چرم,shoe-casual-3,shoe-casual-3 shoe-casual-0,2,1,1,1.0,0.5,1.0,0,2.331,0.0001108,"search_product {'category': ['کفش رسمی', 'کفش روزمره']}"
+gemini,vector,N07,name,هدفون بی‌سیم سونی,acc-9,acc-9 acc-5 laptop-7 shoe-run-9 laptop-3 shoe-casual-5,6,1,1,1.0,0.167,1.0,0,1.084,9e-07,
+gemini,rule_sql,N07,name,هدفون بی‌سیم سونی,acc-9,acc-9,1,1,1,1.0,1.0,1.0,0,0.051,0.0,{'brand': 'سونی'}
+gemini,graph_llm,N07,name,هدفون بی‌سیم سونی,acc-9,acc-9,1,1,1,1.0,1.0,1.0,0,1.778,0.0005064,search_product {'brand': 'سونی'}
+gemini,graph_jev,N07,name,هدفون بی‌سیم سونی,acc-9,acc-9,1,1,1,1.0,1.0,1.0,0,0.947,0.0001092,search_product {'brand': 'سونی'}
+gemini,vector,N08,name,asus tuf,laptop-4,laptop-4 laptop-1 laptop-3 laptop-7 laptop-9 laptop-5,6,1,1,1.0,0.167,1.0,0,1.076,4e-07,
+gemini,rule_sql,N08,name,asus tuf,laptop-4,laptop-4 laptop-1 laptop-3 laptop-7 laptop-9 laptop-5,6,1,1,1.0,0.167,1.0,0,0.054,0.0,
+gemini,graph_llm,N08,name,asus tuf,laptop-4,laptop-4,1,1,1,1.0,1.0,1.0,0,1.455,0.0004899,search_product {'brand': 'asus'}
+gemini,graph_jev,N08,name,asus tuf,laptop-4,laptop-4,1,1,1,1.0,1.0,1.0,0,1.913,0.0001099,"search_product {'brand': 'ایسوس', 'category': 'لپ\u200cتاپ'}"
+gemini,vector,B01,brand,کفش دویدن نایک,shoe-run-0 shoe-run-2 shoe-run-6,shoe-run-2 shoe-run-0 shoe-run-6 shoe-run-4 shoe-run-5 shoe-run-7,6,1,1,1.0,0.5,1.0,0,1.089,8e-07,
+gemini,rule_sql,B01,brand,کفش دویدن نایک,shoe-run-0 shoe-run-2 shoe-run-6,shoe-run-2 shoe-run-0 shoe-run-6 acc-5,4,1,1,1.0,0.75,1.0,0,0.052,0.0,{'brand': 'نایک'}
+gemini,graph_llm,B01,brand,کفش دویدن نایک,shoe-run-0 shoe-run-2 shoe-run-6,shoe-run-2 shoe-run-0 shoe-run-6,3,1,1,1.0,1.0,1.0,0,2.75,0.0005112,"search_product {'category': 'کفش ورزشی', 'brand': 'نایک'}"
+gemini,graph_jev,B01,brand,کفش دویدن نایک,shoe-run-0 shoe-run-2 shoe-run-6,shoe-run-2 shoe-run-0 shoe-run-6,3,1,1,1.0,1.0,1.0,0,1.463,0.0001092,"search_product {'brand': 'نایک', 'category': 'کفش ورزشی'}"
+gemini,vector,B02,brand,لپ‌تاپ ایسوس چی دارید؟,laptop-1 laptop-3 laptop-4 laptop-7,laptop-7 laptop-1 laptop-3 laptop-4 laptop-8 laptop-9,6,1,1,1.0,0.667,1.0,0,1.085,1.2e-06,
+gemini,rule_sql,B02,brand,لپ‌تاپ ایسوس چی دارید؟,laptop-1 laptop-3 laptop-4 laptop-7,laptop-7 laptop-1 laptop-3 laptop-4,4,1,1,1.0,1.0,1.0,0,0.054,0.0,{'brand': 'ایسوس'}
+gemini,graph_llm,B02,brand,لپ‌تاپ ایسوس چی دارید؟,laptop-1 laptop-3 laptop-4 laptop-7,laptop-7 laptop-1 laptop-3 laptop-4,4,1,1,1.0,1.0,1.0,0,1.512,0.0004944,"search_product {'category': 'لپ\u200cتاپ', 'brand': 'ایسوس'}"
+gemini,graph_jev,B02,brand,لپ‌تاپ ایسوس چی دارید؟,laptop-1 laptop-3 laptop-4 laptop-7,laptop-7 laptop-1 laptop-3 laptop-4,4,1,1,1.0,1.0,1.0,0,0.923,0.0001092,"search_product {'brand': 'ایسوس', 'category': 'لپ\u200cتاپ'}"
+gemini,vector,B03,brand,کفش‌های آدیداس,shoe-run-1 shoe-run-7,shoe-run-7 shoe-run-1 acc-7 shoe-casual-7 shoe-casual-5 shoe-casual-9,6,1,1,1.0,0.333,1.0,0,0.9,8e-07,
+gemini,rule_sql,B03,brand,کفش‌های آدیداس,shoe-run-1 shoe-run-7,shoe-run-7 shoe-run-1 acc-7,3,1,1,1.0,0.667,1.0,0,0.054,0.0,{'brand': 'آدیداس'}
+gemini,graph_llm,B03,brand,کفش‌های آدیداس,shoe-run-1 shoe-run-7,shoe-run-7 shoe-run-1,2,1,1,1.0,1.0,1.0,0,2.467,0.0004945,"search_product {'category': 'کفش ورزشی', 'brand': 'آدیداس'}"
+gemini,graph_jev,B03,brand,کفش‌های آدیداس,shoe-run-1 shoe-run-7,shoe-run-7 shoe-run-1,2,1,1,1.0,1.0,1.0,0,0.888,0.0001092,"search_product {'brand': 'آدیداس', 'category': 'کفش ورزشی'}"
+gemini,vector,B04,brand,لپ‌تاپ گیمینگ,laptop-4 laptop-5 laptop-9,laptop-5 laptop-9 laptop-4 laptop-1 laptop-8 laptop-7,6,1,1,1.0,0.5,1.0,0,1.065,8e-07,
+gemini,rule_sql,B04,brand,لپ‌تاپ گیمینگ,laptop-4 laptop-5 laptop-9,laptop-5 laptop-9 laptop-4 laptop-1 laptop-8 laptop-7,6,1,1,1.0,0.5,1.0,0,0.055,0.0,
+gemini,graph_llm,B04,brand,لپ‌تاپ گیمینگ,laptop-4 laptop-5 laptop-9,laptop-5 laptop-9 laptop-4,3,1,1,1.0,1.0,1.0,0,1.511,0.0005054,search_product {'category': 'لپ\u200cتاپ'}
+gemini,graph_jev,B04,brand,لپ‌تاپ گیمینگ,laptop-4 laptop-5 laptop-9,laptop-5 laptop-9 laptop-4,3,1,1,1.0,1.0,1.0,0,0.854,0.0001092,search_product {'category': 'لپ\u200cتاپ'}
+gemini,vector,B05,brand,کفش رسمی,shoe-casual-0 shoe-casual-2 shoe-casual-3 shoe-casual-8,shoe-casual-0 shoe-casual-2 shoe-casual-8 shoe-casual-3 shoe-casual-7 shoe-casual-1,6,1,1,1.0,0.667,1.0,0,0.054,0.0,
+gemini,rule_sql,B05,brand,کفش رسمی,shoe-casual-0 shoe-casual-2 shoe-casual-3 shoe-casual-8,shoe-casual-0 shoe-casual-2 shoe-casual-8 shoe-casual-3 shoe-casual-7 shoe-casual-1,6,1,1,1.0,0.667,1.0,0,0.054,0.0,
+gemini,graph_llm,B05,brand,کفش رسمی,shoe-casual-0 shoe-casual-2 shoe-casual-3 shoe-casual-8,shoe-casual-0 shoe-casual-2 shoe-casual-8 shoe-casual-3,4,1,1,1.0,1.0,1.0,0,1.367,0.0004878,search_product {'category': 'کفش رسمی'}
+gemini,graph_jev,B05,brand,کفش رسمی,shoe-casual-0 shoe-casual-2 shoe-casual-3 shoe-casual-8,shoe-casual-0 shoe-casual-2 shoe-casual-8 shoe-casual-3,4,1,1,1.0,1.0,1.0,0,0.868,0.0001088,search_product {'category': 'کفش رسمی'}
+gemini,vector,B06,brand,لپ‌تاپ اداری,laptop-0 laptop-1 laptop-2 laptop-6,laptop-0 laptop-2 laptop-1 laptop-6 laptop-8 laptop-3,6,1,1,1.0,0.667,1.0,0,1.042,8e-07,
+gemini,rule_sql,B06,brand,لپ‌تاپ اداری,laptop-0 laptop-1 laptop-2 laptop-6,laptop-0 laptop-2 laptop-1 laptop-6 laptop-8 laptop-3,6,1,1,1.0,0.667,1.0,0,0.058,0.0,
+gemini,graph_llm,B06,brand,لپ‌تاپ اداری,laptop-0 laptop-1 laptop-2 laptop-6,laptop-0 laptop-2 laptop-1 laptop-6 laptop-8,5,1,1,1.0,0.8,1.0,0,1.411,0.0005075,search_product {'category': 'لپ\u200cتاپ'}
+gemini,graph_jev,B06,brand,لپ‌تاپ اداری,laptop-0 laptop-1 laptop-2 laptop-6,laptop-0 laptop-2 laptop-1 laptop-6 laptop-8,5,1,1,1.0,0.8,1.0,0,0.95,0.0001091,search_product {'category': 'لپ\u200cتاپ'}
+gemini,vector,B07,brand,از برند بلوط چی دارید؟,acc-0 acc-4 shoe-casual-0 shoe-casual-2 shoe-casual-3 shoe-casual-8,shoe-casual-0 shoe-casual-3 acc-0 shoe-casual-8 acc-4 shoe-casual-2,6,1,1,1.0,1.0,1.0,0,1.077,1.2e-06,
+gemini,rule_sql,B07,brand,از برند بلوط چی دارید؟,acc-0 acc-4 shoe-casual-0 shoe-casual-2 shoe-casual-3 shoe-casual-8,shoe-casual-0 shoe-casual-3 acc-0 shoe-casual-8 acc-4 shoe-casual-2,6,1,1,1.0,1.0,1.0,0,0.053,0.0,{'brand': 'بلوط'}
+gemini,graph_llm,B07,brand,از برند بلوط چی دارید؟,acc-0 acc-4 shoe-casual-0 shoe-casual-2 shoe-casual-3 shoe-casual-8,shoe-casual-0 shoe-casual-3 acc-0 shoe-casual-8 acc-4 shoe-casual-2,6,1,1,1.0,1.0,1.0,0,1.381,0.0004866,search_product {'brand': 'بلوط'}
+gemini,graph_jev,B07,brand,از برند بلوط چی دارید؟,acc-0 acc-4 shoe-casual-0 shoe-casual-2 shoe-casual-3 shoe-casual-8,shoe-casual-0 shoe-casual-3 acc-0 shoe-casual-8 acc-4 shoe-casual-2,6,1,1,1.0,1.0,1.0,0,0.932,0.000109,search_product {'brand': 'بلوط'}
+gemini,vector,B08,brand,کفش دویدن آسیکس,shoe-run-3 shoe-run-8,shoe-run-3 shoe-run-8 shoe-run-9 shoe-run-0 shoe-run-7 shoe-run-5,6,1,1,1.0,0.333,1.0,0,0.883,9e-07,
+gemini,rule_sql,B08,brand,کفش دویدن آسیکس,shoe-run-3 shoe-run-8,shoe-run-3 shoe-run-8,2,1,1,1.0,1.0,1.0,0,0.052,0.0,{'brand': 'آسیکس'}
+gemini,graph_llm,B08,brand,کفش دویدن آسیکس,shoe-run-3 shoe-run-8,shoe-run-3 shoe-run-8,2,1,1,1.0,1.0,1.0,0,2.372,0.0005002,"search_product {'category': 'کفش ورزشی', 'brand': 'آسیکس'}"
+gemini,graph_jev,B08,brand,کفش دویدن آسیکس,shoe-run-3 shoe-run-8,shoe-run-3 shoe-run-8,2,1,1,1.0,1.0,1.0,0,0.796,0.0001092,"search_product {'brand': 'آسیکس', 'category': 'کفش ورزشی'}"
+gemini,vector,P01,price,لپ‌تاپ زیر ۲۰ میلیون,laptop-1 laptop-3 laptop-8,laptop-8 laptop-9 laptop-3 laptop-1 laptop-4 laptop-5,6,1,1,1.0,0.5,1.0,0,1.125,1e-06,
+gemini,rule_sql,P01,price,لپ‌تاپ زیر ۲۰ میلیون,laptop-1 laptop-3 laptop-8,laptop-8 laptop-3 laptop-1 acc-0 acc-8 shoe-run-2,6,1,1,1.0,0.5,1.0,0,0.061,0.0,{'maxPrice': 20000000.0}
+gemini,graph_llm,P01,price,لپ‌تاپ زیر ۲۰ میلیون,laptop-1 laptop-3 laptop-8,laptop-8 laptop-3 laptop-1,3,1,1,1.0,1.0,1.0,0,1.583,0.0005049,"search_product {'category': 'لپ\u200cتاپ', 'maxPrice': 20000000.0}"
+gemini,graph_jev,P01,price,لپ‌تاپ زیر ۲۰ میلیون,laptop-1 laptop-3 laptop-8,laptop-8 laptop-3 laptop-1,3,1,1,1.0,1.0,1.0,0,0.81,0.0001196,"search_product {'maxPrice': 20000000.0, 'category': 'لپ\u200cتاپ'}"
+gemini,vector,P02,price,کفش دویدن تا یک و نیم میلیون,shoe-run-0 shoe-run-5 shoe-run-7,shoe-run-0 shoe-run-5 shoe-run-4 shoe-run-2 shoe-run-3 shoe-run-1,6,1,1,0.667,0.333,1.0,0,1.07,1.5e-06,
+gemini,rule_sql,P02,price,کفش دویدن تا یک و نیم میلیون,shoe-run-0 shoe-run-5 shoe-run-7,shoe-run-0 shoe-run-5 shoe-run-7 shoe-casual-9 shoe-casual-4 shoe-casual-1,6,1,1,1.0,0.5,1.0,0,0.065,0.0,{'maxPrice': 1500000.0}
+gemini,graph_llm,P02,price,کفش دویدن تا یک و نیم میلیون,shoe-run-0 shoe-run-5 shoe-run-7,shoe-run-0 shoe-run-5 shoe-run-7,3,1,1,1.0,1.0,1.0,0,2.555,0.000513,"search_product {'category': 'کفش ورزشی', 'maxPrice': 1500000.0}"
+gemini,graph_jev,P02,price,کفش دویدن تا یک و نیم میلیون,shoe-run-0 shoe-run-5 shoe-run-7,shoe-run-0 shoe-run-5 shoe-run-7,3,1,1,1.0,1.0,1.0,0,0.873,0.0001197,"search_product {'maxPrice': 1500000.0, 'category': 'کفش ورزشی'}"
+gemini,vector,P03,price,لپ‌تاپ بالای ۴۰ میلیون,laptop-4 laptop-5,laptop-5 laptop-9 laptop-4 laptop-1 laptop-8 laptop-6,6,1,1,1.0,0.333,1.0,0,1.11,1.2e-06,
+gemini,rule_sql,P03,price,لپ‌تاپ بالای ۴۰ میلیون,laptop-4 laptop-5,laptop-5 laptop-4,2,1,1,1.0,1.0,1.0,0,0.055,0.0,{'minPrice': 40000000.0}
+gemini,graph_llm,P03,price,لپ‌تاپ بالای ۴۰ میلیون,laptop-4 laptop-5,laptop-5 laptop-4,2,1,1,1.0,1.0,1.0,0,1.616,0.0005052,"search_product {'category': 'لپ\u200cتاپ', 'minPrice': 40000000.0}"
+gemini,graph_jev,P03,price,لپ‌تاپ بالای ۴۰ میلیون,laptop-4 laptop-5,laptop-5 laptop-4,2,1,1,1.0,1.0,1.0,0,0.771,0.00012,"search_product {'minPrice': 40000000.0, 'category': 'لپ\u200cتاپ'}"
+gemini,vector,P04,price,کفش دویدن بین یک و نیم تا دو میلیون تومان,shoe-run-1 shoe-run-2 shoe-run-3 shoe-run-4 shoe-run-7 shoe-run-8,shoe-run-5 shoe-run-4 shoe-run-0 shoe-run-9 shoe-run-2 shoe-run-3,6,0,1,0.5,0.5,0.5,0,1.084,2.1e-06,
+gemini,rule_sql,P04,price,کفش دویدن بین یک و نیم تا دو میلیون تومان,shoe-run-1 shoe-run-2 shoe-run-3 shoe-run-4 shoe-run-7 shoe-run-8,shoe-run-5 shoe-run-4 shoe-run-0 shoe-run-2 shoe-run-3 shoe-run-7,6,0,1,0.667,0.667,0.5,0,0.059,0.0,{'maxPrice': 2000000}
+gemini,graph_llm,P04,price,کفش دویدن بین یک و نیم تا دو میلیون تومان,shoe-run-1 shoe-run-2 shoe-run-3 shoe-run-4 shoe-run-7 shoe-run-8,shoe-run-4 shoe-run-2 shoe-run-3 shoe-run-7 shoe-run-8 shoe-run-1,6,1,1,1.0,1.0,1.0,0,2.883,0.0005198,"search_product {'category': 'کفش ورزشی', 'maxPrice': 2000000.0, 'minPrice': 1500000.0}"
+gemini,graph_jev,P04,price,کفش دویدن بین یک و نیم تا دو میلیون تومان,shoe-run-1 shoe-run-2 shoe-run-3 shoe-run-4 shoe-run-7 shoe-run-8,shoe-run-5 shoe-run-4 shoe-run-0 shoe-run-2 shoe-run-3 shoe-run-7,6,0,1,0.667,0.667,0.5,0,0.854,0.0001199,"search_product {'maxPrice': 2000000.0, 'category': 'کفش ورزشی'}"
+gemini,vector,P05,price,لوازم جانبی زیر ۳۰۰ هزار تومان,acc-5 acc-6 acc-7,acc-8 acc-9 acc-3 acc-5 acc-6 laptop-8,6,0,0,0.667,0.333,0.25,0,1.058,1.6e-06,
+gemini,rule_sql,P05,price,لوازم جانبی زیر ۳۰۰ هزار تومان,acc-5 acc-6 acc-7,acc-5 acc-6 acc-7,3,1,1,1.0,1.0,1.0,0,0.05,0.0,{'maxPrice': 300000.0}
+gemini,graph_llm,P05,price,لوازم جانبی زیر ۳۰۰ هزار تومان,acc-5 acc-6 acc-7,acc-5 acc-6 acc-7,3,1,1,1.0,1.0,1.0,0,1.478,0.0005031,"search_product {'category': 'لوازم جانبی', 'maxPrice': 300000.0}"
+gemini,graph_jev,P05,price,لوازم جانبی زیر ۳۰۰ هزار تومان,acc-5 acc-6 acc-7,acc-5 acc-6 acc-7,3,1,1,1.0,1.0,1.0,0,0.862,0.00012,"search_product {'maxPrice': 300000.0, 'category': 'لوازم جانبی'}"
+gemini,vector,P06,price,لپ‌تاپ لنوو زیر ۲۵ میلیون,laptop-0 laptop-8,laptop-8 laptop-5 laptop-0 laptop-9 laptop-3 laptop-1,6,1,1,1.0,0.333,1.0,0,0.869,1.3e-06,
+gemini,rule_sql,P06,price,لپ‌تاپ لنوو زیر ۲۵ میلیون,laptop-0 laptop-8,laptop-8 laptop-0,2,1,1,1.0,1.0,1.0,0,0.058,0.0,"{'maxPrice': 25000000.0, 'brand': 'لنوو'}"
+gemini,graph_llm,P06,price,لپ‌تاپ لنوو زیر ۲۵ میلیون,laptop-0 laptop-8,laptop-8 laptop-0,2,1,1,1.0,1.0,1.0,0,1.465,0.0005115,"search_product {'category': 'لپ\u200cتاپ', 'maxPrice': 25000000.0, 'brand': 'لنوو'}"
+gemini,graph_jev,P06,price,لپ‌تاپ لنوو زیر ۲۵ میلیون,laptop-0 laptop-8,laptop-8 laptop-0,2,1,1,1.0,1.0,1.0,0,1.5,0.00012,"search_product {'maxPrice': 25000000.0, 'brand': 'لنوو', 'category': 'لپ\u200cتاپ'}"
+gemini,vector,P07,price,کفش رسمی حداکثر یک میلیون و صد,shoe-casual-0 shoe-casual-8,shoe-casual-0 shoe-casual-2 shoe-casual-8 shoe-casual-3 shoe-casual-9 shoe-casual-7,6,1,1,1.0,0.333,1.0,0,1.053,1.6e-06,
+gemini,rule_sql,P07,price,کفش رسمی حداکثر یک میلیون و صد,shoe-casual-0 shoe-casual-8,shoe-casual-7 shoe-casual-1 shoe-casual-5 shoe-casual-4 acc-0 acc-4,6,0,0,0.0,0.0,0.0,0,0.053,0.0,{'maxPrice': 1000000}
+gemini,graph_llm,P07,price,کفش رسمی حداکثر یک میلیون و صد,shoe-casual-0 shoe-casual-8,shoe-casual-0 shoe-casual-8,2,1,1,1.0,1.0,1.0,0,1.482,0.0005047,"search_product {'category': 'کفش رسمی', 'maxPrice': 1100000.0}"
+gemini,graph_jev,P07,price,کفش رسمی حداکثر یک میلیون و صد,shoe-casual-0 shoe-casual-8,shoe-casual-8 shoe-casual-0 shoe-casual-3,3,1,1,1.0,0.667,1.0,0,0.821,0.0001198,"search_product {'maxPrice': 1000000.0, 'category': 'کفش رسمی'}"
+gemini,vector,P08,price,لپ‌تاپ بین ۲۰ تا ۳۰ میلیون,laptop-0 laptop-2 laptop-6 laptop-7,laptop-8 laptop-5 laptop-9 laptop-3 laptop-1 laptop-4,6,0,0,0.0,0.0,0.0,0,1.185,1.3e-06,
+gemini,rule_sql,P08,price,لپ‌تاپ بین ۲۰ تا ۳۰ میلیون,laptop-0 laptop-2 laptop-6 laptop-7,laptop-0 laptop-7 laptop-6 laptop-2,4,1,1,1.0,1.0,1.0,0,0.052,0.0,"{'minPrice': 20000000.0, 'maxPrice': 30000000.0}"
+gemini,graph_llm,P08,price,لپ‌تاپ بین ۲۰ تا ۳۰ میلیون,laptop-0 laptop-2 laptop-6 laptop-7,laptop-0 laptop-7 laptop-6 laptop-2,4,1,1,1.0,1.0,1.0,0,1.669,0.0005109,"search_product {'category': 'لپ\u200cتاپ', 'maxPrice': 30000000.0, 'minPrice': 20000000.0}"
+gemini,graph_jev,P08,price,لپ‌تاپ بین ۲۰ تا ۳۰ میلیون,laptop-0 laptop-2 laptop-6 laptop-7,laptop-0 laptop-7 laptop-6 laptop-2,4,1,1,1.0,1.0,1.0,0,0.863,0.0001307,"search_product {'maxPrice': 30000000.0, 'minPrice': 20000000.0, 'category': 'لپ\u200cتاپ'}"
+gemini,vector,D01,need,یه چیزی می‌خوام که تو سفر گوشیم رو شارژ کنه,acc-8,acc-8 acc-1 laptop-9 laptop-2 acc-0 shoe-run-7,6,1,1,1.0,0.167,1.0,0,1.674,2.3e-06,
+gemini,rule_sql,D01,need,یه چیزی می‌خوام که تو سفر گوشیم رو شارژ کنه,acc-8,acc-8 acc-1 laptop-9 laptop-2 acc-0 shoe-run-7,6,1,1,1.0,0.167,1.0,0,0.059,0.0,
+gemini,graph_llm,D01,need,یه چیزی می‌خوام که تو سفر گوشیم رو شارژ کنه,acc-8,,0,0,0,0.0,0.0,0.0,0,1.286,0.0004971,needs_clarification
+gemini,graph_jev,D01,need,یه چیزی می‌خوام که تو سفر گوشیم رو شارژ کنه,acc-8,acc-8,1,1,1,1.0,1.0,1.0,0,1.683,0.0001126,search_product {'category': 'لوازم جانبی'}
+gemini,vector,D02,need,کفش برای کسی که کف پاش صافه,shoe-run-8,shoe-casual-9 shoe-run-8 shoe-casual-7 shoe-casual-3 shoe-casual-8 shoe-casual-1,6,0,1,1.0,0.167,0.5,0,0.891,1.5e-06,
+gemini,rule_sql,D02,need,کفش برای کسی که کف پاش صافه,shoe-run-8,shoe-casual-9 shoe-run-8 shoe-casual-7 shoe-casual-3 shoe-casual-8 shoe-casual-1,6,0,1,1.0,0.167,0.5,0,0.06,0.0,
+gemini,graph_llm,D02,need,کفش برای کسی که کف پاش صافه,shoe-run-8,,0,0,0,0.0,0.0,0.0,0,1.302,0.0004914,needs_clarification {'category': 'کفش روزمره'}
+gemini,graph_jev,D02,need,کفش برای کسی که کف پاش صافه,shoe-run-8,shoe-casual-9 shoe-run-8 shoe-casual-7 shoe-casual-3 shoe-casual-8 shoe-casual-1,6,0,1,1.0,0.167,0.5,0,1.247,0.0001093,search_product
+gemini,vector,D03,need,برای دویدن تو کوه و مسیر خاکی کفش می‌خوام,shoe-run-9,shoe-run-9 shoe-run-0 shoe-run-2 shoe-run-8 shoe-run-5 shoe-casual-6,6,1,1,1.0,0.167,1.0,0,1.033,2.1e-06,
+gemini,rule_sql,D03,need,برای دویدن تو کوه و مسیر خاکی کفش می‌خوام,shoe-run-9,shoe-run-9 shoe-run-0 shoe-run-2 shoe-run-8 shoe-run-5 shoe-casual-6,6,1,1,1.0,0.167,1.0,0,0.06,0.0,
+gemini,graph_llm,D03,need,برای دویدن تو کوه و مسیر خاکی کفش می‌خوام,shoe-run-9,shoe-run-9,1,1,1,1.0,1.0,1.0,0,2.897,0.0005148,search_product {'category': 'کفش ورزشی'}
+gemini,graph_jev,D03,need,برای دویدن تو کوه و مسیر خاکی کفش می‌خوام,shoe-run-9,shoe-run-9,1,1,1,1.0,1.0,1.0,0,2.91,0.0001126,search_product {'category': 'کفش ورزشی'}
+gemini,vector,D04,need,لپ‌تاپ سبک که راحت جابه‌جاش کنم,laptop-1 laptop-3 laptop-7,laptop-8 laptop-3 laptop-1 laptop-7 laptop-0 laptop-2,6,0,1,1.0,0.5,0.5,0,1.107,1.6e-06,
+gemini,rule_sql,D04,need,لپ‌تاپ سبک که راحت جابه‌جاش کنم,laptop-1 laptop-3 laptop-7,laptop-8 laptop-3 laptop-1 laptop-7 laptop-0 laptop-2,6,0,1,1.0,0.5,0.5,0,0.058,0.0,
+gemini,graph_llm,D04,need,لپ‌تاپ سبک که راحت جابه‌جاش کنم,laptop-1 laptop-3 laptop-7,laptop-8 laptop-3 laptop-7 laptop-1 laptop-0,5,0,1,1.0,0.6,0.5,0,3.643,0.0005097,search_product {'category': 'لپ\u200cتاپ'}
+gemini,graph_jev,D04,need,لپ‌تاپ سبک که راحت جابه‌جاش کنم,laptop-1 laptop-3 laptop-7,laptop-8 laptop-3 laptop-1 laptop-7 laptop-0,5,0,1,1.0,0.6,0.5,0,1.335,0.0001095,search_product {'category': 'لپ\u200cتاپ'}
+gemini,vector,D05,need,کفشی که برای ایستادن طولانی سر کار مناسب باشه,shoe-casual-9,shoe-casual-9 shoe-casual-0 shoe-run-7 shoe-casual-7 shoe-casual-4 shoe-casual-5,6,1,1,1.0,0.167,1.0,0,1.535,2.4e-06,
+gemini,rule_sql,D05,need,کفشی که برای ایستادن طولانی سر کار مناسب باشه,shoe-casual-9,shoe-casual-9 shoe-casual-0 shoe-run-7 shoe-casual-7 shoe-casual-4 shoe-casual-5,6,1,1,1.0,0.167,1.0,0,0.053,0.0,
+gemini,graph_llm,D05,need,کفشی که برای ایستادن طولانی سر کار مناسب باشه,shoe-casual-9,shoe-casual-9,1,1,1,1.0,1.0,1.0,0,2.54,0.0005134,search_product {'category': 'کفش روزمره'}
+gemini,graph_jev,D05,need,کفشی که برای ایستادن طولانی سر کار مناسب باشه,shoe-casual-9,shoe-casual-9,1,1,1,1.0,1.0,1.0,0,1.997,0.0001126,search_product {'category': 'کفش روزمره'}
+gemini,vector,D06,need,یه چیزی برای محافظت از آفتاب,acc-3 acc-6,acc-6 acc-3 shoe-casual-5 shoe-run-7 shoe-casual-6 shoe-casual-7,6,1,1,1.0,0.333,1.0,0,1.186,1.5e-06,
+gemini,rule_sql,D06,need,یه چیزی برای محافظت از آفتاب,acc-3 acc-6,acc-6 acc-3 shoe-casual-5 shoe-run-7 shoe-casual-6 shoe-casual-7,6,1,1,1.0,0.333,1.0,0,0.057,0.0,
+gemini,graph_llm,D06,need,یه چیزی برای محافظت از آفتاب,acc-3 acc-6,,0,0,0,0.0,0.0,0.0,0,1.269,0.0004851,needs_clarification
+gemini,graph_jev,D06,need,یه چیزی برای محافظت از آفتاب,acc-3 acc-6,acc-6 acc-3,2,1,1,1.0,1.0,1.0,0,0.807,0.0001093,search_product
+gemini,vector,D07,need,برای زمستون یه کفش گرم می‌خوام,shoe-casual-6,shoe-casual-6 shoe-casual-9 shoe-casual-5 shoe-casual-7 shoe-casual-0 shoe-run-1,6,1,1,1.0,0.167,1.0,0,1.21,1.6e-06,
+gemini,rule_sql,D07,need,برای زمستون یه کفش گرم می‌خوام,shoe-casual-6,shoe-casual-6 shoe-casual-9 shoe-casual-5 shoe-casual-7 shoe-casual-0 shoe-run-1,6,1,1,1.0,0.167,1.0,0,0.06,0.0,
+gemini,graph_llm,D07,need,برای زمستون یه کفش گرم می‌خوام,shoe-casual-6,,0,0,0,0.0,0.0,0.0,0,1.436,0.0005039,needs_clarification
+gemini,graph_jev,D07,need,برای زمستون یه کفش گرم می‌خوام,shoe-casual-6,shoe-casual-6,1,1,1,1.0,1.0,1.0,0,0.797,0.0001096,search_product
+gemini,vector,D08,need,کیفی که لپ‌تاپ توش جا بشه,acc-0,acc-0 laptop-1 laptop-9 laptop-2 acc-1 laptop-6,6,1,1,1.0,0.167,1.0,0,1.217,1.3e-06,
+gemini,rule_sql,D08,need,کیفی که لپ‌تاپ توش جا بشه,acc-0,acc-0 laptop-1 laptop-9 laptop-2 acc-1 laptop-6,6,1,1,1.0,0.167,1.0,0,0.061,0.0,
+gemini,graph_llm,D08,need,کیفی که لپ‌تاپ توش جا بشه,acc-0,laptop-1 acc-0 laptop-2 laptop-6 laptop-8 laptop-0,6,0,1,1.0,0.167,0.5,0,2.943,0.0005043,search_product
+gemini,graph_jev,D08,need,کیفی که لپ‌تاپ توش جا بشه,acc-0,acc-0,1,1,1,1.0,1.0,1.0,0,1.84,0.0001114,search_product {'category': 'لوازم جانبی'}
+gemini,vector,T01,sort,ارزون‌ترین لپ‌تاپتون کدومه؟,laptop-8,laptop-8 laptop-3 laptop-1 laptop-7 laptop-6 laptop-9,6,1,1,1.0,0.167,1.0,0,1.11,1.5e-06,
+gemini,rule_sql,T01,sort,ارزون‌ترین لپ‌تاپتون کدومه؟,laptop-8,laptop-8 laptop-3 laptop-1 laptop-7 laptop-6 laptop-9,6,1,1,1.0,0.167,1.0,0,0.057,0.0,
+gemini,graph_llm,T01,sort,ارزون‌ترین لپ‌تاپتون کدومه؟,laptop-8,laptop-8 laptop-3 laptop-1 laptop-0 laptop-2,5,1,1,1.0,0.2,1.0,0,1.468,0.0005234,search_product {'category': 'لپ\u200cتاپ'}
+gemini,graph_jev,T01,sort,ارزون‌ترین لپ‌تاپتون کدومه؟,laptop-8,laptop-8 laptop-3 laptop-1 laptop-0 laptop-2,5,1,1,1.0,0.2,1.0,0,0.775,0.0001097,search_product {'category': 'لپ\u200cتاپ'}
+gemini,vector,T02,sort,گرون‌ترین کفش دویدن,shoe-run-9,shoe-run-8 shoe-run-1 shoe-run-5 shoe-run-6 shoe-run-9 shoe-run-3,6,0,0,1.0,0.167,0.2,0,1.085,1e-06,
+gemini,rule_sql,T02,sort,گرون‌ترین کفش دویدن,shoe-run-9,shoe-run-8 shoe-run-1 shoe-run-5 shoe-run-6 shoe-run-9 shoe-run-3,6,0,0,1.0,0.167,0.2,0,0.058,0.0,
+gemini,graph_llm,T02,sort,گرون‌ترین کفش دویدن,shoe-run-9,shoe-run-9 shoe-run-6 shoe-run-8 shoe-run-3 shoe-run-4,5,1,1,1.0,0.2,1.0,0,2.868,0.000517,search_product {'category': 'کفش ورزشی'}
+gemini,graph_jev,T02,sort,گرون‌ترین کفش دویدن,shoe-run-9,shoe-run-9 shoe-run-6 shoe-run-8 shoe-run-3 shoe-run-4,5,1,1,1.0,0.2,1.0,0,0.682,0.0001094,search_product {'category': 'کفش ورزشی'}
+gemini,vector,T03,sort,ارزون‌ترین کفش دویدن نایک,shoe-run-0,shoe-run-0 shoe-run-2 shoe-run-6 shoe-run-5 shoe-run-4 shoe-run-7,6,1,1,1.0,0.167,1.0,0,1.047,1.3e-06,
+gemini,rule_sql,T03,sort,ارزون‌ترین کفش دویدن نایک,shoe-run-0,shoe-run-0 shoe-run-2 shoe-run-6 acc-5,4,1,1,1.0,0.25,1.0,0,0.054,0.0,{'brand': 'نایک'}
+gemini,graph_llm,T03,sort,ارزون‌ترین کفش دویدن نایک,shoe-run-0,shoe-run-0 shoe-run-2 shoe-run-6,3,1,1,1.0,0.333,1.0,0,2.793,0.0005347,"search_product {'category': 'کفش ورزشی', 'brand': 'نایک'}"
+gemini,graph_jev,T03,sort,ارزون‌ترین کفش دویدن نایک,shoe-run-0,shoe-run-0 shoe-run-2 shoe-run-6,3,1,1,1.0,0.333,1.0,0,0.75,0.0001096,"search_product {'brand': 'نایک', 'category': 'کفش ورزشی'}"
+gemini,vector,T04,sort,گرون‌ترین لپ‌تاپ ایسوس,laptop-4,laptop-7 laptop-1 laptop-4 laptop-3 laptop-5 laptop-9,6,0,1,1.0,0.167,0.333,0,0.974,1.2e-06,
+gemini,rule_sql,T04,sort,گرون‌ترین لپ‌تاپ ایسوس,laptop-4,laptop-7 laptop-1 laptop-4 laptop-3,4,0,1,1.0,0.25,0.333,0,0.055,0.0,{'brand': 'ایسوس'}
+gemini,graph_llm,T04,sort,گرون‌ترین لپ‌تاپ ایسوس,laptop-4,laptop-4 laptop-7 laptop-1 laptop-3,4,1,1,1.0,0.25,1.0,0,1.795,0.0005383,"search_product {'category': 'لپ\u200cتاپ', 'brand': 'ایسوس'}"
+gemini,graph_jev,T04,sort,گرون‌ترین لپ‌تاپ ایسوس,laptop-4,laptop-4 laptop-7 laptop-1 laptop-3,4,1,1,1.0,0.25,1.0,0,0.776,0.0001095,"search_product {'brand': 'ایسوس', 'category': 'لپ\u200cتاپ'}"
+gemini,vector,T05,sort,ارزون‌ترین کفش رسمی,shoe-casual-8,shoe-casual-0 shoe-casual-3 shoe-casual-2 shoe-casual-8 shoe-run-5 shoe-casual-1,6,0,0,1.0,0.167,0.25,0,1.207,1e-06,
+gemini,rule_sql,T05,sort,ارزون‌ترین کفش رسمی,shoe-casual-8,shoe-casual-0 shoe-casual-3 shoe-casual-2 shoe-casual-8 shoe-run-5 shoe-casual-1,6,0,0,1.0,0.167,0.25,0,0.06,0.0,
+gemini,graph_llm,T05,sort,ارزون‌ترین کفش رسمی,shoe-casual-8,shoe-casual-7 shoe-casual-5 shoe-casual-4 shoe-casual-1 shoe-casual-8,5,0,0,1.0,0.2,0.2,0,1.623,0.0005217,search_product {'category': 'کفش رسمی'}
+gemini,graph_jev,T05,sort,ارزون‌ترین کفش رسمی,shoe-casual-8,shoe-casual-8 shoe-casual-0 shoe-casual-3 shoe-casual-2,4,1,1,1.0,0.25,1.0,0,1.496,0.0001092,search_product {'category': 'کفش رسمی'}
+gemini,vector,A01,absent,موتور سیکلت برقی دارید؟,,acc-8 laptop-7 shoe-run-5 shoe-casual-0 shoe-casual-5 shoe-casual-6,6,0,0,0,0,0,0,2.063,1.2e-06,
+gemini,rule_sql,A01,absent,موتور سیکلت برقی دارید؟,,acc-8 laptop-7 shoe-run-5 shoe-casual-0 shoe-casual-5 shoe-casual-6,6,0,0,0,0,0,0,0.053,0.0,
+gemini,graph_llm,A01,absent,موتور سیکلت برقی دارید؟,,,0,0,0,0,0,0,1,2.781,0.0005011,search_product
+gemini,graph_jev,A01,absent,موتور سیکلت برقی دارید؟,,,0,0,0,0,0,0,1,1.969,0.0001093,search_product
+gemini,vector,A02,absent,گوشی آیفون می‌خوام,,laptop-4 laptop-3 shoe-run-0 shoe-run-2 shoe-run-6 laptop-8,6,0,0,0,0,0,0,2.583,1e-06,
+gemini,rule_sql,A02,absent,گوشی آیفون می‌خوام,,laptop-4 laptop-3 shoe-run-0 shoe-run-2 shoe-run-6 laptop-8,6,0,0,0,0,0,0,0.054,0.0,
+gemini,graph_llm,A02,absent,گوشی آیفون می‌خوام,,,0,0,0,0,0,0,1,2.914,0.0004995,search_product
+gemini,graph_jev,A02,absent,گوشی آیفون می‌خوام,,,0,0,0,0,0,0,1,4.716,0.0001092,search_product
+gemini,vector,A03,absent,تلویزیون ۵۵ اینچ,,laptop-7 laptop-1 laptop-9 shoe-run-1 shoe-casual-8 laptop-5,6,0,0,0,0,0,0,3.809,9e-07,
+gemini,rule_sql,A03,absent,تلویزیون ۵۵ اینچ,,laptop-7 laptop-1 laptop-9 shoe-run-1 shoe-casual-8 laptop-5,6,0,0,0,0,0,0,0.06,0.0,
+gemini,graph_llm,A03,absent,تلویزیون ۵۵ اینچ,,,0,0,0,0,0,0,1,3.809,0.0005022,search_product
+gemini,graph_jev,A03,absent,تلویزیون ۵۵ اینچ,,,0,0,0,0,0,0,1,1.315,0.0001092,search_product
+gemini,vector,A04,absent,ماشین لباسشویی دارید؟,,shoe-casual-7 laptop-8 laptop-5 shoe-run-5 acc-2 shoe-run-3,6,0,0,0,0,0,0,1.654,1.2e-06,
+gemini,rule_sql,A04,absent,ماشین لباسشویی دارید؟,,shoe-casual-7 laptop-8 laptop-5 shoe-run-5 acc-2 shoe-run-3,6,0,0,0,0,0,0,0.056,0.0,
+gemini,graph_llm,A04,absent,ماشین لباسشویی دارید؟,,,0,0,0,0,0,0,1,1.47,0.0005011,search_product
+gemini,graph_jev,A04,absent,ماشین لباسشویی دارید؟,,,0,0,0,0,0,0,1,0.734,0.0001093,search_product
+gemini,vector,A05,absent,دوچرخه کوهستان,,shoe-run-9 acc-1 shoe-run-0 shoe-run-4 shoe-casual-6 shoe-run-5,6,0,0,0,0,0,0,1.143,8e-07,
+gemini,rule_sql,A05,absent,دوچرخه کوهستان,,shoe-run-9 acc-1 shoe-run-0 shoe-run-4 shoe-casual-6 shoe-run-5,6,0,0,0,0,0,0,0.057,0.0,
+gemini,graph_llm,A05,absent,دوچرخه کوهستان,,shoe-run-9,1,0,0,0,0,0,0,1.544,0.0005007,search_product
+gemini,graph_jev,A05,absent,دوچرخه کوهستان,,shoe-run-9,1,0,0,0,0,0,0,0.819,0.0001092,search_product

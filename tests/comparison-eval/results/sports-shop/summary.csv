@@ -1,0 +1,5 @@
+﻿system,system_label,cases,passed,pass_rate_percent,avg_latency_per_message_s,median_latency_per_message_s,max_latency_per_message_s,avg_latency_per_conversation_s,avg_cost_per_conversation_usd,avg_cost_per_message_usd,total_cost_usd,avg_llm_calls_per_message
+simple_rag,رگ ساده,55,44,80.0,3.061,3.038,4.592,4.897,0.000471,0.000295,0.025926,1.0
+rag_sql,رگ با وکتور و SQL,55,39,70.9,1.862,1.847,2.83,2.98,0.000441,0.000276,0.024261,1.0
+graph_llm,گراف زیفای بدون JEV,55,48,87.3,3.913,3.825,6.431,6.262,0.001193,0.000746,0.065634,2.0
+graph_jev,گراف زیفای با JEV,55,51,92.7,3.148,3.061,5.45,5.036,0.000592,0.00037,0.032575,1.02

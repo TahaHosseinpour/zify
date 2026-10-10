@@ -1,0 +1,5 @@
+﻿embedding_model,retriever,retriever_fa,requests,hit_at_1_percent,hit_at_3_percent,recall_percent,precision_percent,mrr_percent,avg_returned,nothing_returned_when_absent_percent,avg_seconds,avg_cost_usd,total_cost_usd
+gemini,vector,RAG ساده,42,78.4,89.2,94.1,30.6,85.2,6,0.0,1.191,1.2e-06,5.1e-05
+gemini,rule_sql,RAG با فیلتر SQL,42,81.1,91.9,96.4,47.5,87.3,4.95,0.0,0.058,0.0,0.0
+gemini,graph_llm,گراف با طبقه‌بند LLM,42,81.1,86.5,89.2,73.6,84.3,2.36,80.0,2.135,0.0005051,0.021216
+gemini,graph_jev,گراف با Jev,42,91.9,100,99.1,82.8,95.9,2.48,80.0,1.271,0.0001119,0.004701

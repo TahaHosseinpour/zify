@@ -8,6 +8,18 @@
     graph_jev    the production graph as deployed: Jev classifies, the LLM is
                  only the fallback.
 
+Four more are not part of the comparison but of the ablation run
+(run_comparison.py --ablations): graph_jev with one of its parts switched off,
+to see what each part is worth on its own.
+
+    graph_no_moves      buying, objecting and comparing take the ordinary
+                        search-and-suggest path instead of their own node
+    graph_no_clarify    a vague request is searched at once, never asked about
+    graph_no_relax      filters that match nothing are all dropped together,
+                        not one at a time from the most negotiable
+    graph_no_relevance  every row the search returns reaches the reply model,
+                        however far from the request
+
 All four answer from the same shop in the same database with the same reply
 model and the same embedding model, and all four carry a conversation across
 turns. What differs is only what happens between the customer's message and the
@@ -172,6 +184,81 @@ class GraphWithoutJev(GraphSystem):
     key, label, classifier = "graph_llm", "گراف زیفای بدون JEV", "llm"
 
 
+# ── The graph with one part switched off ─────────────────────────────────────
+
+
+class AblatedGraph(GraphWithJev):
+    """graph_jev with some of the graph module's own functions replaced for
+    the length of one conversation. Conversations run one at a time, so the
+    replacement never leaks into another system's run."""
+
+    def replacements(self) -> dict:
+        raise NotImplementedError
+
+    async def converse(self, messages: list[str]):
+        replaced = self.replacements()
+        originals = {name: getattr(G, name) for name in replaced}
+        for name, value in replaced.items():
+            setattr(G, name, value)
+        try:
+            # start() builds the graph inside converse, so replaced nodes and
+            # routers are the ones compiled into it.
+            return await super().converse(messages)
+        finally:
+            for name, value in originals.items():
+                setattr(G, name, value)
+
+
+class GraphWithoutSalesMoves(AblatedGraph):
+    key, label = "graph_no_moves", "گراف بدون مسیر حرکت‌های فروش"
+
+    def replacements(self) -> dict:
+        route = G.router_after_intent
+
+        def router_after_intent(state) -> str:
+            chosen = route(state)
+            if chosen != "handle_purchase":
+                return chosen
+            return "fan_out_product" if state.get("mode") == "product" else "fan_out_explore"
+
+        return {"router_after_intent": router_after_intent}
+
+
+class GraphWithoutClarifying(AblatedGraph):
+    key, label = "graph_no_clarify", "گراف بدون پرسش روشن‌کننده"
+
+    def replacements(self) -> dict:
+        analyze = G.analyze_intent
+
+        async def analyze_intent(state) -> dict:
+            updates = await analyze(state)
+            if updates.get("intent") in ("needs_clarification", "ask_question"):
+                updates["intent"] = "search_product"
+                updates["clarify_count"] = int(state.get("clarify_count") or 0)
+            return updates
+
+        return {"analyze_intent": analyze_intent}
+
+
+class GraphWithoutRelaxation(AblatedGraph):
+    key, label = "graph_no_relax", "گراف بدون سست‌سازی تدریجی فیلتر"
+
+    def replacements(self) -> dict:
+        # With nothing to drop one at a time, a filter that matches no row
+        # falls straight through to the unscoped search (graph._filter_step).
+        return {"FILTER_RELAXATION_ORDER": ()}
+
+
+class GraphWithoutRelevanceCut(AblatedGraph):
+    key, label = "graph_no_relevance", "گراف بدون حذف نتایج نامرتبط"
+
+    def replacements(self) -> dict:
+        return {
+            "_drop_irrelevant": lambda items, pinned_id: list(items),
+            "_within_gap": lambda items, pinned_id=None: list(items),
+        }
+
+
 # ── The two retrieval baselines ──────────────────────────────────────────────
 
 BASELINE_PRODUCT_K = 6
@@ -310,4 +397,7 @@ class RagWithSql(_RetrievalBaseline):
 
 
 SYSTEMS: list[type[System]] = [SimpleRag, RagWithSql, GraphWithoutJev, GraphWithJev]
-BY_KEY = {cls.key: cls for cls in SYSTEMS}
+ABLATIONS: list[type[System]] = [
+    GraphWithoutSalesMoves, GraphWithoutClarifying, GraphWithoutRelaxation, GraphWithoutRelevanceCut,
+]  # fmt: skip
+BY_KEY = {cls.key: cls for cls in SYSTEMS + ABLATIONS}

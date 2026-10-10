@@ -102,12 +102,23 @@ async def _ask_one_judge(
     model: str, rubric: str, ideal: str, transcript: str, reply: str, context: str
 ) -> JudgeVote:
     try:
-        judge_llm = ChatOpenAI(
-            model=model,
-            temperature=config.JUDGE_TEMPERATURE,
-            api_key=os.environ.get("OPENAI_API_KEY"),
-            base_url=os.environ.get("OPENAI_BASE_URL"),
-        ).with_structured_output(Verdict)
+        if model.lower().startswith("deepseek"):
+            # The agent's own DeepSeek settings (app/graph.py): no reasoning
+            # phase, and the verdict returned as a function call.
+            judge_llm = ChatOpenAI(
+                model=model,
+                temperature=config.JUDGE_TEMPERATURE,
+                api_key=os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("OPENAI_API_KEY"),
+                base_url=os.environ.get("DEEPSEEK_BASE_URL"),
+                extra_body={"thinking": {"type": "disabled"}},
+            ).with_structured_output(Verdict, method="function_calling")
+        else:
+            judge_llm = ChatOpenAI(
+                model=model,
+                temperature=config.JUDGE_TEMPERATURE,
+                api_key=os.environ.get("OPENAI_API_KEY"),
+                base_url=os.environ.get("OPENAI_BASE_URL"),
+            ).with_structured_output(Verdict)
         verdict: Verdict = await judge_llm.ainvoke(
             [
                 SystemMessage(content=JUDGE_SYSTEM_PROMPT),

@@ -10,9 +10,15 @@ makes that one judge abstain (see jury.py), so a bad entry here degrades the
 jury rather than breaking every eval test.
 """
 
+import os
+
+# A model whose name starts with "deepseek" is asked through DEEPSEEK_BASE_URL
+# (see jury.py); any other through OPENAI_BASE_URL. JUDGE_MODELS in the
+# environment, comma-separated, replaces the list.
 JUDGE_MODELS: list[str] = [
-    "gpt-5-mini",
-    "gpt-4o-mini",
+    m.strip()
+    for m in (os.environ.get("JUDGE_MODELS") or os.environ.get("DEEPSEEK_CHAT_MODEL") or "deepseek-v4.1-flash").split(",")
+    if m.strip()
 ]
 
 # At JUDGE_TEMPERATURE=0, the same model voting more than once always casts

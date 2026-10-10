@@ -5,6 +5,11 @@
     --list                     show the scenarios and systems, call nothing
     --only S03,D08             run just these scenarios
     --systems graph_jev        run just these systems (comma-separated keys)
+    --shop beauty              run the second sample shop and its own scenarios
+                               (dataset_beauty.py, scenarios_beauty.py) instead
+                               of the first
+    --ablations                run the graph with one of its parts switched off
+                               at a time, next to the whole graph (systems.py)
     --out <dir>                where to write the CSVs (default: a timestamped
                                folder under reports/comparison-eval/)
 
@@ -21,6 +26,7 @@ Written as the run goes, so an interrupted run keeps what it finished:
                   cost in dollars, tokens, and the reply itself
     summary.csv   one row per system: pass rate, average latency, average cost
     results.json  the same rows with full transcripts and each judge's reasoning
+    run.log       everything printed during the run, without colour
 
 Everything runs one conversation at a time, never concurrently, so no system's
 timings are skewed by another competing for the same rate limit. The embedding
@@ -51,15 +57,25 @@ sys.path.insert(0, str(HERE))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-from scenarios import SCENARIOS, Outcome, Scenario  # noqa: E402
+import console  # noqa: E402
+from scenarios import Outcome, Scenario  # noqa: E402
 
 SYSTEM_KEYS = ["simple_rag", "rag_sql", "graph_llm", "graph_jev"]
+# The whole graph, then the same graph with one part switched off (systems.py).
+ABLATION_KEYS = ["graph_jev", "graph_no_moves", "graph_no_clarify", "graph_no_relax", "graph_no_relevance"]
 SYSTEM_LABELS = {
     "simple_rag": "رگ ساده",
     "rag_sql": "رگ با وکتور و SQL",
     "graph_llm": "گراف زیفای بدون JEV",
     "graph_jev": "گراف زیفای با JEV",
+    "graph_no_moves": "گراف بدون مسیر حرکت‌های فروش",
+    "graph_no_clarify": "گراف بدون پرسش روشن‌کننده",
+    "graph_no_relax": "گراف بدون سست‌سازی تدریجی فیلتر",
+    "graph_no_relevance": "گراف بدون حذف نتایج نامرتبط",
 }
+# Scenario.kind is written to the CSV in Persian; the console speaks English.
+KIND_EN = {"قطعی": "code", "داوری‌شده": "judged"}
+SHOPS = {"sports": ("dataset", "scenarios"), "beauty": ("dataset_beauty", "scenarios_beauty")}
 
 RESULT_COLUMNS = [
     "case_id", "title", "group", "kind", "turns", "system", "system_label", "passed",
@@ -80,6 +96,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--only", default="", help="comma-separated scenario ids")
     parser.add_argument("--systems", default="", help=f"comma-separated system keys ({', '.join(SYSTEM_KEYS)})")
     parser.add_argument("--out", default="", help="output directory")
+    parser.add_argument("--shop", default="sports", choices=sorted(SHOPS), help="which sample shop to run")
+    parser.add_argument("--ablations", action="store_true", help=f"run {', '.join(ABLATION_KEYS)}")
     parser.add_argument(
         "--second-providers",
         action="store_true",
@@ -89,13 +107,21 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _list() -> None:
+def _shop(name: str):
+    """The dataset module and the scenarios of one sample shop."""
+    import importlib
+
+    dataset_module, scenarios_module = SHOPS[name]
+    return importlib.import_module(dataset_module), importlib.import_module(scenarios_module).SCENARIOS
+
+
+def _list(scenarios: list[Scenario]) -> None:
     print("systems:")
-    for key in SYSTEM_KEYS:
-        print(f"  {key:11s} {SYSTEM_LABELS[key]}")
-    print(f"\n{len(SCENARIOS)} scenarios:")
-    for s in SCENARIOS:
-        print(f"  {s.id}  {s.kind:9s}  {len(s.messages)} نوبت  {s.group:26s}  {s.title}")
+    for key in SYSTEM_LABELS:
+        print(f"  {key:18s} {SYSTEM_LABELS[key]}")
+    print(f"\n{len(scenarios)} scenarios:")
+    for s in scenarios:
+        print(f"  {s.id}  {KIND_EN[s.kind]:6s}  {len(s.messages)} turns  {s.title}")
 
 
 def _attachments(outcome: Outcome) -> str:
@@ -124,7 +150,13 @@ async def _score(scenario: Scenario, outcome: Outcome, transcript: list[dict], c
     )
     conversation = (earlier + "\n" if earlier else "") + f"مشتری: {transcript[-1]['customer']}"
     jury = await deliberate(
-        catalog, conversation, outcome.reply, _attachments(outcome), scenario.rubric, scenario.ideal
+        scenario.reference or catalog,
+        conversation,
+        outcome.reply,
+        _attachments(outcome),
+        scenario.rubric,
+        scenario.ideal,
+        partial=bool(scenario.reference),
     )
     return {
         "passed": jury.passed,
@@ -154,9 +186,9 @@ async def _converse_with_retries(system, scenario: Scenario):
         except Exception as exc:  # noqa: BLE001
             if type(exc).__name__ not in TRANSIENT_ERRORS or attempt == CONVERSATION_ATTEMPTS:
                 raise
-            print(f"(خطای موقت {type(exc).__name__}، تلاش دوباره) ", end="", flush=True)
+            print(console.yellow(f"(transient {type(exc).__name__}, retrying) "), end="", flush=True)
             await asyncio.sleep(5 * attempt)
-            G._embed_cache.clear()
+            G.clear_embed_caches()
 
 
 async def _run_one(system, scenario: Scenario, catalog: str) -> dict:
@@ -164,7 +196,7 @@ async def _run_one(system, scenario: Scenario, catalog: str) -> dict:
     from app import graph as G
 
     # No system inherits another's embeddings (see the module docstring).
-    G._embed_cache.clear()
+    G.clear_embed_caches()
     base = {
         "case_id": scenario.id, "title": scenario.title, "group": scenario.group, "kind": scenario.kind,
         "turns": len(scenario.messages), "system": system.key, "system_label": system.label,
@@ -176,7 +208,7 @@ async def _run_one(system, scenario: Scenario, catalog: str) -> dict:
         return {
             **base, "passed": False, "latency_total_s": "", "latency_per_message_s": "", "cost_usd": "",
             "input_tokens": 0, "output_tokens": 0, "jev_tokens": 0, "embedding_tokens": 0, "llm_calls": 0,
-            "cards": 0, "reason": f"اجرا خطا داد: {type(exc).__name__}: {exc}", "reply": "",
+            "cards": 0, "reason": f"run failed: {type(exc).__name__}: {exc}", "reply": "",
             "transcript": [], "votes": [], "errored": True,
         }  # fmt: skip
 
@@ -249,22 +281,30 @@ def _print_summary(records: list[dict], system_keys: list[str]) -> None:
     for r in records:
         by_case.setdefault(r["case_id"], {})[r["system"]] = r
 
-    print("\n" + "=" * 110)
-    print(f"{'':6s}" + "".join(f"{key:>14s}" for key in system_keys) + "   سناریو")
+    width = max(12, *(len(k) + 2 for k in system_keys))
+    console.heading("RESULT PER SCENARIO")
+    print(f"{'':7s}{'kind':8s}" + "".join(f"{key:>{width}s}" for key in system_keys))
     for case_id, per_system in by_case.items():
-        cells = "".join(
-            f"{('قبول' if per_system[k]['passed'] else 'رد') if k in per_system else '-':>14s}" for k in system_keys
-        )
-        print(f"{case_id:6s}{cells}   {next(iter(per_system.values()))['title']}")
+        cells = ""
+        for k in system_keys:
+            text = ("PASS" if per_system[k]["passed"] else "FAIL") if k in per_system else "-"
+            painted = console.verdict(text == "PASS") if text != "-" else "-"
+            cells += " " * (width - len(text)) + painted
+        print(f"{case_id:7s}{KIND_EN[next(iter(per_system.values()))['kind']]:8s}{cells}")
 
-    print("\n" + "-" * 110)
+    console.heading("SUMMARY  -  pass rate, time per message, cost per conversation")
+    print(
+        f"{'system':20s}{'passed':>9s}{'rate':>8s}{'avg s':>9s}{'median s':>10s}{'max s':>9s}"
+        f"{'$ / conv.':>13s}{'$ / msg':>13s}{'total $':>12s}{'LLM calls/msg':>15s}"
+    )
     for row in _summarise(records, system_keys):
+        share = f"{row['pass_rate_percent']:.1f}%"
         print(
-            f"{row['system']:11s} قبولی {row['passed']}/{row['cases']} ({row['pass_rate_percent']}%)"
-            f" | تاخیر هر پیام: میانگین {row['avg_latency_per_message_s']}s، میانه "
-            f"{row['median_latency_per_message_s']}s، بیشینه {row['max_latency_per_message_s']}s"
-            f" | هزینه هر گفت‌وگو: ${row['avg_cost_per_conversation_usd']}"
-            f" | فراخوانی LLM هر پیام: {row['avg_llm_calls_per_message']}"
+            f"{row['system']:20s}{str(row['passed']) + '/' + str(row['cases']):>9s}"
+            + " " * (8 - len(share)) + console.rate(row["pass_rate_percent"])
+            + f"{row['avg_latency_per_message_s']:>9}{row['median_latency_per_message_s']:>10}{row['max_latency_per_message_s']:>9}"
+            f"{console.money(row['avg_cost_per_conversation_usd']):>13s}{console.money(row['avg_cost_per_message_usd']):>13s}"
+            f"{console.money(row['total_cost_usd']):>12s}{row['avg_llm_calls_per_message']:>15}"
         )
 
 
@@ -323,6 +363,16 @@ async def _provider_is_up(second_providers: bool = False) -> bool:
             {"model": deepseek_model, "messages": hi, "max_tokens": 3, "thinking": {"type": "disabled"}},
         ))  # fmt: skip
 
+    # The agent asks the chat providers in CHAT_PROVIDER_ORDER (app/graph.py),
+    # so that is the order they are checked in, and "first" means the same
+    # provider here as it does there.
+    order = [n.strip().lower() for n in os.environ.get("CHAT_PROVIDER_ORDER", "").split(",") if n.strip()]
+    chains["chat"].sort(key=lambda link: order.index(link[0]) if link[0] in order else len(order))
+    embedding_order = [n.strip().lower() for n in os.environ.get("EMBEDDING_PROVIDER_ORDER", "").split(",") if n.strip()]
+    chains["embedding"].sort(
+        key=lambda link: embedding_order.index(link[0]) if link[0] in embedding_order else len(embedding_order)
+    )
+
     if second_providers:
         missing = [name for name, url in (("DEEPSEEK_BASE_URL", deepseek), ("GEMINI_BASE_URL", gemini)) if not url]
         if missing:
@@ -355,7 +405,7 @@ async def _provider_is_up(second_providers: bool = False) -> bool:
             if serving is None:
                 ok = False
             else:
-                note = "" if serving[0] == chain[0][0] else "  <- SECOND provider, not the benchmark's usual model"
+                note = "" if serving[0] == chain[0][0] else "  <- SECOND provider, not the one configured to answer"
                 print(f"  {kind}: this run uses {serving[0]} ({serving[1]}){note}")
     if not ok:
         print("\nNo model provider is answering for one kind of call, so nothing was run. Try again in a few minutes.")
@@ -364,14 +414,17 @@ async def _provider_is_up(second_providers: bool = False) -> bool:
 
 async def main() -> int:
     args = _parse_args()
+    shop_data, shop_scenarios = _shop(args.shop)
     if args.list:
-        _list()
+        _list(shop_scenarios)
         return 0
 
     wanted = {s.strip().upper() for s in args.only.split(",") if s.strip()}
-    scenarios = [s for s in SCENARIOS if not wanted or s.id in wanted]
-    system_keys = [k.strip() for k in args.systems.split(",") if k.strip()] or SYSTEM_KEYS
-    unknown = [k for k in system_keys if k not in SYSTEM_KEYS]
+    scenarios = [s for s in shop_scenarios if not wanted or s.id in wanted]
+    system_keys = [k.strip() for k in args.systems.split(",") if k.strip()] or (
+        ABLATION_KEYS if args.ablations else SYSTEM_KEYS
+    )
+    unknown = [k for k in system_keys if k not in SYSTEM_LABELS]
     if unknown or not scenarios:
         print(f"unknown system {unknown}" if unknown else f"no scenario matches {sorted(wanted)}")
         return 2
@@ -388,12 +441,16 @@ async def main() -> int:
 
     import store
     import systems
-    from dataset import catalog_as_text
 
     out_dir = Path(args.out) if args.out else (
-        REPO_ROOT / "reports" / "comparison-eval" / datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+        REPO_ROOT / "reports" / "comparison-eval" / (
+            datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+            + ("" if args.shop == "sports" else f"-{args.shop}")
+            + ("-ablations" if args.ablations else "")
+        )
     )
     out_dir.mkdir(parents=True, exist_ok=True)
+    console.log_to(out_dir / "run.log")
 
     if not await _provider_is_up(args.second_providers):
         return 3
@@ -401,23 +458,29 @@ async def main() -> int:
     await db.connect()
     try:
         print("seeding the sample shop into the local database ...", flush=True)
-        shop_id = await store.seed()
-        catalog = catalog_as_text()
+        shop_id = await store.seed(shop_data)
+        catalog = shop_data.catalog_as_text()
         runners = [systems.BY_KEY[key](shop_id) for key in system_keys]
 
         records: list[dict] = []
         for index, scenario in enumerate(scenarios, 1):
             for system in runners:
-                print(f"[{index}/{len(scenarios)}] {scenario.id}  {system.key:11s} ...", end=" ", flush=True)
+                print(
+                    f"{console.grey(f'[{index:>2d}/{len(scenarios)}]')} {scenario.id:4s} {system.key:18s} ... ",
+                    end="",
+                    flush=True,
+                )
                 record = await _run_one(system, scenario, catalog)
                 records.append(record)
                 _write(out_dir, records, system_keys)
-                latency = record["latency_per_message_s"]
-                print(
-                    f"{'قبول' if record['passed'] else 'رد'}"
-                    + (f"  {latency}s/پیام  ${record['cost_usd']}" if latency != "" else f"  {record['reason']}"),
-                    flush=True,
-                )
+                if record.get("errored"):
+                    print(console.red(f"ERROR  {record['reason'][:110]}"), flush=True)
+                else:
+                    print(
+                        f"{console.verdict(record['passed'])}  {record['latency_per_message_s']:>7.3f} s/msg  "
+                        f"{console.money(record['cost_usd'])}  {record['llm_calls']} LLM calls",
+                        flush=True,
+                    )
 
         _print_summary(records, system_keys)
         print(f"\nresults.csv : {out_dir / 'results.csv'}")

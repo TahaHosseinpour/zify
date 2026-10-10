@@ -1,0 +1,6 @@
+Scenarios run again after their check was corrected (K03 and K09 were wrong in the test, not in the systems;
+K02, K06, K07, K13, K14, K22, K23, K24, K26 were rerun with the corrected recognition of product names):
+K02,K03,K06,K07,K09,K13,K14,K22,K23,K24,K26
+
+The other scenarios come from the first full run (embedding model: text-embedding-3-small);
+the rerun used gemini-embedding-001. The column `embedding` of results.csv says which.
