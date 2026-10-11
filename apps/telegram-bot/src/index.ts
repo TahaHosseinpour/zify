@@ -104,12 +104,17 @@ bot.command("start", async (ctx) => {
   }
 
   const endUser = await upsertEndUser(shop.id, telegramUserId, firstName, username)
-  const mode = productId ? "product" : "explore"
-  await getOrStartConversation(shop.id, endUser.id, mode, productId)
+  // A link to a product that is gone, or that belongs to another shop, opens
+  // the shop's general chat instead of pinning an id the agent cannot load.
+  const product = productId
+    ? await prisma.product.findFirst({ where: { id: productId, shopId: shop.id, isActive: true } })
+    : null
+  const mode = product ? "product" : "explore"
+  await getOrStartConversation(shop.id, endUser.id, mode, product?.id)
   await recordEvent(shop.id, endUser.id, "view")
 
-  const welcomeMsg = productId
-    ? `سلام ${firstName ?? ""}! 👋 به ${shop.name} خوش آمدید.\nبرای مشاهده اطلاعات این محصول آماده‌ام.`
+  const welcomeMsg = product
+    ? `سلام ${firstName ?? ""}! 👋 به ${shop.name} خوش آمدید.\nدرباره «${product.name}» هر سؤالی دارید بپرسید.`
     : `سلام ${firstName ?? ""}! 👋 به ${shop.name} خوش آمدید.\nمی‌توانم در یافتن محصول مناسب کمکتان کنم.`
 
   await ctx.reply(welcomeMsg, { reply_markup: withNavRow() })

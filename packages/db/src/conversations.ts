@@ -49,7 +49,11 @@ export async function getOrStartConversation(
     if (active && Date.now() - active.lastMessageAt.getTime() < CONVERSATION_TTL_MS) {
       return prisma.conversation.update({
         where: { id: active.id },
-        data: { lastMessageAt: new Date() },
+        // Arriving from a product link points the running conversation at
+        // that product. Without this the link only worked for a customer
+        // with no conversation in the last 24h - anyone else kept talking
+        // about whatever they had open before.
+        data: { lastMessageAt: new Date(), ...(productId ? { mode, productId } : {}) },
       });
     }
   }
