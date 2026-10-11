@@ -1,8 +1,8 @@
 import { randomInt } from "node:crypto"
 import { Smsir } from "smsir-js"
 
-// From the OS's CSPRNG: these codes are the second factor of the platform
-// admin login as well as the shop owner's OTP, and Math.random is predictable.
+// From the OS's CSPRNG: these codes sign a shop owner in, and Math.random is
+// predictable.
 function generateOtp(): string {
   return randomInt(100000, 1000000).toString()
 }
