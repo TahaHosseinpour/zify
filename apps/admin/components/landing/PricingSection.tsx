@@ -25,7 +25,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Toaster } from "@/components/ui/sonner"
 import { ChoiceGroup } from "@/components/choice-group"
 import { DURATION_LABELS, formatToman } from "@/lib/leads"
 import { cn } from "@/lib/utils"
@@ -322,7 +321,6 @@ export default function PricingSection({ plans }: { plans: PricingPlan[] }) {
           )}
         </DialogContent>
       </Dialog>
-      <Toaster />
     </section>
   )
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -271,8 +272,7 @@ export default function SettingsPage() {
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label>رمز عبور جدید</Label>
-            <Input
-              type="password"
+            <PasswordInput
               dir="ltr"
               className="text-left"
               placeholder="حداقل ۶ کاراکتر"
@@ -282,8 +282,7 @@ export default function SettingsPage() {
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>تکرار رمز عبور</Label>
-            <Input
-              type="password"
+            <PasswordInput
               dir="ltr"
               className="text-left"
               placeholder="رمز عبور را دوباره وارد کنید"

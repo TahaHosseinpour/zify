@@ -7,9 +7,9 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
 import { Label } from "@/components/ui/label"
-import { Toaster } from "@/components/ui/sonner"
 import { toPersianDigits } from "@/lib/utils"
 
 /** Sign-in for platform admins: username and password, then a code sent by
@@ -105,9 +105,8 @@ export default function AdminLoginPage() {
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="admin-password">رمز عبور</Label>
-                <Input
+                <PasswordInput
                   id="admin-password"
-                  type="password"
                   dir="ltr"
                   className="text-right"
                   autoComplete="current-password"
@@ -165,7 +164,6 @@ export default function AdminLoginPage() {
           )}
         </CardContent>
       </Card>
-      <Toaster />
     </div>
   )
 }
