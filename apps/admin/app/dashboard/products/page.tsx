@@ -176,25 +176,6 @@ export default function ProductsPage() {
     URL.revokeObjectURL(url)
   }
 
-  // A pasted/re-saved header ("لینک تصویر" edited in Excel, copied from
-  // elsewhere, ...) very easily picks up a leading BOM, stray zero-width
-  // joiners/non-joiners, or extra whitespace that's invisible in the sheet
-  // but breaks an exact `row["لینک تصویر"]` lookup outright - the column
-  // then silently imports as empty. Normalize both sides before matching so
-  // only the visible text has to line up.
-  function normalizeHeader(key: string): string {
-    return key.replace(/[​‌‍‎‏﻿]/g, "").trim().toLowerCase()
-  }
-
-  function getField(row: Record<string, string>, aliases: string[]): string {
-    const normalized = new Map(Object.entries(row).map(([k, v]) => [normalizeHeader(k), v]))
-    for (const alias of aliases) {
-      const value = normalized.get(normalizeHeader(alias))
-      if (value !== undefined && value !== "") return value
-    }
-    return ""
-  }
-
   async function importRows(rows: Record<string, string>[]) {
     setImporting(true)
     let ok = 0
@@ -204,13 +185,13 @@ export default function ProductsPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name: getField(row, ["name", "نام"]),
-            price: Number(getField(row, ["price", "قیمت"]) || 0),
-            description: getField(row, ["description", "توضیحات"]),
-            productUrl: getField(row, ["url", "لینک محصول", "لینک"]),
-            imageUrl: getField(row, ["image", "لینک تصویر", "تصویر"]),
-            category: getField(row, ["category", "دسته", "دسته‌بندی"]),
-            brand: getField(row, ["brand", "برند"]),
+            name: row.name || row["نام"],
+            price: Number(row.price || row["قیمت"] || 0),
+            description: row.description || row["توضیحات"] || "",
+            productUrl: row.url || row["لینک محصول"] || row["لینک"] || "",
+            imageUrl: row.image || row["لینک تصویر"] || row["تصویر"] || "",
+            category: row.category || row["دسته"] || row["دسته‌بندی"] || "",
+            brand: row.brand || row["برند"] || "",
           }),
         })
         if (res.ok) ok++
