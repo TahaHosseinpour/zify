@@ -117,11 +117,20 @@ openai_embedding_model = "text-embedding-3-small"
 # to Gemini. (Embeddings keep OpenAI first because the stored vectors of every
 # shop were made with it; a Gemini-first order is only for the benchmarks.)
 deepseek_base_url = "https://api.metisai.ir/deepseek/v1"
-deepseek_chat_model = "deepseek-v4-flash"
+deepseek_chat_model = "deepseek-v4.1-flash"
 gemini_base_url = "https://api.metisai.ir/v1beta"
 gemini_embedding_model = "gemini-embedding-001"
-chat_provider_order = "deepseek,openai"
-embedding_provider_order = "openai,gemini"
+# A second gateway (AvalAI) with a key of its own - deploy_secrets.avalai_api_key.
+# It is asked first for both kinds of call, so the Metis key running out of
+# credit (as it did on 2026-10-12, taking every model with it) no longer stops
+# the assistant: replies go AvalAI DeepSeek -> Metis DeepSeek -> Metis
+# gpt-4o-mini, embeddings AvalAI -> Metis Gemini -> Metis OpenAI. The two
+# OpenAI-model embeddings are the same vectors, so they share a column.
+avalai_base_url = "https://api.avalai.ir/v1"
+avalai_chat_model = "deepseek-v4.1-flash"
+avalai_embedding_model = "text-embedding-3-small"
+chat_provider_order = "avalai,deepseek,openai"
+embedding_provider_order = "avalai,gemini,openai"
 
 langsmith_tracing = True
 langsmith_endpoint = "https://api.smith.langchain.com"
@@ -148,6 +157,8 @@ bot_username = "zifyai_bot"
 
 # --- Secrets (deploy/deploy_secrets.py, gitignored) ---
 openai_api_key = secrets.openai_api_key
+# Absent from a deploy_secrets.py written before this provider existed.
+avalai_api_key = getattr(secrets, "avalai_api_key", "")
 langsmith_api_key = secrets.langsmith_api_key
 langfuse_public_key = secrets.langfuse_public_key
 langfuse_secret_key = secrets.langfuse_secret_key

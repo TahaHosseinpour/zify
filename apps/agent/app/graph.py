@@ -96,6 +96,15 @@ _deepseek_base_url = None if USE_LOCAL_MODELS else os.environ.get("DEEPSEEK_BASE
 _deepseek_model = os.environ.get("DEEPSEEK_CHAT_MODEL", "deepseek-v4-flash")
 _deepseek_api_key = os.environ.get("DEEPSEEK_API_KEY") or _api_key
 
+# A third provider, on a gateway of its own (AvalAI) with its own key, so that
+# one gateway being down or out of credit does not take every model with it.
+# It serves a DeepSeek chat model and the same embedding model as OPENAI_*.
+_avalai_base_url = None if USE_LOCAL_MODELS else os.environ.get("AVALAI_BASE_URL") or None
+_avalai_api_key = os.environ.get("AVALAI_API_KEY") or None
+_avalai_chat_model = os.environ.get("AVALAI_CHAT_MODEL", "deepseek-v4.1-flash")
+_avalai_embedding_model = os.environ.get("AVALAI_EMBEDDING_MODEL", "text-embedding-3-small")
+_avalai_on = bool(_avalai_base_url and _avalai_api_key)
+
 _gemini_base_url = None if USE_LOCAL_MODELS else os.environ.get("GEMINI_BASE_URL") or None
 _gemini_model = os.environ.get("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001")
 _gemini_api_key = os.environ.get("GEMINI_API_KEY") or _api_key
@@ -123,10 +132,30 @@ def _chat_chain(temperature: float, max_tokens: Optional[int] = None) -> Failove
                 base_url=_base_url,
                 timeout=LLM_TIMEOUT_SECONDS,
                 # With a second provider, that provider is the retry.
-                max_retries=0 if _deepseek_base_url else 1,
+                max_retries=0 if (_deepseek_base_url or _avalai_on) else 1,
             ),
         )
     ]
+    if _avalai_on:
+        links.append(
+            ChatLink(
+                "avalai",
+                ChatOpenAI(
+                    model=_avalai_chat_model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    api_key=_avalai_api_key,
+                    base_url=_avalai_base_url,
+                    timeout=LLM_TIMEOUT_SECONDS,
+                    max_retries=0,
+                    # A DeepSeek model: the same two settings as the link below,
+                    # for the same reasons.
+                    extra_body={"thinking": {"type": "disabled"}},
+                    stream_usage=True,
+                ),
+                structured_method="function_calling",
+            )
+        )
     if _deepseek_base_url:
         links.append(
             ChatLink(
@@ -172,7 +201,7 @@ embeddings = OpenAIEmbeddings(
     api_key=_api_key,
     base_url=_base_url,
     timeout=EMBEDDING_TIMEOUT_SECONDS,
-    max_retries=0 if _gemini_base_url else 1,
+    max_retries=0 if (_gemini_base_url or _avalai_on) else 1,
     # OpenAIEmbeddings tiktoken-encodes input to integer token arrays by
     # default (real OpenAI accepts either). Ollama's /v1/embeddings endpoint
     # only understands raw strings, so against it that default 400s with
@@ -215,6 +244,25 @@ def _pad_to_dim(vec: list[float], dim: int = EMBEDDING_DIM) -> list[float]:
 # it — the Vector that embed() returns carries its space for exactly that.
 PRIMARY_SPACE = EmbeddingSpace(name=PRIMARY_PROVIDER, column="embedding")
 GEMINI_SPACE = EmbeddingSpace(name="gemini", column="embedding_gemini")
+# The same embedding model as the primary one, reached through another gateway:
+# a provider of its own (own breaker, own place in the order) whose vectors are
+# the primary column's, so it shares that column and that cache.
+AVALAI_SPACE = EmbeddingSpace(name="avalai", column=PRIMARY_SPACE.column)
+
+avalai_embeddings: Optional[OpenAIEmbeddings] = (
+    OpenAIEmbeddings(
+        model=_avalai_embedding_model,
+        api_key=_avalai_api_key,
+        base_url=_avalai_base_url,
+        timeout=EMBEDDING_TIMEOUT_SECONDS,
+        max_retries=0,
+        # The gateway takes raw text, not the token arrays the client sends
+        # by default.
+        check_embedding_ctx_length=False,
+    )
+    if _avalai_on
+    else None
+)
 
 fallback_embeddings: Optional[GeminiEmbeddings] = (
     GeminiEmbeddings(
@@ -245,6 +293,8 @@ def _embedding_chain() -> list[tuple[EmbeddingSpace, object]]:
     chain: list[tuple[EmbeddingSpace, object]] = [(PRIMARY_SPACE, embeddings)]
     if fallback_embeddings is not None:
         chain.append((GEMINI_SPACE, fallback_embeddings))
+    if avalai_embeddings is not None:
+        chain.append((AVALAI_SPACE, avalai_embeddings))
     chain.sort(
         key=lambda link: EMBEDDING_PROVIDER_ORDER.index(link[0].name)
         if link[0].name in EMBEDDING_PROVIDER_ORDER
@@ -499,7 +549,8 @@ def clear_embed_caches() -> None:
 
 
 def _cache_of(space: EmbeddingSpace) -> "OrderedDict[str, list[float]]":
-    return _embed_cache if space is PRIMARY_SPACE else _fallback_embed_cache
+    # By column, not by provider: two providers of one column give one vector.
+    return _embed_cache if space.column == PRIMARY_SPACE.column else _fallback_embed_cache
 
 
 async def _embed_in(space: EmbeddingSpace, client, text: str) -> list[float]:
@@ -519,7 +570,7 @@ async def _embed_in(space: EmbeddingSpace, client, text: str) -> list[float]:
         return await running
 
     async def _embed_and_pad() -> list[float]:
-        metering.add_embedding_text(text, fallback=space is not PRIMARY_SPACE)
+        metering.add_embedding_text(text, fallback=space.column != PRIMARY_SPACE.column)
         return Vector(_pad_to_dim(await client.aembed_query(text)), space)
 
     gate = _embedding_breaker(space)
@@ -572,7 +623,7 @@ def _space_tag(space: EmbeddingSpace) -> dict:
     """Marks a row scored in the second provider's space, whose distances sit
     on a different scale (see _relevance_limits). Rows from the primary space
     stay unmarked."""
-    return {} if space is PRIMARY_SPACE else {"space": space.name}
+    return {} if space.column == PRIMARY_SPACE.column else {"space": space.name}
 
 
 async def vector_search_products(

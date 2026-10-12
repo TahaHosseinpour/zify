@@ -21,6 +21,7 @@ def isolated_providers(monkeypatch):
     monkeypatch.setattr(G, "CHAT_PROVIDER_ORDER", [])
     monkeypatch.setattr(G, "EMBEDDING_PROVIDER_ORDER", [])
     monkeypatch.setattr(G, "fallback_embeddings", None)
+    monkeypatch.setattr(G, "avalai_embeddings", None)
     monkeypatch.setattr(G, "embeddings", _NoNetworkEmbeddings())
     yield
     breaker.reset_all()

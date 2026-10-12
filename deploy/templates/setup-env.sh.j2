@@ -79,6 +79,11 @@ set_env DEEPSEEK_BASE_URL {{ sq(deepseek_base_url) }}
 set_env DEEPSEEK_CHAT_MODEL {{ sq(deepseek_chat_model) }}
 set_env GEMINI_BASE_URL {{ sq(gemini_base_url) }}
 set_env GEMINI_EMBEDDING_MODEL {{ sq(gemini_embedding_model) }}
+# A second gateway with its own key. Off unless both the URL and the key are set.
+set_env AVALAI_BASE_URL {{ sq(avalai_base_url) }}
+set_env AVALAI_API_KEY {{ sq(avalai_api_key) }}
+set_env AVALAI_CHAT_MODEL {{ sq(avalai_chat_model) }}
+set_env AVALAI_EMBEDDING_MODEL {{ sq(avalai_embedding_model) }}
 # Which provider of each kind is asked first (comma-separated, first wins).
 set_env CHAT_PROVIDER_ORDER {{ sq(chat_provider_order) }}
 set_env EMBEDDING_PROVIDER_ORDER {{ sq(embedding_provider_order) }}

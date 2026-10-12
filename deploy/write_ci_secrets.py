@@ -15,6 +15,7 @@ from pathlib import Path
 def main() -> None:
     fields = {
         "openai_api_key": os.environ.get("OPENAI_API_KEY", ""),
+        "avalai_api_key": os.environ.get("AVALAI_API_KEY", ""),
         "langsmith_api_key": os.environ.get("LANGSMITH_API_KEY", ""),
         "langfuse_public_key": os.environ.get("LANGFUSE_PUBLIC_KEY", ""),
         "langfuse_secret_key": os.environ.get("LANGFUSE_SECRET_KEY", ""),

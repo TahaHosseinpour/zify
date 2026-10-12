@@ -60,18 +60,39 @@ async function primaryEmbedding(text: string): Promise<number[]> {
     : (process.env.OPENAI_EMBEDDING_MODEL ?? "text-embedding-3-small");
   const apiKey = local ? "ollama" : process.env.OPENAI_API_KEY;
 
-  const res = await fetch(`${baseUrl}/embeddings`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({ model, input: text }),
-    signal: local ? undefined : AbortSignal.timeout(EMBEDDING_TIMEOUT_MS),
-  });
-  if (!res.ok) throw new Error(`embeddings request failed: ${res.status} ${await res.text()}`);
-  const data = await res.json();
-  return padToDim(data.data[0].embedding as number[]);
+  // The same model through a second gateway (AVALAI_*, as in the agent), asked
+  // first when it is configured: either gateway's vector belongs in this
+  // column, so a save only fails when both are down.
+  const endpoints = [{ baseUrl, model, apiKey }];
+  const avalaiUrl = (process.env.AVALAI_BASE_URL ?? "").replace(/\/$/, "");
+  if (!local && avalaiUrl && process.env.AVALAI_API_KEY) {
+    endpoints.unshift({
+      baseUrl: avalaiUrl,
+      model: process.env.AVALAI_EMBEDDING_MODEL ?? "text-embedding-3-small",
+      apiKey: process.env.AVALAI_API_KEY,
+    });
+  }
+
+  let lastError: unknown;
+  for (const endpoint of endpoints) {
+    try {
+      const res = await fetch(`${endpoint.baseUrl}/embeddings`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${endpoint.apiKey}`,
+        },
+        body: JSON.stringify({ model: endpoint.model, input: text }),
+        signal: local ? undefined : AbortSignal.timeout(EMBEDDING_TIMEOUT_MS),
+      });
+      if (!res.ok) throw new Error(`embeddings request failed: ${res.status} ${await res.text()}`);
+      const data = (await res.json()) as { data: { embedding: number[] }[] };
+      return padToDim(data.data[0].embedding);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError;
 }
 
 /** The second provider is in use only when its base URL is configured — the

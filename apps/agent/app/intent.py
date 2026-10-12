@@ -705,7 +705,8 @@ async def ask(state: Any, questions: dict) -> dict:
 
         if response.status_code == 200:
             gate.record_success()
-        elif response.status_code >= 500 or response.status_code in (408, 429):
+        elif response.status_code >= 500 or response.status_code in (402, 408, 429):
+            # 402: the account is out of credit, and stays so until topped up.
             gate.record_failure()
         else:
             gate.release()

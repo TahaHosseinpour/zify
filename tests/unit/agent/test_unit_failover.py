@@ -452,9 +452,26 @@ class TestPricing:
         assert metering.llm_cost_usd(None, 1_000_000, 1_000_000) == pytest.approx(0.75)
 
     def test_deepseek_costs_double_in_its_peak_hours(self):
-        assert metering.llm_cost_usd("deepseek-flash", 1_000_000, 1_000_000, self.OFF_PEAK) == pytest.approx(0.75)
+        assert metering.llm_cost_usd("deepseek-v4-flash", 1_000_000, 1_000_000, self.OFF_PEAK) == pytest.approx(0.75)
         assert metering.llm_cost_usd("deepseek-v4-flash", 1_000_000, 1_000_000, self.PEAK) == pytest.approx(1.5)
-        assert metering.llm_cost_usd("deepseek-flash", 1_000_000, 1_000_000, self.WEEKEND) == pytest.approx(0.75)
+        assert metering.llm_cost_usd("deepseek-v4-flash", 1_000_000, 1_000_000, self.WEEKEND) == pytest.approx(0.75)
+
+    def test_the_second_gateways_deepseek_has_its_own_flat_price(self, monkeypatch):
+        monkeypatch.setattr(metering, "AVALAI_ON", True)
+        monkeypatch.setattr(metering, "AVALAI_CHAT_MODEL", "deepseek-v4.1-flash")
+        # $0.30 in and $1.20 out per million, at any hour.
+        assert metering.llm_cost_usd("deepseek-v4.1-flash", 1_000_000, 1_000_000, self.OFF_PEAK) == pytest.approx(1.5)
+        assert metering.llm_cost_usd("deepseek-v4.1-flash", 1_000_000, 1_000_000, self.PEAK) == pytest.approx(1.5)
+
+    def test_without_the_second_gateway_that_model_is_priced_as_deepseek(self, monkeypatch):
+        monkeypatch.setattr(metering, "AVALAI_ON", False)
+        assert metering.llm_cost_usd("deepseek-v4.1-flash", 1_000_000, 1_000_000, self.OFF_PEAK) == pytest.approx(0.75)
+
+    def test_an_account_out_of_credit_counts_against_the_provider(self):
+        class OutOfCredit(Exception):
+            status_code = 402
+
+        assert B.is_provider_fault(OutOfCredit())
 
     def test_the_peak_windows_end_where_they_say(self):
         def at(hour):

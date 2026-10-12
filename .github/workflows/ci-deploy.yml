@@ -107,6 +107,7 @@ jobs:
       - name: Write deploy secrets
         env:
           OPENAI_API_KEY: ${{ secrets.DEPLOY_OPENAI_API_KEY }}
+          AVALAI_API_KEY: ${{ secrets.DEPLOY_AVALAI_API_KEY }}
           LANGSMITH_API_KEY: ${{ secrets.DEPLOY_LANGSMITH_API_KEY }}
           LANGFUSE_PUBLIC_KEY: ${{ secrets.DEPLOY_LANGFUSE_PUBLIC_KEY }}
           LANGFUSE_SECRET_KEY: ${{ secrets.DEPLOY_LANGFUSE_SECRET_KEY }}

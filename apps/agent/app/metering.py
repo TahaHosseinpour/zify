@@ -34,6 +34,15 @@ EMBEDDING_USD = float(os.environ.get("PRICE_EMBEDDING_PER_M", "0.02")) / 1_000_0
 
 # The second providers (graph.py's failover chains). A turn they answered is
 # priced at their rates, not the first provider's.
+# The second gateway (AvalAI) serves the same DeepSeek model as the DeepSeek
+# link, under the same name, at twice the rate - and a reply does not say which
+# gateway it came through. So while that gateway is configured (it is asked
+# first), a call to its model is priced at its rate whichever link answered:
+# the conversation cost cap must never be an under-count.
+AVALAI_ON = bool(os.environ.get("AVALAI_BASE_URL") and os.environ.get("AVALAI_API_KEY"))
+AVALAI_CHAT_MODEL = os.environ.get("AVALAI_CHAT_MODEL", "deepseek-v4.1-flash").lower()
+AVALAI_INPUT_USD = float(os.environ.get("PRICE_AVALAI_INPUT_PER_M", "0.30")) / 1_000_000
+AVALAI_OUTPUT_USD = float(os.environ.get("PRICE_AVALAI_OUTPUT_PER_M", "1.20")) / 1_000_000
 DEEPSEEK_INPUT_USD = float(os.environ.get("PRICE_DEEPSEEK_INPUT_PER_M", "0.15")) / 1_000_000
 DEEPSEEK_OUTPUT_USD = float(os.environ.get("PRICE_DEEPSEEK_OUTPUT_PER_M", "0.60")) / 1_000_000
 # DeepSeek charges double during its peak hours: 01:00-04:00 and 06:00-10:00
@@ -118,6 +127,10 @@ def llm_cost_usd(
     model: Optional[str], input_tokens: int, output_tokens: int, when: Optional[datetime] = None
 ) -> float:
     """What one LLM call cost, at the rates of the model that answered it."""
+    # Checked before the DeepSeek rule: this gateway's model is a DeepSeek one
+    # by name too, but it is billed at the gateway's own flat rate.
+    if AVALAI_ON and model and model.lower() == AVALAI_CHAT_MODEL:
+        return input_tokens * AVALAI_INPUT_USD + output_tokens * AVALAI_OUTPUT_USD
     if model and model.lower().startswith("deepseek"):
         rate = DEEPSEEK_PEAK_MULTIPLIER if _deepseek_peak(when or datetime.now(timezone.utc)) else 1.0
         return (input_tokens * DEEPSEEK_INPUT_USD + output_tokens * DEEPSEEK_OUTPUT_USD) * rate

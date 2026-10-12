@@ -120,7 +120,10 @@ def reset_all() -> None:
 
 # Statuses that say the *provider* is in trouble (or refuses us entirely), as
 # opposed to this one request being wrong.
-_PROVIDER_FAULT_STATUSES = {401, 403, 408, 429}
+# 402 is the gateway saying the account is out of credit: every call will fail
+# the same way until someone tops it up, so it has to open the breaker - left
+# out, each message paid for a failed round trip to that provider first.
+_PROVIDER_FAULT_STATUSES = {401, 402, 403, 408, 429}
 
 
 def is_provider_fault(exc: BaseException) -> bool:

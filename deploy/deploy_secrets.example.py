@@ -11,6 +11,10 @@ Named `deploy_secrets`, not `secrets`, so it can't shadow Python's stdlib
 # embeddings. Required: without it, the agent starts but every LLM call fails.
 openai_api_key = ""
 
+# AvalAI (https://avalai.ir) - the gateway asked first for replies and
+# embeddings. Empty turns it off and leaves the Metis providers on their own.
+avalai_api_key = ""
+
 # LangSmith tracing (https://smith.langchain.com) - optional, leave blank to
 # run without tracing.
 langsmith_api_key = ""
