@@ -21,10 +21,15 @@ export const MAX_MESSAGE_CHARS = 300;
 /** Mirrors CONVERSATION_COST_CAP_TOMAN in @zify/shared - kept as its own
  * constant here so this package needs no dependency on that one. */
 export const MAX_CONVERSATION_COST_TOMAN = 3_000;
-/** The most one turn can cost with every per-turn limit at its maximum
- * (measured: ~550). A conversation whose recorded spend is within this of the
- * ceiling is closed rather than allowed one more turn that could cross it. */
-export const MAX_TURN_COST_TOMAN = 600;
+/** The most one turn can cost with every per-turn limit at its maximum. A
+ * conversation whose recorded spend is within this of the ceiling is closed
+ * rather than allowed one more turn that could cross it.
+ *
+ * Measured at ~550 when replies came from a model at $0.15 / $0.60 per million
+ * tokens. The model asked first now costs twice that and may write 400 tokens
+ * instead of 300, so this is that figure doubled - an estimate, not yet
+ * measured again. */
+export const MAX_TURN_COST_TOMAN = 1_200;
 /** Two messages closer together than this are a script, not a person. */
 export const MIN_MESSAGE_INTERVAL_MS = 3_000;
 /** New conversations one customer may start in 24 hours. */

@@ -68,8 +68,10 @@ else:
 # Hard ceiling on the length of a reply. A subscription is priced on what a
 # conversation can cost at most (packages/shared/src/plans.ts), and output
 # tokens are the most expensive ones; without this a single reply has no upper
-# bound at all. Replies measure 180-270 tokens, so this cuts nothing normal.
-REPLY_MAX_TOKENS = 300
+# bound at all. Counted in the answering model's own tokens: the same Persian
+# reply that is 253 tokens for gpt-4o-mini is about 330 for deepseek-v4.1-flash,
+# and at 300 that model's ordinary replies were cut off mid-sentence.
+REPLY_MAX_TOKENS = 400
 
 # ── Provider failover ─────────────────────────────────────────────────────────
 #
@@ -170,7 +172,7 @@ def _chat_chain(temperature: float, max_tokens: Optional[int] = None) -> Failove
                     max_retries=1,
                     # This model reasons before answering unless told not to,
                     # and the reasoning is billed against max_tokens: a
-                    # 300-token reply came back cut short or empty.
+                    # reply came back cut short or empty.
                     extra_body={"thinking": {"type": "disabled"}},
                     # Token counts are not sent on a streamed reply unless
                     # asked for, and an unmetered reply is unbilled spend.

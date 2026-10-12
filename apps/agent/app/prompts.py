@@ -145,9 +145,19 @@ UNKNOWN_SHOP_FACT_RULE = (
 # a line of description each do not fit under it, and the reply was cut off
 # mid-sentence. Saying so in the prompt keeps the ceiling from ever being what
 # ends the message.
+#
+# The last two lines are about one failure seen on 2026-10-12. The reply
+# recommended a single product, then spent a paragraph naming two others only
+# to say they did not fit: that paragraph pushed the reply past the ceiling,
+# and because a product card is sent for every product the reply names
+# (graph._mentioned_products), the customer got three cards for one suggestion.
 BREVITY_RULE = (
     "⚠️ پاسخ باید کوتاه بماند: حداکثر ۴ محصول را معرفی کن و برای هر کدام فقط یک خط بنویس "
     "(نام، قیمت و یک ویژگی). اگر موارد مرتبط بیشترند، مرتبط‌ترین‌ها را انتخاب کن.\n"
+    "⚠️ فقط از محصولی نام ببر که پیشنهادش می‌کنی. محصولی را که پیشنهاد نمی‌کنی اصلا نام نبر "
+    "و توضیح نده چرا مناسب نیست.\n"
+    "⚠️ کل پاسخ از حدود ۱۲۰ کلمه بیشتر نشود و با یک جمله کامل تمام شود. نکته یا توضیح اضافه‌ای "
+    "که مشتری نپرسیده ننویس.\n"
 )
 
 SORT_NOTES = {

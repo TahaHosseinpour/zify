@@ -276,7 +276,7 @@ describe("quota arithmetic", () => {
     const fresh = { userMessageCount: 1, costToman: 0 as never }
     expect(isConversationSpent(fresh)).toBe(false)
     expect(isConversationSpent({ ...fresh, userMessageCount: MAX_MESSAGES_PER_CONVERSATION })).toBe(true)
-    expect(isConversationSpent({ ...fresh, costToman: 2_500 as never })).toBe(true)
-    expect(isConversationSpent({ ...fresh, costToman: 2_400 as never })).toBe(false)
+    expect(isConversationSpent({ ...fresh, costToman: 1_900 as never })).toBe(true)
+    expect(isConversationSpent({ ...fresh, costToman: 1_800 as never })).toBe(false)
   })
 })

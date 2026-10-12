@@ -21,7 +21,7 @@ from tests.conftest import FakeShop
 
 class TestPromptSizeBounds:
     def test_a_reply_has_a_token_ceiling(self):
-        assert G.llm.max_tokens == G.REPLY_MAX_TOKENS == 300
+        assert G.llm.max_tokens == G.REPLY_MAX_TOKENS == 400
 
     def test_a_long_product_description_cannot_inflate_the_context(self):
         content = G._product_content(
