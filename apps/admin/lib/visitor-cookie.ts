@@ -39,6 +39,13 @@ export function readVisitorId(req: NextRequest): string | null {
 
 /** A `Set-Cookie` header value that makes `id` this browser's visitor id. */
 export function visitorCookieHeader(id: string): string {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : ""
-  return `${VISITOR_COOKIE}=${id}.${sign(id)}; Path=/; Max-Age=${ONE_YEAR_SECONDS}; HttpOnly; SameSite=Lax${secure}`
+  // The site widget runs this chat inside a frame on the shop's own domain,
+  // where a SameSite=Lax cookie is never sent and every message would look
+  // like a brand-new visitor. SameSite=None lets it through, and Partitioned
+  // keeps it scoped to the site it was set under, so it cannot be used to
+  // follow a visitor from one shop's site to another. Both need HTTPS, so
+  // plain-HTTP local development keeps Lax.
+  const attributes =
+    process.env.NODE_ENV === "production" ? "SameSite=None; Secure; Partitioned" : "SameSite=Lax"
+  return `${VISITOR_COOKIE}=${id}.${sign(id)}; Path=/; Max-Age=${ONE_YEAR_SECONDS}; HttpOnly; ${attributes}`
 }

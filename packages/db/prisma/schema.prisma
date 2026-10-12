@@ -47,6 +47,9 @@ model Shop {
   personaCharacter  String?
   personaTone       String?
   systemPromptExtra String?
+  // What the assistant opens a conversation with, on every channel. Null
+  // means the built-in greeting.
+  welcomeMessage    String?
   ownerId           String
   createdAt         DateTime @default(now())
 

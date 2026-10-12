@@ -3,6 +3,8 @@ import { getSession } from "@/lib/auth"
 import { prisma } from "@zify/db"
 import { rebuildShopInfoChunks } from "@/lib/embeddings"
 
+const WELCOME_MESSAGE_MAX = 500
+
 export async function GET() {
   const session = await getSession()
   if (!session) return NextResponse.json(null, { status: 401 })
@@ -63,6 +65,11 @@ export async function PATCH(req: NextRequest) {
 
   const body = await req.json()
   const { name, slug, description, categories, supportInfo, personaCharacter, personaTone, systemPromptExtra } = body
+  // Empty means "use the built-in greeting"; the cap keeps it a greeting.
+  const welcomeMessage =
+    typeof body.welcomeMessage === "string"
+      ? body.welcomeMessage.trim().slice(0, WELCOME_MESSAGE_MAX) || null
+      : undefined
 
   if (slug !== undefined && slug !== shop.slug) {
     if (!slug) {
@@ -88,6 +95,7 @@ export async function PATCH(req: NextRequest) {
       ...(personaCharacter !== undefined && { personaCharacter }),
       ...(personaTone !== undefined && { personaTone }),
       ...(systemPromptExtra !== undefined && { systemPromptExtra }),
+      ...(welcomeMessage !== undefined && { welcomeMessage }),
     },
   })
 

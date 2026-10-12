@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table"
 import { toast } from "sonner"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Add01Icon, Edit01Icon, Delete01Icon, FileImportIcon, Download04Icon } from "@hugeicons/core-free-icons"
+import { Add01Icon, Edit01Icon, Delete01Icon, FileImportIcon, Download04Icon, CopyLinkIcon } from "@hugeicons/core-free-icons"
 import Papa from "papaparse"
 import * as XLSX from "xlsx"
 
@@ -60,6 +60,16 @@ export default function ProductsPage() {
   const [deleteAllOpen, setDeleteAllOpen] = useState(false)
   const [deletingAll, setDeletingAll] = useState(false)
   const bulkFileRef = useRef<HTMLInputElement>(null)
+  const [shopSlug, setShopSlug] = useState("")
+
+  const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || "ZifyBot"
+
+  // The Telegram link that opens the assistant on this one product
+  // (apps/telegram-bot reads the part after the shop's slug as a product id).
+  function copyProductLink(p: Product) {
+    navigator.clipboard.writeText(`https://t.me/${botUsername}?start=${shopSlug}_${p.id}`)
+    toast.success("لینک تلگرام این محصول کپی شد")
+  }
 
   // Offered as autocomplete so the same category keeps the same spelling. The
   // agent matches this column exactly, so "کفش ورزشی" and "کفش‌ورزشی" would be
@@ -83,6 +93,9 @@ export default function ProductsPage() {
         setProducts(data)
         setLoading(false)
       })
+    fetch("/api/shop")
+      .then((res) => res.json())
+      .then((shop) => setShopSlug(shop?.slug ?? ""))
   }, [])
 
   function openNew() {
@@ -299,6 +312,17 @@ export default function ProductsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1 justify-end">
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          // The bot only opens a product that is active.
+                          disabled={!shopSlug || !p.isActive}
+                          title="کپی لینک تلگرام این محصول"
+                          aria-label="کپی لینک تلگرام این محصول"
+                          onClick={() => copyProductLink(p)}
+                        >
+                          <HugeiconsIcon icon={CopyLinkIcon} />
+                        </Button>
                         <Button size="icon-sm" variant="ghost" onClick={() => openEdit(p)}>
                           <HugeiconsIcon icon={Edit01Icon} />
                         </Button>

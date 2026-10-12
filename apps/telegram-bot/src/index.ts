@@ -8,6 +8,7 @@ import {
   resumeConversation,
   listRecentConversations,
   getUsageStatus,
+  isChannelActive,
 } from "@zify/db"
 import type { ChatRequest, ChatResponse } from "@zify/shared"
 import { formatDateTime, withNavRow } from "./ui"
@@ -19,6 +20,10 @@ const AGENT_INTERNAL_KEY = process.env.AGENT_INTERNAL_KEY
 if (!BOT_TOKEN) throw new Error("TELEGRAM_BOT_TOKEN is required")
 
 const bot = new Bot(BOT_TOKEN)
+
+// What a customer is told when the shop has switched its Telegram channel off
+// in the panel (packages/db/src/channels.ts).
+const TELEGRAM_OFF = "دستیار این فروشگاه در تلگرام فعال نیست."
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -102,6 +107,10 @@ bot.command("start", async (ctx) => {
     await ctx.reply("فروشگاه یافت نشد.")
     return
   }
+  if (!(await isChannelActive(shop.id, "telegram"))) {
+    await ctx.reply(TELEGRAM_OFF)
+    return
+  }
 
   const endUser = await upsertEndUser(shop.id, telegramUserId, firstName, username)
   // A link to a product that is gone, or that belongs to another shop, opens
@@ -113,9 +122,15 @@ bot.command("start", async (ctx) => {
   await getOrStartConversation(shop.id, endUser.id, mode, product?.id)
   await recordEvent(shop.id, endUser.id, "view")
 
+  // The shop's own greeting (panel settings) replaces the built-in one; a
+  // product link still names the product either way.
+  const greeting =
+    shop.welcomeMessage?.trim() ||
+    `سلام ${firstName ?? ""}! 👋 به ${shop.name} خوش آمدید.` +
+      (product ? "" : "\nمی‌توانم در یافتن محصول مناسب کمکتان کنم.")
   const welcomeMsg = product
-    ? `سلام ${firstName ?? ""}! 👋 به ${shop.name} خوش آمدید.\nدرباره «${product.name}» هر سؤالی دارید بپرسید.`
-    : `سلام ${firstName ?? ""}! 👋 به ${shop.name} خوش آمدید.\nمی‌توانم در یافتن محصول مناسب کمکتان کنم.`
+    ? `${greeting}\nدرباره «${product.name}» هر سؤالی دارید بپرسید.`
+    : greeting
 
   await ctx.reply(welcomeMsg, { reply_markup: withNavRow() })
 })
@@ -132,6 +147,10 @@ bot.on("message:text", async (ctx) => {
   const endUser = await resolveEndUserForTelegram(telegramUserId)
   if (!endUser) {
     await ctx.reply("لطفاً ابتدا از طریق لینک اختصاصی فروشگاه وارد شوید.")
+    return
+  }
+  if (!(await isChannelActive(endUser.shopId, "telegram"))) {
+    await ctx.reply(TELEGRAM_OFF)
     return
   }
 

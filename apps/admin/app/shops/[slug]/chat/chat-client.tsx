@@ -75,9 +75,10 @@ function ChatTopBar({
   )
 }
 
-export function ShopChatClient({ slug, shopName, initialMessage }: {
+export function ShopChatClient({ slug, shopName, welcomeMessage, initialMessage }: {
   slug: string
   shopName: string
+  welcomeMessage?: string | null
   initialMessage: string
 }) {
   const [webVisitorId] = useState(() => getOrCreateVisitorId())
@@ -158,7 +159,7 @@ export function ShopChatClient({ slug, shopName, initialMessage }: {
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 px-4">
               <div className="flex flex-col items-center gap-1 text-center">
                 <h2 className="bg-gradient-to-r from-muted-foreground via-muted-foreground/70 to-muted-foreground/40 bg-clip-text text-2xl font-semibold text-transparent">
-                  بنویس دنبال چی هستی کمکت کنم؟
+                  {welcomeMessage || "بنویس دنبال چی هستی کمکت کنم؟"}
                 </h2>
               </div>
 

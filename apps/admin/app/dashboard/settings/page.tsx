@@ -25,12 +25,13 @@ interface SettingsForm {
   personaCharacter: string
   personaTone: string
   systemPromptExtra: string
+  welcomeMessage: string
 }
 
 export default function SettingsPage() {
   const [form, setForm] = useState<SettingsForm>({
     slug: "", name: "", description: "", categories: "", supportInfo: "",
-    personaCharacter: "", personaTone: "formal", systemPromptExtra: "",
+    personaCharacter: "", personaTone: "formal", systemPromptExtra: "", welcomeMessage: "",
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -98,6 +99,7 @@ export default function SettingsPage() {
             personaCharacter: shop.personaCharacter ?? "",
             personaTone: shop.personaTone ?? "formal",
             systemPromptExtra: shop.systemPromptExtra ?? "",
+            welcomeMessage: shop.welcomeMessage ?? "",
           })
         }
       })
@@ -232,6 +234,19 @@ export default function SettingsPage() {
                 <SelectItem value="casual">خودمانی</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>پیام شروع گفت‌وگو</Label>
+            <Textarea
+              value={form.welcomeMessage}
+              onChange={(e) => setForm((p) => ({ ...p, welcomeMessage: e.target.value }))}
+              rows={2}
+              maxLength={500}
+              placeholder="مثال: سلام! به فروشگاه ما خوش آمدید. دنبال چه محصولی هستید؟"
+            />
+            <p className="text-xs text-muted-foreground">
+              اولین چیزی که مشتری در تلگرام، چت وب و ویجت سایت می‌بیند. اگر خالی بماند، پیام پیش‌فرض نمایش داده می‌شود.
+            </p>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>دستورالعمل‌های اضافی</Label>
